@@ -10,3 +10,6 @@ Thumbs.db
 
 # created when the test harness runs the plugin
 /Resources/
+
+# unrelated project that shares this directory
+/metro-ads-platform/
