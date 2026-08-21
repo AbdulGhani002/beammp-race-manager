@@ -1,0 +1,9 @@
+build/
+*.zip
+!client/**/*.zip
+server/data/*.json
+server/data/tracks/*.json
+server/data/*.bad
+*.log
+.DS_Store
+Thumbs.db
