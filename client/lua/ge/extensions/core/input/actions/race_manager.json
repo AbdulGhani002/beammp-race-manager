@@ -1,0 +1,30 @@
+{
+  "rm_mark_checkpoint": {
+    "onDown": "extensions.raceManager_capture.mark()",
+    "title": "Race Manager: mark checkpoint",
+    "desc": "Drop a checkpoint where the car is standing, facing the way it points",
+    "cat": "gameplay",
+    "order": 10
+  },
+  "rm_undo_checkpoint": {
+    "onDown": "extensions.raceManager_capture.undo()",
+    "title": "Race Manager: undo last checkpoint",
+    "desc": "Remove the checkpoint that was placed most recently",
+    "cat": "gameplay",
+    "order": 11
+  },
+  "rm_set_start": {
+    "onDown": "extensions.raceManager_capture.setStart()",
+    "title": "Race Manager: set start line",
+    "desc": "Put the grid where the car is standing",
+    "cat": "gameplay",
+    "order": 12
+  },
+  "rm_toggle_players": {
+    "onDown": "extensions.raceManager_ui.togglePlayers()",
+    "title": "Race Manager: player list",
+    "desc": "Show or hide the player list",
+    "cat": "gameplay",
+    "order": 13
+  }
+}
