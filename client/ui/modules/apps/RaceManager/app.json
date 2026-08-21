@@ -1,0 +1,18 @@
+{
+  "domElement": "<race-manager></race-manager>",
+  "name": "Race Manager",
+  "types": ["ui.apps.categories.gameplay"],
+  "description": "Top bar, bottom bar, player list and the checkpoint capture tool",
+  "author": "Race Manager",
+  "version": "0.2.0",
+  "directive": "raceManager",
+  "css": {
+    "top": "0px",
+    "left": "0px",
+    "width": "100%",
+    "height": "100%",
+    "min-width": "640px",
+    "min-height": "360px",
+    "background": "transparent"
+  }
+}

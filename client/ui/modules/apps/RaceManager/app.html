@@ -1,0 +1,195 @@
+<div class="rm-root">
+  <link rel="stylesheet" type="text/css" href="/ui/modules/apps/RaceManager/app.css" />
+
+  <!-- first join. no password, no signup: pick a name once. -->
+  <div class="rm-veil" ng-if="s.ready && s.needsName">
+    <div class="rm-card rm-name">
+      <h2>Pick your name</h2>
+      <p>This is the name everyone sees on the board. You choose it once.</p>
+      <input type="text" ng-model="nameDraft" ng-keydown="$event.keyCode === 13 && submitName()"
+             maxlength="{{ s.config.nameMaxLen || 20 }}" placeholder="Your name" autofocus />
+      <div class="rm-problem" ng-if="nameProblem()">{{ nameProblem() }}</div>
+      <div class="rm-hint" ng-if="!nameProblem()">
+        {{ s.config.nameMinLen || 3 }} to {{ s.config.nameMaxLen || 20 }} characters.
+      </div>
+      <button class="rm-primary" ng-disabled="!nameOk()" ng-click="submitName()">Continue</button>
+    </div>
+  </div>
+
+  <div ng-if="s.ready && !s.needsName">
+
+    <!-- top banner -->
+    <div class="rm-top">
+      <button ng-repeat="b in buttons" ng-click="open(b.key)"
+              ng-class="{on: panel === b.key}">{{ b.label }}</button>
+      <button class="rm-players-toggle" ng-click="togglePlayers()"
+              ng-class="{on: s.rosterOpen}">Players</button>
+    </div>
+
+    <!-- side player list -->
+    <div class="rm-players" ng-if="s.rosterOpen">
+      <div class="rm-players-head">
+        <span>On track</span><span class="rm-count">{{ s.roster.length }}</span>
+      </div>
+      <div class="rm-row" ng-repeat="p in s.roster" ng-class="{me: p.id === s.me.id}">
+        <span class="rm-lvl">{{ p.level }}</span>
+        <span class="rm-name">{{ p.name }}<em ng-if="p.guest"> guest</em></span>
+        <span class="rm-speed">{{ p.speed }}<small>mph</small></span>
+        <span class="rm-ping" ng-class="pingClass(p.ping)">{{ p.ping >= 0 ? p.ping : "-" }}</span>
+      </div>
+      <div class="rm-empty" ng-if="!s.roster.length">Nobody here yet.</div>
+    </div>
+
+    <!-- panels -->
+    <div class="rm-card rm-panel" ng-if="panel && panel !== 'options' && panel !== 'capture'">
+      <button class="rm-x" ng-click="close()">close</button>
+      <h2>{{ panel === 'bottom' ? 'Recovery' : (buttons | filter:{key: panel})[0].label }}</h2>
+      <p class="rm-soon">{{ panel === 'bottom' ? SOON.bottom : SOON[panel] }}</p>
+      <p class="rm-hint">The button is here so the layout is final. What sits behind it is not built yet.</p>
+    </div>
+
+    <div class="rm-card rm-panel" ng-if="panel === 'options'">
+      <button class="rm-x" ng-click="close()">close</button>
+      <h2>Options</h2>
+
+      <div class="rm-you">
+        <strong>{{ s.me.name }}</strong>
+        <span class="rm-role">{{ s.me.role }}</span>
+        <span class="rm-lvl">level {{ s.me.level }}</span>
+        <span class="rm-warn" ng-if="s.me.guest">guest, results are not recorded</span>
+      </div>
+
+      <div class="rm-group">
+        <h3>Frame rate</h3>
+        <p class="rm-hint">Measures thirty seconds and sends the result to the server.
+          Run it once with the mod off and once with it on.</p>
+        <div class="rm-buttons">
+          <button ng-click="startPerf('mod on')" ng-disabled="s.perf.running">Measure now</button>
+          <span class="rm-running" ng-if="s.perf.running">measuring, {{ s.perf.left | number:0 }}s left</span>
+        </div>
+        <div class="rm-result" ng-if="s.perf.last">
+          {{ s.perf.last.label }}: avg {{ s.perf.last.avg | number:1 }},
+          1% low {{ s.perf.last.p1low | number:1 }},
+          min {{ s.perf.last.min | number:1 }},
+          max {{ s.perf.last.max | number:1 }}
+        </div>
+      </div>
+
+      <div class="rm-group" ng-if="s.isAdmin">
+        <h3>Course tools</h3>
+        <button ng-click="panel = 'capture'">Checkpoint capture</button>
+      </div>
+
+      <div class="rm-group">
+        <h3>Later</h3>
+        <p class="rm-soon">Language and XP tracking arrive in phase 6.</p>
+      </div>
+
+      <div class="rm-group">
+        <button ng-click="demoteSelf()"
+                ng-disabled="s.me.role === 'player' || s.me.role === 'owner'">Demote myself</button>
+        <button class="rm-danger" ng-click="exitServer()">Leave server</button>
+      </div>
+    </div>
+
+    <!-- checkpoint capture. drive the route, press the key at each point. -->
+    <div class="rm-card rm-panel rm-capture" ng-if="panel === 'capture'">
+      <button class="rm-x" ng-click="close()">close</button>
+      <h2>Checkpoint capture</h2>
+
+      <div class="rm-problem" ng-if="captureProblem()">{{ captureProblem() }}</div>
+
+      <div ng-if="!s.capture.active">
+        <p class="rm-hint">Name the course, then drive it and press your mark key at
+          each checkpoint. The map file is never touched.</p>
+
+        <label>Course name
+          <input type="text" ng-model="newTrack.name" maxlength="40" placeholder="Baja 1000" />
+        </label>
+
+        <label>Kind
+          <select ng-model="newTrack.kind">
+            <option value="race">Race</option>
+            <option value="qualifying">Qualifying</option>
+            <option value="timeattack">Time attack</option>
+          </select>
+        </label>
+
+        <label class="rm-check">
+          <input type="checkbox" ng-model="newTrack.circuit" /> Circuit, finish is the start line
+        </label>
+        <label class="rm-check">
+          <input type="checkbox" ng-model="newTrack.overwrite" /> Replace a course with this name
+        </label>
+
+        <button class="rm-primary" ng-disabled="!newTrack.name || newTrack.name.length < 2"
+                ng-click="startCapture()">Start capturing</button>
+
+        <h3 ng-if="s.tracks.length">Saved courses</h3>
+        <div class="rm-track" ng-repeat="t in s.tracks">
+          <span class="rm-track-name">{{ t.name }}</span>
+          <span class="rm-track-meta">{{ t.kind }} &middot; {{ t.count }} checkpoints &middot; {{ t.level }}</span>
+          <button ng-click="cap('openTrack', t.id)">Show</button>
+          <button class="rm-danger" ng-click="cap('deleteTrack', t.id)">Delete</button>
+        </div>
+      </div>
+
+      <div ng-if="s.capture.active">
+        <div class="rm-capture-live">
+          <span class="rm-big">{{ s.capture.count }}</span>
+          <span class="rm-capture-sub">checkpoints on {{ s.capture.name }}</span>
+          <span class="rm-capture-sub" ng-if="s.capture.count">
+            {{ s.capture.distance }}m since the last one
+          </span>
+        </div>
+
+        <p class="rm-hint">Bind the mark key under Options, Controls, Gameplay.
+          Nothing is lost if the game closes: the draft lives on the server.</p>
+
+        <div class="rm-buttons">
+          <button class="rm-primary" ng-click="cap('mark')">Mark here</button>
+          <button ng-click="cap('undo')" ng-disabled="!s.capture.count">Undo last</button>
+          <button ng-click="cap('setStart')">Set start line</button>
+        </div>
+
+        <h3>Gate size</h3>
+        <p class="rm-hint">Applies to the next gate, and corrects the one just placed.</p>
+        <div class="rm-gate">
+          <label>Width <input type="number" min="2" max="200" ng-model="s.capture.gate.w" /></label>
+          <label>Height <input type="number" min="2" max="60" ng-model="s.capture.gate.h" /></label>
+          <label>Depth <input type="number" min="1" max="40" ng-model="s.capture.gate.d" /></label>
+          <button ng-click="cap('setGate', [s.capture.gate.w, s.capture.gate.h, s.capture.gate.d])">Apply</button>
+        </div>
+
+        <div class="rm-buttons rm-finish">
+          <button class="rm-primary" ng-disabled="s.capture.count < 2"
+                  ng-click="cap('finish')">Save course</button>
+          <button class="rm-danger" ng-click="cap('cancel')">Throw it away</button>
+        </div>
+      </div>
+
+      <div class="rm-group" ng-if="s.capture.previewing">
+        <p class="rm-hint">The gates are on the map. Drive through them to check the course,
+          then close the preview.</p>
+        <button ng-click="cap('stopPreview')">Hide gates</button>
+      </div>
+    </div>
+
+    <!-- bottom bar. every one of these needs the car stopped. -->
+    <div class="rm-bottom">
+      <div class="rm-lightmenu" ng-if="lights">
+        <button ng-repeat="l in lightItems" ng-click="panel = 'bottom'">{{ l }}</button>
+      </div>
+      <button ng-repeat="b in bottom" ng-click="bottomClick(b)"
+              ng-disabled="!stopped() && b.key !== 'lights'"
+              title="{{ b.note }}">{{ b.label }}</button>
+      <span class="rm-moving" ng-if="!stopped()">stop the car to use these</span>
+    </div>
+
+    <div class="rm-toast" ng-if="s.toast" ng-click="clearToast()">
+      <span ng-if="s.toast.key === 'player_named'">{{ s.toast.a }} joined the board</span>
+    </div>
+  </div>
+
+  <div class="rm-offline" ng-if="!s.ready">Race Manager is connecting</div>
+</div>
