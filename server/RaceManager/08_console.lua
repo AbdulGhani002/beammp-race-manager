@@ -13,6 +13,7 @@ local HELP = {
   "rm track <id>          checkpoints for one course",
   "rm drafts              captures in progress",
   "rm role <name> <role>  owner | admin | staff | player",
+  "rm forget <name>      drop a stored player, frees the display name",
   "rm perf                recorded FPS runs",
   "rm save                write every store now",
 }
@@ -100,6 +101,18 @@ local function setRole(say, name, role)
   end
 end
 
+local function forget(say, name)
+  if not name then say("  usage: rm forget <name>") return end
+  local key = RM.identity.keyForName(name)
+  if not key then say("  nobody by that display name has ever joined") return end
+  local ok, why = RM.identity.forget(key)
+  if ok then
+    say(("  forgot %s, the name is free again"):format(name))
+  else
+    say("  " .. tostring(why))
+  end
+end
+
 function RM.console.handle(input)
   if type(input) ~= "string" then return end
   local rest = input:match("^%s*rm%s+(.*)$")
@@ -126,6 +139,9 @@ function RM.console.handle(input)
   elseif cmd == "role" then
     local name, role = rest:match("^role%s+(.+)%s+(%S+)%s*$")
     setRole(say, name, role)
+  elseif cmd == "forget" then
+    local name = rest:match("^forget%s+(.+)%s*$")
+    forget(say, name)
   elseif cmd == "save" then
     say(("wrote %d store(s)"):format(RM.store.flushAll()))
   else

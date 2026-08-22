@@ -240,6 +240,11 @@ ok(true, "an oversized batch did not raise")
 
 eq(RM.util.handlerErrorCount(), 0, "no handler raised at any point")
 
+section("forgetting a stored player")
+eq(RM.console.handle("rm forget Speedy"):find("still_connected") ~= nil, true,
+   "a connected player cannot be forgotten")
+eq(RM.identity.keyForName("Speedy") ~= nil, true, "and is still known")
+
 section("persistence")
 RM.store.flushAll()
 local raw = io.open("Resources/Server/RaceManager/data/tracks.json", "rb")
@@ -265,6 +270,10 @@ M.fire("onPlayerDisconnect", 0)
 M.removePlayer(0)
 tick(2)
 ok(true, "an empty server keeps ticking without raising")
+
+ok(RM.console.handle("rm forget Speedy"):find("free again") ~= nil,
+   "a disconnected player can be forgotten")
+eq(RM.identity.keyForName("Speedy"), nil, "and the display name is free again")
 
 M.fire("onShutdown")
 

@@ -162,3 +162,22 @@ function RM.identity.checkHello()
 end
 
 function RM.identity.markDirty() RM.store.markDirty(STORE) end
+
+-- Drop a stored player entirely. Guests key on the name BeamMP hands them,
+-- which changes between sessions, so testing without a forum account leaves
+-- dead display names behind that nothing else can free up.
+function RM.identity.forget(key)
+  local rec = players[key]
+  if not rec then return false, "no_such_player" end
+  if RM.identity.pidForKey(key) then return false, "still_connected" end
+
+  if type(rec.name) == "string" and rec.name ~= "" then
+    taken[rec.name:lower()] = nil
+  end
+  players[key] = nil
+
+  RM.store.markDirty(STORE)
+  RM.store.flushNow(STORE)
+  RM.info(("forgot %s"):format(key))
+  return true
+end
