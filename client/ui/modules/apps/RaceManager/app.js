@@ -102,9 +102,13 @@ angular.module("beamng.apps")
       ];
 
       $scope.open = function (key) {
-        if (key === "discord") { ui("openDiscord"); return; }
         $scope.panel = ($scope.panel === key) ? null : key;
       };
+
+      // the game is fullscreen and keeps focus, so a browser opened from here
+      // lands behind it. the panel shows the link so the button is never a
+      // dead end.
+      $scope.launchDiscord = function () { ui("openDiscord"); };
 
       $scope.close = function () { $scope.panel = null; };
 

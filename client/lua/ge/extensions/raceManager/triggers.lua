@@ -163,29 +163,74 @@ local function onBeamNGTrigger(data)
   extensions.raceManager_capture.onGatePassed(tonumber(index))
 end
 
--- the gate number floating above each box. the boxes themselves are drawn by
--- the engine, so this only runs while a course is on screen, which is never
--- during a normal race.
+-- The trigger volume itself only renders inside the world editor, so the gate
+-- you see is drawn here: two posts, a top bar and a translucent face across
+-- the middle, built from the same width, height and yaw the volume uses. What
+-- is on screen is the thing you have to drive through, not a marker near it.
+--
+-- Preview only. Nothing here runs during a race.
+
+local POST    = ColorF(0.10, 0.70, 1.00, 0.90)
+local FACE    = ColorF(0.10, 0.60, 1.00, 0.13)
+local LABEL   = ColorF(1, 1, 1, 1)
+local LABELBG = ColorI(10, 90, 130, 200)
+
+local DRAW_RANGE = 900
 local errLogged = false
+
+local function drawGate(cp, index)
+  local w, h = gateOf(cp)
+  local yaw = tonumber(cp.yaw) or 0
+
+  -- across the gate is perpendicular to the way you drive through it
+  local rx, ry = -math.sin(yaw), math.cos(yaw)
+  local half = w * 0.5
+
+  local lx, ly = cp.pos.x + rx * half, cp.pos.y + ry * half
+  local rx2, ry2 = cp.pos.x - rx * half, cp.pos.y - ry * half
+  local z = cp.pos.z
+
+  local l  = vec3(lx, ly, z)
+  local r  = vec3(rx2, ry2, z)
+  local lt = vec3(lx, ly, z + h)
+  local rt = vec3(rx2, ry2, z + h)
+
+  debugDrawer:drawCylinder(l, lt, 0.22, POST)
+  debugDrawer:drawCylinder(r, rt, 0.22, POST)
+  debugDrawer:drawCylinder(lt, rt, 0.16, POST)
+  debugDrawer:drawQuadSolid(l, r, rt, lt, FACE)
+
+  debugDrawer:drawTextAdvanced(
+    vec3(cp.pos.x, cp.pos.y, z + h + 1.2),
+    String(tostring(index)), LABEL, true, false, LABELBG)
+end
 
 local function onUpdate()
   if not visible or not course then return end
+
+  local eye
+  local okEye, p = pcall(function() return core_camera.getPosition() end)
+  if okEye then eye = p end
+
   local cps = course.checkpoints
   local ok, err = pcall(function()
     for i = 1, #cps do
       local cp = cps[i]
-      debugDrawer:drawTextAdvanced(
-        vec3(cp.pos.x, cp.pos.y, cp.pos.z + 3),
-        String(tostring(i)),
-        ColorF(1, 1, 1, 1), true, false,
-        ColorI(10, 90, 130, 200))
+      local near = true
+      if eye then
+        local dx, dy = cp.pos.x - eye.x, cp.pos.y - eye.y
+        near = (dx * dx + dy * dy) < (DRAW_RANGE * DRAW_RANGE)
+      end
+      if near then drawGate(cp, i) end
     end
   end)
+
   if not ok and not errLogged then
     errLogged = true
-    log("W", "raceManager", "could not draw gate numbers: " .. tostring(err))
+    log("W", "raceManager", "could not draw the gates: " .. tostring(err))
   end
 end
+
 
 M.onBeamNGTrigger = onBeamNGTrigger
 M.onUpdate        = onUpdate

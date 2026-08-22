@@ -101,11 +101,22 @@ end
 
 function M.openDiscord()
   local url = extensions.raceManager_state.get().config.discordUrl
-  if type(url) ~= "string" or url == "" then return end
-  local ok = pcall(function() openWebBrowser(url) end)
-  if not ok then
-    log("W", "raceManager", "could not open a browser, the link is " .. url)
+  if type(url) ~= "string" or url == "" then
+    log("W", "raceManager", "no discord url is set on the server")
+    return
   end
+
+  if type(openWebBrowser) ~= "function" then
+    log("W", "raceManager", "no browser hook in this build. the link is " .. url)
+    return
+  end
+
+  -- a fullscreen game keeps focus, so the browser opens behind it and the
+  -- button looks dead. the panel shows the link either way.
+  local ok, err = pcall(openWebBrowser, url)
+  log(ok and "I" or "W", "raceManager",
+    ok and ("opened " .. url .. " (alt-tab if you do not see it)")
+        or ("could not open a browser: " .. tostring(err) .. ". the link is " .. url))
 end
 
 function M.exitServer()

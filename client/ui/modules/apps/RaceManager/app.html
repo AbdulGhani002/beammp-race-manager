@@ -41,7 +41,16 @@
     </div>
 
     <!-- panels -->
-    <div class="rm-card rm-panel" ng-if="panel && panel !== 'options' && panel !== 'capture'">
+    <div class="rm-card rm-panel" ng-if="panel === 'discord'">
+      <button class="rm-x" ng-click="close()">close</button>
+      <h2>Discord</h2>
+      <p class="rm-hint">The game holds focus, so the browser opens behind it.
+        Alt-Tab after clicking, or copy the link.</p>
+      <div class="rm-link">{{ s.config.discordUrl }}</div>
+      <button class="rm-primary" ng-click="launchDiscord()">Open in browser</button>
+    </div>
+
+    <div class="rm-card rm-panel" ng-if="panel && panel !== 'options' && panel !== 'capture' && panel !== 'discord'">
       <button class="rm-x" ng-click="close()">close</button>
       <h2>{{ panel === 'bottom' ? 'Recovery' : (buttons | filter:{key: panel})[0].label }}</h2>
       <p class="rm-soon">{{ panel === 'bottom' ? SOON.bottom : SOON[panel] }}</p>
