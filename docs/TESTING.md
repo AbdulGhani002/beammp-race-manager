@@ -7,6 +7,58 @@ Server: `144.217.73.51:30199`
 
 ---
 
+PLACEHOLDER_WHERE
+---
+
+## The three places
+
+Everything below happens in one of three windows. Stages jump between them, so
+it is worth knowing which is which before starting.
+
+**A. The game.** The BeamNG window itself, started by the BeamMP launcher.
+
+**B. The game console.** Inside BeamNG, press the **tilde key**, the one left
+of `1` above Tab. A panel drops down with log output and a box you can type
+Lua into. This is only for checking whether our mod loaded and for the
+diagnostic commands. Press tilde again to close it.
+
+**C. The panel console.** In Chrome, at
+`panel.connecthosting.net/server/c0c0c399`, the **Console** tab. The black box
+is the server log, and the **Type a command...** field underneath it is where
+`rm` commands go. This is the server talking, not your game.
+
+### Two different Options menus
+
+This trips people up:
+
+- **BeamNG Options** is `Esc` then Options. Game settings. **Key bindings live
+  here**, under Controls.
+- **Race Manager Options** is the **Options** button in our own top bar, on
+  screen while you drive. The frame rate meter and the capture tool live here.
+
+When a stage says Options, the table says which one.
+
+### Which stage happens where
+
+| Stage | Where | Exactly |
+| --- | --- | --- |
+| 0 Install | Desktop | BeamNG launcher, then the BeamMP installer |
+| 1 Connect | **A** game | Main menu, More, Multiplayer, pick the server |
+| 2 Mod loaded | **B** then **C** | tilde for the load line, then `rm players` in the panel |
+| 3 Add the app | **A** game | `Esc`, UI Apps, edit layout, drag Race Manager on |
+| 4 Pick a name | **A** game | the card in the middle of our overlay |
+| 5 Become owner | **C** panel | `rm role <yourname> owner` |
+| 6 Player list | **A** game | **Players** in our top bar, then drive |
+| 7 Bind keys | **A** game | `Esc`, Options, Controls, filter Race Manager |
+| 7 Capture | **A** game | our top bar, Options, Checkpoint capture |
+| 8 Drive the gates | **A** drive, **C** watch | markers in game, `cp.hit` lines in the panel |
+| 9 Measure FPS | **A** run it, **C** read it | our Options, Frame rate. Then `rm perf` in the panel |
+
+Keep Chrome open on the Console tab on a second monitor if you have one. Half
+of what tells you the mod is working shows up there, not in the game.
+
+---
+
 ## Stage 0. Before BeamMP
 
 1. **Run BeamNG once on its own** and let it reach the main menu, then quit.
