@@ -2,12 +2,13 @@
 
 \usepackage[T1]{fontenc}
 \usepackage[utf8]{inputenc}
-\usepackage[margin=25mm]{geometry}
+\usepackage[margin=24mm]{geometry}
 \usepackage{booktabs}
 \usepackage{longtable}
 \usepackage{enumitem}
 \usepackage{titlesec}
 \usepackage{fancyhdr}
+\usepackage{amsmath}
 \usepackage[hidelinks]{hyperref}
 
 \pagestyle{fancy}
@@ -42,6 +43,10 @@ The core of the whole product. Records, XP, teams and challenges all sit on top
 of what gets built here, so anything wrong in this phase is wrong in every
 phase after it.
 
+Two things decide whether this phase is any good: whether a lap time is honest,
+and whether the server and the network are still quiet while it is being
+measured. Most of this document is about those two.
+
 \section{What gets delivered}
 
 From his document, unchanged:
@@ -68,29 +73,83 @@ Plus two things he asked for after the plan was written:
         worth styling.
 \end{itemize}
 
-\section{The one rule this phase turns on}
+\section{How a split is measured}
 
-\textbf{The server clock is the only clock.} Not one timing value comes from
-the client. The client reports that it crossed a gate; the server decides when.
+This is the decision the whole phase hangs on, and the obvious approach is
+wrong.
 
-That is not caution for its own sake. The client mod ships to every player as a
-readable zip, so a lap time the client calculates is a lap time the client can
-choose.
+The obvious approach is: the client says it crossed a gate, and the server
+stamps the time it hears about it. That is simple and it is unusable. The
+message takes half the round trip to arrive, so a driver on 200\,ms ping has
+roughly 100\,ms added to every split, and jitter means it is a different amount
+every time. On a 29 gate course that is seconds of error, and it punishes the
+player with the worse connection. He is in the United States and I am in
+Pakistan; we would never agree on a lap time.
 
-The cost is the network round trip. A crossing stamped on arrival gives a
-player on 200 ms ping 200 ms of lag in the stamp. Two ways to deal with it, and
-the second is better:
+So the crossing is stamped by the client, at the exact frame the trigger fires,
+and the server converts that stamp into its own clock and then decides whether
+to believe it.
 
 \begin{enumerate}
-  \item Stamp on arrival. Simple, and it quietly penalises high ping.
-  \item The client sends its own frame timestamp alongside the crossing, the
-        server keeps a rolling estimate of that player's offset, and corrects.
-        The client can still lie, but only inside a window the server already
-        believes, and a lie that drifts gets caught.
+  \item The engine fires \code{onBeamNGTrigger}. The client reads its own
+        monotonic clock at that moment and sends the gate index with it.
+  \item The server converts the client stamp into server time using an offset
+        it maintains per player.
+  \item The server validates the result. If it does not survive, the arrival
+        stamp is used instead and the run is flagged.
 \end{enumerate}
 
-Going with the second, with the window clamped. Worth writing down now because
-it is the single decision the rest of the phase hangs on.
+The client still cannot cheat, because it never decides anything. It offers a
+number and the server decides whether that number is possible.
+
+\section{Clock offset}
+
+Standard four timestamp exchange, the same arithmetic NTP uses. The server
+sends a probe carrying $T_1$; the client notes $T_2$ on receipt and replies
+immediately carrying $T_2$ and its send time $T_3$; the server notes $T_4$ on
+arrival.
+
+\begin{align*}
+\text{delay}  &= (T_4 - T_1) - (T_3 - T_2) \\
+\text{offset} &= \frac{(T_2 - T_1) + (T_3 - T_4)}{2}
+\end{align*}
+
+Two details matter more than the formula:
+
+\textbf{Keep the sample with the lowest delay, not the average.} A high delay
+sample is one that sat in a queue, and queuing is asymmetric, which is exactly
+what poisons the offset. NTP keeps the best of the last eight for this reason.
+We keep the best of the last eight probes over the preceding minute.
+
+\textbf{The probe rides the existing bus.} It is two extra fields on a message
+that is already being sent every tick a player has anything queued. No new
+message, no new timer, no added traffic.
+\section{Validating a claimed crossing}
+
+A stamp from the client is a claim. Four checks, cheapest first, and all of
+them are arithmetic on numbers already in memory:
+
+\begin{enumerate}
+  \item \textbf{Monotonic.} The corrected time must be later than the previous
+        split on this run. Times do not go backwards.
+  \item \textbf{Not in the future.} It must not be later than the server clock
+        now.
+  \item \textbf{Inside the trust window.} It must not be earlier than
+        $\text{now} - (\text{delay} + \text{margin})$. A client cannot have
+        crossed a gate long before we heard about it.
+  \item \textbf{Physically possible.} We captured the coordinates of every
+        gate, so we know the distance from gate $n$ to gate $n{+}1$. If the
+        claimed time between them implies a speed above the ceiling, it is
+        rejected.
+\end{enumerate}
+
+That last one is the useful one, and it is free: the distance between
+consecutive gates is computed once when the course is loaded, not per crossing.
+
+A claim that fails is not a kick. The arrival stamp is used, the run is marked,
+and the reason is recorded. Phase 5 decides whether a marked run can hold a
+record. Nobody gets thrown off the server because their connection hiccuped.
+
 \section{Race state machine}
 
 One race state per player for time trial. Phase 4 turns this into a shared
@@ -116,17 +175,28 @@ finished & idle      & closes the results \\
 \end{longtable}
 
 \textbf{Penalties only exist in \code{running}.} That is his change, and it
-falls out of the machine rather than being bolted onto it.
+falls out of the machine rather than being bolted onto it. It also means the
+bottom bar in phase 3 has one question to ask, not a special case per button.
 
-\section{Splits and laps}
+\section{Splits, laps and allocation}
 
-Stored on the server, per run: the course and mode, the lap count and current
-lap, start and finish stamps, a split per gate per lap, the missed gates per
-lap, and the penalties with their reasons.
+A run holds the course and mode, the lap count and current lap, start and
+finish stamps, a split per gate per lap, the missed gates, and the penalties
+with their reasons.
 
 Splits are seconds from the start of the run, not deltas. Deltas are a
 presentation choice and can always be computed; a stored delta cannot be
 recovered into an absolute once a gate is missed.
+
+\textbf{The splits array is allocated once, when the run is armed.} The gate
+count and the lap count are both known at that moment, so the whole table is
+built to its final size and written into by index. Not one table is created
+while a car is on track.
+
+This is the phase 1 rule carried forward and it is the one that matters most
+here. Allocating per crossing would create garbage, the collector would run,
+and the game would pause for a few milliseconds. That pause is exactly the tick
+lag he complained about in other race mods, and it would land during a lap.
 
 \section{Missed checkpoints}
 
@@ -162,6 +232,141 @@ Personal best split    & click to expand every split \\
 \bottomrule
 \end{longtable}
 
+The whole payload is built once, when the last driver finishes, and sent once.
+It is never recomputed on a timer.
+
+\section{Performance budget}
+
+Measured on his box, idle, with phase 1 running:
+
+\begin{longtable}{@{}lll@{}}
+\toprule
+\textbf{Resource} & \textbf{In use} & \textbf{Limit} \\
+\midrule
+\endhead
+Server CPU        & 0.7\%   & 200\% (two cores) \\
+Server memory     & 11\,MB  & 8192\,MB \\
+Plugin lua state  & 206\,KB & shares the above \\
+Network, ten hours& 15\,MB total & unmetered \\
+Client frame rate & 128 avg, 108 one per cent low & baseline to hold \\
+\bottomrule
+\end{longtable}
+
+There is an enormous amount of headroom. The risk is not running out of it, it
+is writing something that scales badly and only shows up with ten cars on a 29
+gate course. So the budget is set as rules rather than as a ceiling.
+
+\subsection*{The server gains no new per tick work}
+
+Phase 1 has one 100\,ms timer. Phase 2 adds nothing to it. Every piece of
+timing is event driven: a split is computed when a gate fires and never again,
+and a run is finalised once when the last driver crosses.
+
+Anything that would need a timer is a design mistake. There is no live
+leaderboard to recompute, no gap to recalculate, no position to poll.
+
+\subsection*{The traffic is small and it is bounded}
+
+A split message is a gate index and a number, roughly 40 bytes of JSON. It is
+queued on the bus that already exists and goes out in the batch that is already
+being sent for that tick.
+
+A full grid of ten drivers on a 29 gate circuit generates 290 split messages
+per lap. A Baja lap is minutes long, so that is under one message per second
+across the whole server, and multiple splits landing in the same tick coalesce
+into one batch.
+
+For comparison, BeamMP is synchronising vehicle position for every car many
+times a second on the same channel. Our timing traffic is a rounding error
+against it, and that is the point: the channel is shared, so anything we add
+competes with car positions, and the way to not make everyone look laggy is to
+add almost nothing.
+
+The clock probe adds no messages at all. It is two fields on a message that was
+already going.
+
+\subsection*{Memory is bounded before the run starts}
+
+A run of ten laps on 29 gates holds 290 numbers. Ten drivers is 2900 numbers,
+call it 100\,KB with table overhead against a lua state currently using 206\,KB
+and a container limit of 8\,GB.
+
+The number is not the point. The point is that it is allocated once at arm time
+and never grows, so there is nothing for the collector to do mid race.
+
+\subsection*{Disk is written once}
+
+On race end, and on the existing slow timer. Never per split. A split that
+reaches disk before the run is over is a bug.
+
+\subsection*{The client draws, it does not compute}
+
+The running clock on screen is the client counting locally from a start time
+the server gave it. It is not the server pushing a time ten times a second.
+
+That keeps the phase 1 rule intact: the interface redraws when a number
+changes, at most ten times a second, and nothing in the mod does per frame
+work unless a tool is open.
+
+\section{Acceptance criteria}
+
+Numbers, not opinions. Measured on his server before the phase is called done:
+
+\begin{itemize}
+  \item Client frame rate within \textbf{3 average and 5 one per cent low} of
+        the phase 1 baseline of 128 and 108, same spot, same car, nothing
+        recording.
+  \item Server CPU under \textbf{5\%} with a full grid mid race.
+  \item Plugin lua state under \textbf{1\,MB} with a full grid mid race.
+  \item Added network under \textbf{2\,KB per driver per lap}.
+  \item Split accuracy within \textbf{30\,ms} of a locally timed reference run,
+        taken on a connection with 200\,ms ping.
+  \item Zero handler errors in the log across a full test session.
+\end{itemize}
+
+If frame rate misses that bar, it gets fixed before delivery rather than noted
+in the handover. That was promised in writing and it stands.
+
+\section{Load test}
+
+The honest version needs bodies, and he has one account. Failing that:
+
+\begin{enumerate}
+  \item Spawn AI traffic to put cars on the map and measure with those.
+  \item Drive a course with the gate count of Baja 1000 rather than a five gate
+        test loop, since gate count is the thing that scales.
+  \item Replay a run against the mock host with the clock driven by hand, ten
+        drivers at once, and watch the lua state size and the message count.
+\end{enumerate}
+
+The third one catches scaling faults without needing a single other human, and
+it is the one to build first.
+
+\section{Testing}
+
+The mock host gets a clock that can be driven by hand, so a run plays through
+in a test without waiting for real seconds. Cases worth having before the code
+is written:
+
+\begin{itemize}
+  \item A clean lap. Splits in order, corrected equals dirty.
+  \item A missed gate. Penalty logged against the right gate number.
+  \item A gate crossed twice. The second crossing ignored.
+  \item Gates crossed out of order.
+  \item Disconnect mid run. Run abandoned, nothing half written to disk.
+  \item End Race mid run. All timing stops at once.
+  \item A claimed crossing earlier than the previous split.
+  \item A claimed crossing in the future.
+  \item A claimed crossing implying an impossible speed between two gates.
+  \item A clock offset that jumps, then settles.
+  \item Two runs on one course by one player. Personal best updates only when
+        it should.
+  \item Ten simulated drivers on a 29 gate circuit. Allocation does not grow
+        during the run.
+\end{itemize}
+
+Then on his server, with two drivers, which is the part that is still blocked.
+
 \section{Protocol additions}
 
 \begin{longtable}{@{}lll@{}}
@@ -171,47 +376,15 @@ Personal best split    & click to expand every split \\
 \endhead
 client to server & \code{race.arm}      & course, mode, lap count \\
 client to server & \code{race.end}      & nothing \\
-client to server & \code{cp.hit}        & gains a client frame time, for offset correction \\
+client to server & \code{cp.hit}        & gate index and the client stamp at the crossing \\
+client to server & \code{clock.pong}    & the two client timestamps, rides an existing message \\
 server to client & \code{race.state}    & the state machine, on change only \\
-server to client & \code{race.split}    & the split just recorded, so the HUD can show it \\
+server to client & \code{race.split}    & the split just recorded, for the HUD \\
 server to client & \code{race.result}   & the whole results payload, once \\
 server to client & \code{race.teleport} & where to put the car when arming \\
+server to client & \code{clock.ping}    & the server stamp, rides an existing message \\
 \bottomrule
 \end{longtable}
-
-\section{Performance}
-
-Same rules as phase 1, and one new risk. A split is one small message per gate
-crossing. Twenty-nine gates against a full grid is phase 4's problem, but the
-message shape is decided here, so it is sized for that now: a split is an index
-and a number, not a record.
-
-Nothing is recalculated on a timer. A split is computed when a gate fires and
-never again. The results payload is built once, when the last driver finishes.
-
-Measured against the phase 1 baseline: \textbf{128 average, 108 one per cent
-low}, taken on his server.
-
-\section{Testing}
-
-The mock host gets a clock that can be driven by hand, so a run can be played
-through in a test without waiting for real seconds. Cases worth having before
-the code is written:
-
-\begin{itemize}
-  \item A clean lap. Splits in order, corrected equals dirty.
-  \item A missed gate. Penalty logged against the right gate number.
-  \item A gate crossed twice. The second crossing ignored.
-  \item Gates crossed out of order.
-  \item Disconnect mid run. Run abandoned, nothing half written to disk.
-  \item End Race mid run. All timing stops at once.
-  \item A client reporting a gate it cannot have reached yet.
-  \item A client reporting a frame time far outside the believed window.
-  \item Two runs on one course by one player. Personal best updates only when
-        it should.
-\end{itemize}
-
-Then on his server, with two drivers, which is the part that is still blocked.
 
 \section{What is needed from him}
 
@@ -227,18 +400,27 @@ Logo files      & results screen styling         & sent, colours noted \\
 \bottomrule
 \end{longtable}
 
+A five gate test loop does not exercise this phase. Gate count is what scales,
+so the sooner Baja 1000 is captured the sooner the timing is being tested
+against something real.
+
 \section{Order of work}
 
 \begin{enumerate}
   \item Race state machine, server side, with tests
-  \item Clock and offset correction
-  \item Splits and lap counting
+  \item Clock offset, and the validation checks that depend on it
+  \item Splits and lap counting, allocated once at arm time
   \item Missed checkpoint detection
   \item Arming, teleport, and the End Race button
+  \item Ten driver replay against the mock host, watching allocation
   \item Results payload
   \item Results screen, in his colours
-  \item FPS measured against the baseline
+  \item Frame rate measured against the baseline
 \end{enumerate}
+
+Steps 1 to 4 are all server side and all testable without the game, which is
+where the risk is and where the mock host earns its keep. Nothing goes near the
+interface until the timing is proven against a clock we control.
 
 The CoPilot camera gets a quiet look during this phase. It is the least known
 part of the whole job, and week eleven is the wrong time to find out it is
