@@ -70,7 +70,7 @@ function M.mark()
   if not st.active then return end
   local pos, yaw = readPose()
   if not pos then
-    st.lastError = "no_vehicle"
+    st.lastError, st.errorFor = "no_vehicle", 6
     extensions.raceManager_ui.push()
     return
   end
@@ -100,7 +100,7 @@ function M.setStart()
   if not st.active then return end
   local pos, yaw = readPose()
   if not pos then
-    st.lastError = "no_vehicle"
+    st.lastError, st.errorFor = "no_vehicle", 6
     extensions.raceManager_ui.push()
     return
   end
@@ -128,6 +128,12 @@ end
 function M.stopPreview()
   extensions.raceManager_triggers.stopPreview()
   st.previewing = false
+  extensions.raceManager_ui.push()
+end
+
+-- a saved course was opened with Show, so the hide button has to appear
+function M.onPreview()
+  st.previewing = extensions.raceManager_triggers.count() > 0
   extensions.raceManager_ui.push()
 end
 
@@ -170,12 +176,12 @@ function M.onResult(d)
   if type(d) ~= "table" then return end
 
   if not d.ok then
-    st.lastError = d.reason
+    st.lastError, st.errorFor = d.reason, 6
     extensions.raceManager_ui.push()
     return
   end
 
-  st.lastError = nil
+  st.lastError, st.errorFor = nil, nil
   local a = d.action
 
   if a == "begin" then
@@ -214,6 +220,16 @@ end
 -- the only per frame cost in the mod, and it stops at the first line unless
 -- you have the capture window open
 local function onUpdate(dt)
+  -- a refusal from a minute ago is worse than none: it reads as the state of
+  -- the thing you just did
+  if st.errorFor then
+    st.errorFor = st.errorFor - dt
+    if st.errorFor <= 0 then
+      st.lastError, st.errorFor = nil, nil
+      extensions.raceManager_ui.push()
+    end
+  end
+
   if not st.active or not st.lastGateAt then return end
   acc = acc + dt
   if acc < 0.2 then return end

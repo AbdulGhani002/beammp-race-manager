@@ -56,6 +56,17 @@ local function flush()
 end
 
 local function onUpdate(dt)
+  -- a toast nobody dismissed should not sit on screen for the rest of the
+  -- session. one nil test per frame when there is not one.
+  local S = extensions.raceManager_state.get()
+  if S.toast then
+    S.toastFor = (S.toastFor or 0) - dt
+    if S.toastFor <= 0 then
+      S.toast = nil
+      dirty = true
+    end
+  end
+
   if not dirty then return end
   acc = acc + dt
   if acc < MIN_GAP then return end

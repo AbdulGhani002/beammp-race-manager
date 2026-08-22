@@ -21,7 +21,11 @@ local S = {
 function M.get() return S end
 
 function M.setLevel(levelPath)
-  S.level = levelPath and tostring(levelPath):match("([^/]+)/?$") or nil
+  if not levelPath then S.level = nil return end
+  -- it arrives as /levels/utah_sc/info.json, and the part worth keeping is
+  -- the folder, not the file on the end of it
+  local p = tostring(levelPath)
+  S.level = p:match("/levels/([^/]+)") or p:match("([^/]+)/[^/]*$") or p
 end
 
 function M.setServerClock(t)
@@ -94,6 +98,7 @@ end
 local function onTrackFull(d)
   S.track = type(d) == "table" and d or nil
   if S.track then extensions.raceManager_triggers.preview(S.track) end
+  extensions.raceManager_capture.onPreview()
   changed()
 end
 
@@ -119,6 +124,7 @@ end
 
 local function onToast(d)
   S.toast = d
+  S.toastFor = 6
   changed()
 end
 
