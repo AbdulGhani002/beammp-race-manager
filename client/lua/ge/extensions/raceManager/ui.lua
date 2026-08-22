@@ -27,6 +27,10 @@ local function build()
   snap.toast     = S.toast
   snap.config    = S.config
 
+  -- the html gates the player list on this. leaving it out of the snapshot
+  -- meant the list opened on the click and vanished on the next push.
+  snap.rosterOpen = S.rosterOpen and true or false
+
   snap.me.id    = S.me.id
   snap.me.name  = S.me.name
   snap.me.role  = S.me.role
