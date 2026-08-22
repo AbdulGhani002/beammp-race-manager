@@ -6,7 +6,7 @@
     <div class="rm-card rm-name">
       <h2>Pick your name</h2>
       <p>This is the name everyone sees on the board. You choose it once.</p>
-      <input type="text" ng-model="nameDraft" ng-keydown="$event.keyCode === 13 && submitName()"
+      <input type="text" ng-model="form.name" ng-keydown="$event.keyCode === 13 && submitName()"
              maxlength="{{ s.config.nameMaxLen || 20 }}" placeholder="Your name" autofocus />
       <div class="rm-problem" ng-if="nameProblem()">{{ nameProblem() }}</div>
       <div class="rm-hint" ng-if="!nameProblem()">
@@ -77,7 +77,7 @@
 
       <div class="rm-group" ng-if="s.isAdmin">
         <h3>Course tools</h3>
-        <button ng-click="panel = 'capture'">Checkpoint capture</button>
+        <button ng-click="setPanel('capture')">Checkpoint capture</button>
       </div>
 
       <div class="rm-group">
@@ -178,7 +178,7 @@
     <!-- bottom bar. every one of these needs the car stopped. -->
     <div class="rm-bottom">
       <div class="rm-lightmenu" ng-if="lights">
-        <button ng-repeat="l in lightItems" ng-click="panel = 'bottom'">{{ l }}</button>
+        <button ng-repeat="l in lightItems" ng-click="setPanel('bottom')">{{ l }}</button>
       </div>
       <button ng-repeat="b in bottom" ng-click="bottomClick(b)"
               ng-disabled="!stopped() && b.key !== 'lights'"

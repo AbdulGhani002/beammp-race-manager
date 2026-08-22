@@ -13,7 +13,10 @@ angular.module("beamng.apps")
                    capture: {}, perf: {}, config: {} };
       $scope.panel = null;
       $scope.lights = false;
-      $scope.nameDraft = "";
+      // ng-if and ng-repeat each make a child scope, so a bare string model is
+      // written on the child and the parent never sees it. Anything two way
+      // bound has to sit behind a dot.
+      $scope.form = { name: "" };
       $scope.speed = 0;
       $scope.newTrack = { name: "", kind: "race", circuit: true, overwrite: false };
 
@@ -105,6 +108,10 @@ angular.module("beamng.apps")
 
       $scope.close = function () { $scope.panel = null; };
 
+      // same child scope trap: an inline assignment in the template writes to
+      // whichever scope the click happened in, not this one
+      $scope.setPanel = function (p) { $scope.panel = p; };
+
       $scope.bottom = [
         { key: "reposition", label: "Reposition", note: "1 min penalty" },
         { key: "spare",      label: "Spare tire", note: "30 sec hold, 30 sec penalty" },
@@ -123,14 +130,14 @@ angular.module("beamng.apps")
       };
 
       $scope.nameOk = function () {
-        var n = ($scope.nameDraft || "").trim();
+        var n = ($scope.form.name || "").trim();
         var cfg = $scope.s.config || {};
         return n.length >= (cfg.nameMinLen || 3) && n.length <= (cfg.nameMaxLen || 20);
       };
 
       $scope.submitName = function () {
         if (!$scope.nameOk()) return;
-        ui("setName", $scope.nameDraft.trim());
+        ui("setName", $scope.form.name.trim());
       };
 
       $scope.nameProblem = function () {
