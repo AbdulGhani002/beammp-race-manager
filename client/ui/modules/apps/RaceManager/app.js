@@ -69,11 +69,21 @@ angular.module("beamng.apps")
         }
       });
 
+      // open the capture window once when a capture starts, and not again.
+      // state arrives up to ten times a second, so reopening it whenever the
+      // panel is closed means the close button can never win.
+      var capturePanelShown = false;
+
       $scope.$on("rmState", function (_, data) {
         $scope.$applyAsync(function () {
           $scope.s = data || $scope.s;
-          if (data && data.capture && data.capture.active && $scope.panel === null) {
+
+          var capturing = data && data.capture && data.capture.active;
+          if (!capturing) capturePanelShown = false;
+
+          if (capturing && !capturePanelShown && $scope.panel === null) {
             $scope.panel = "capture";
+            capturePanelShown = true;
           }
         });
       });
