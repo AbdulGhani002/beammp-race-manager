@@ -47,6 +47,7 @@ local function onWelcome(d)
   S.me.guest  = d.guest and true or false
   S.config    = d.config or {}
   S.needsName = (d.name == nil or d.name == "")
+  extensions.raceManager_main.handshakeDone()
   log("I", "raceManager", "welcome: " .. tostring(d.name or "unnamed") .. " / " .. tostring(d.role))
   changed()
 end

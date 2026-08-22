@@ -156,7 +156,7 @@ function RM.identity.checkHello()
   for pid, s in pairs(session) do
     if not s.hello and not s.helloWarned and (now - s.joined) > cutoff then
       s.helloWarned = true
-      RM.warn(("player %d (%s) has not loaded the client mod"):format(pid, s.key))
+      RM.warn(("player %d (%s) has still not said hello: the client mod is either not loading or still downloading"):format(pid, s.key))
     end
   end
 end

@@ -47,7 +47,11 @@ function M.send(channel, payload)
     log("E", "raceManager", "could not encode " .. tostring(channel))
     return false
   end
-  TriggerServerEvent(C2S, body)
+  local ok2, err = pcall(TriggerServerEvent, C2S, body)
+  if not ok2 then
+    log("E", "raceManager", "TriggerServerEvent failed: " .. tostring(err))
+    return false
+  end
   return true
 end
 

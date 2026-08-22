@@ -15,8 +15,9 @@ RM.config = {
   rosterMs   = 500,
   autosaveMs = 30000,
 
-  -- a session with no hello by now never loaded the client mod
-  helloTimeoutMs = 90000,
+  -- A first join downloads the map before the mod can say anything, and that
+  -- is minutes on a big one. Only worth complaining well after that.
+  helloTimeoutMs = 600000,
 
   -- roster gates. a row only goes out when one of these actually moves.
   speedDeltaMph = 2,

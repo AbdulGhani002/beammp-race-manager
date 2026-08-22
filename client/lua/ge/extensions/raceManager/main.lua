@@ -2,7 +2,7 @@ local M = {}
 
 M.VERSION = "0.2.0-phase1"
 
--- ui last: it reads from every other module the moment it comes up
+-- ui goes last: it reads from every other module the moment it comes up
 local SUBS = {
   "raceManager_state",
   "raceManager_net",
@@ -12,15 +12,43 @@ local SUBS = {
   "raceManager_ui",
 }
 
-local helloSent = false
+-- The mod is activated as soon as it finishes downloading, which can be a long
+-- way before the session is actually able to carry an event: on a first join
+-- the map lands first and that took nine minutes. So hello is not a one shot.
+-- It repeats until the server answers, and stops costing anything the moment
+-- it does.
+local RETRY_EVERY = 2.0
+local GIVE_UP_AFTER = 40
 
-local function sayHello()
-  if helloSent then return end
-  -- BeamMP injects this when its own client lua is up. joining a singleplayer
-  -- session means it never arrives, and that is fine.
-  if type(TriggerServerEvent) ~= "function" then return end
-  helloSent = true
-  extensions.raceManager_net.send("hello", { version = M.VERSION })
+local done, attempts, since = false, 0, 0
+
+function M.handshakeDone()
+  if done then return end
+  done = true
+  log("I", "raceManager", ("handshake done after %d attempt(s)"):format(attempts))
+end
+
+function M.isDone() return done end
+
+local function trySayHello()
+  attempts = attempts + 1
+
+  if type(TriggerServerEvent) ~= "function" then
+    if attempts == 1 or attempts % 10 == 0 then
+      log("W", "raceManager", "BeamMP is not up yet, waiting to say hello")
+    end
+    return false
+  end
+
+  local sent = extensions.raceManager_net.send("hello", { version = M.VERSION })
+  if attempts == 1 or attempts % 10 == 0 then
+    log("I", "raceManager", ("hello attempt %d, sent=%s"):format(attempts, tostring(sent)))
+  end
+  return sent
+end
+
+function M.sayHello()
+  trySayHello()
 end
 
 local function onExtensionLoaded()
@@ -30,14 +58,13 @@ local function onExtensionLoaded()
   end
   setExtensionUnloadMode("raceManager_main", "manual")
   log("I", "raceManager", "Race Manager client " .. M.VERSION .. " loaded")
-  sayHello()
+  trySayHello()
 end
 
 local function onClientStartMission(levelPath)
-  helloSent = false
-  sayHello()
   extensions.raceManager_state.setLevel(levelPath)
   extensions.raceManager_triggers.onLevelLoaded()
+  trySayHello()
 end
 
 local function onClientEndMission()
@@ -47,14 +74,29 @@ end
 
 -- BeamMP tears its network down and brings it back on a reconnect, so the
 -- handshake has to be able to happen more than once
+local function onClientPostStartMission()
+  trySayHello()
+end
+
 local function onExtensionUnloaded()
   extensions.raceManager_triggers.clear()
 end
 
-M.onExtensionLoaded    = onExtensionLoaded
-M.onExtensionUnloaded  = onExtensionUnloaded
-M.onClientStartMission = onClientStartMission
-M.onClientEndMission   = onClientEndMission
-M.sayHello             = sayHello
+-- stops on the first line once the server has answered
+local function onUpdate(dt)
+  if done then return end
+  if attempts >= GIVE_UP_AFTER then return end
+  since = since + dt
+  if since < RETRY_EVERY then return end
+  since = 0
+  trySayHello()
+end
+
+M.onExtensionLoaded        = onExtensionLoaded
+M.onExtensionUnloaded      = onExtensionUnloaded
+M.onClientStartMission     = onClientStartMission
+M.onClientPostStartMission = onClientPostStartMission
+M.onClientEndMission       = onClientEndMission
+M.onUpdate                 = onUpdate
 
 return M
