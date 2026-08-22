@@ -64,6 +64,7 @@ permission gate, persistence, and what a rewritten client can throw at it.
 | [ARCHITECTURE.md](docs/ARCHITECTURE.md) | how the three pieces fit |
 | [PROTOCOL.md](docs/PROTOCOL.md) | every message, both directions |
 | [PERFORMANCE.md](docs/PERFORMANCE.md) | the rules and how they are met |
+| [TESTING.md](docs/TESTING.md) | the stage by stage test run |
 | [PHASE-1.md](docs/PHASE-1.md) | scope check against the plan |
 | [CHANGES-FROM-V0.md](docs/CHANGES-FROM-V0.md) | what changed from the first attempt |
 
