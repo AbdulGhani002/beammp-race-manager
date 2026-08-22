@@ -72,6 +72,53 @@ handler that raises is logged and the tick carries on. The logging is
 throttled, because a fault repeating sixty times a second costs more than the
 fault does.
 
+## The phase 1 baseline
+
+Taken on the client's server, 22 August 2026, on `utah_sc`, parked in a fixed
+spot in the same car with the camera still. Machine: Ryzen 7 7735HS, RTX 4050
+Laptop, 1920x1080 at 144Hz, on AC power.
+
+| Run | Tool | avg | 1% low | min | max |
+| --- | --- | --- | --- | --- | --- |
+| Mod off | NVIDIA overlay | ~125-130 typical | not captured | 99 | 135 |
+| **Mod on** | **NVIDIA overlay** | **128** | **108** | | |
+| Mod on | our own meter | 125.0 | 105.2 | 104.7 | 146.0 |
+| Mod on, OBS recording | our own meter | 98.6 | 77.0 | 69.9 | 113.1 |
+
+**The mod costs nothing measurable.** Mod on at 128 average sits inside the
+mod off range, and the difference is smaller than the run to run spread.
+
+**Our meter agrees with the NVIDIA overlay to within about 2.4%** on both
+average and 1% low, measured at the same spot on the same machine. That
+matters more than the numbers themselves: from phase 2 onward the meter is what
+gets reported, so it is worth knowing it does not flatter itself.
+
+**OBS costs 26 FPS.** Worth stating because it is larger than anything the mod
+will ever do, and it means a measurement taken while recording is not a
+baseline.
+
+### What this number is not
+
+The mod off run was read off a live overlay, so it is a typical value and a
+range rather than a measured average, and it has no 1% low. It is enough to
+show the mod is not costing frames, and it is not enough to detect a small
+regression later.
+
+From phase 2 the comparison is our own meter on both sides, in this spot, in
+this car, with nothing recording. That is a like for like number and it is the
+one a regression will show up in.
+
+### Why the cost is near zero
+
+None of the work is per frame. The server holds one 100ms timer. On the client,
+three modules define onUpdate and each leaves on its first line unless you are
+using it. Checkpoints are trigger volumes, so the engine does the overlap test
+in its own code and only wakes lua on a crossing.
+
+The interesting test is still ahead. This was five checkpoints and one driver.
+Phase 4 is a full grid against 29 gates, and that is where the design either
+holds or does not.
+
 ## Measuring
 
 **Options, Frame rate, Measure now.** Thirty seconds, then the result goes to

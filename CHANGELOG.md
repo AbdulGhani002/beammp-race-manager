@@ -37,8 +37,17 @@ Phase 1: base and the checkpoint tool. Deployed and running.
 
 **Testing**
 - Mock BeamMP host, so the plugin runs without the game.
-- 64 checks over the whole phase, including what a rewritten client can throw
+- 71 checks over the whole phase, including what a rewritten client can throw
   at the server.
+- Tested end to end on the client server: joined, named, promoted, captured a
+  five gate course, saved it, saw the gates and drove through every one of
+  them with each crossing registering.
+
+**Frame rate**
+- 128 avg, 108 1% low with the mod on, against 125 to 130 without it. No
+  measurable cost.
+- Our own meter agrees with the NVIDIA overlay to within 2.4%, so the number
+  reported from phase 2 onward can be trusted.
 
 ### Changed from the first attempt
 

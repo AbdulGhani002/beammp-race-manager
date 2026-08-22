@@ -4,8 +4,8 @@ Race management for a private BeamMP server: timing, records, roles, XP,
 challenges and a checkpoint capture tool. Built from scratch against the
 BeamMP and BeamNG APIs.
 
-**Status: phase 1 of six.** What is here now is the base and the checkpoint
-tool. Racing, timing and results are phase 2.
+**Status: phase 1 of six, delivered.** Base and the checkpoint tool, tested end
+to end on the client server. Racing, timing and results are phase 2.
 
 ## The three pieces
 
@@ -52,7 +52,7 @@ without the game:
 lua54 tools/test_phase1.lua
 ```
 
-64 checks covering joining, naming, the player list, the capture tool, the
+71 checks covering joining, naming, the player list, the capture tool, the
 permission gate, persistence, and what a rewritten client can throw at it.
 
 ## Documentation

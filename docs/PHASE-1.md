@@ -10,11 +10,13 @@ Each one, and where it is.
 | The interface shell: top bar, bottom bar, player list | yes | `ui/modules/apps/RaceManager/` |
 | Options and Discord finished | partly, as planned | Options panel. Demote self, leave server and the FPS meter are live. Language and XP tracking are listed in the plan as phase 6. |
 | Checkpoint tool | yes | `07_tracks.lua`, `capture.lua`, `triggers.lua` |
-| FPS measured with the mod off and on | yes, tool built | Options, Frame rate. Numbers still to be taken on the server. |
+| FPS measured with the mod off and on | yes | Taken on his server. 128 avg, 108 1% low with the mod on, against 125-130 without it. See [PERFORMANCE.md](PERFORMANCE.md). |
 
 Promised outcome: "join, get named, see the interface, and capture all 29
-checkpoints for Baja 1000 plus the Qualy and Time Attack routes." All of that
-works. Numbers on the box are the one thing left, and they need the game.
+checkpoints for Baja 1000 plus the Qualy and Time Attack routes." All of it
+works on his server: joined, named, interface drawn, a five gate course
+captured, saved, drawn on the map and driven through with every crossing
+registering. The 29 gate layouts are his to capture now the tool is his.
 
 ## Top bar, against his eight buttons
 
@@ -65,7 +67,7 @@ of them belongs to a later phase in the plan.
 | --- | --- |
 | Checked line by line against his document | this file |
 | Tested before handover | `tools/test_phase1.lua`, 64 checks. Two driver testing needs the test server. |
-| FPS measured, mod off and on | tool built, numbers pending |
+| FPS measured, mod off and on | done, and our meter cross checks against the NVIDIA overlay to within 2.4% |
 | No work in the per frame loop | see [PERFORMANCE.md](PERFORMANCE.md) |
 | Nothing created in the hot path | table pool, reused buffers |
 | Interface redraws only on change, max ~10Hz | `ui.lua` |
