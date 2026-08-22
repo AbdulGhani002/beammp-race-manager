@@ -78,6 +78,35 @@ of what tells you the mod is working shows up there, not in the game.
 
 ---
 
+### Accounts: the forum is down
+
+BeamMP accounts are made on `forum.beammp.com`, and that subdomain currently
+has **no DNS record at all**. It is not an ISP block and not a local problem;
+there is nothing to connect to. `beammp.com` and the game backend are both
+fine, so this only stops new registrations.
+
+Until it returns, the only way in is **play as a guest**, which is why
+`AllowGuests` was turned on in `ServerConfig.toml`.
+
+What guest mode costs, and it is less than it sounds:
+
+| | |
+| --- | --- |
+| Mod loading, interface, naming, player list, capture, triggers, FPS | all work normally |
+| Identity | keys on the name BeamMP hands the guest instead of a forum id, so it can change between sessions |
+| Ranked | guests are marked unranked, which matters from phase 5 when records and XP arrive, not now |
+
+If a rejoin gives you a new guest name, the display name you picked before is
+still held by the old record. Free it from the panel console:
+
+```
+rm forget <old name>
+```
+
+Register properly once the forum is back, before phase 1 is signed off.
+
+---
+
 ## Stage 1. Connect
 
 1. Start the **BeamMP launcher**. A terminal window opens. Leave it open, it
@@ -85,7 +114,9 @@ of what tells you the mod is working shows up there, not in the game.
 2. BeamNG starts on its own. In **Repository**, check that
    `multiplayerbeammp` is the only mod enabled. Other mods can break the join.
 3. Main menu, **More**, **Multiplayer**. Log in or continue as guest.
-4. Find **Mohammad Abdul's Development Server**, or use direct connect.
+4. The server is set `Private = true`, so it does **not** appear in the public
+   list. Use **Direct Connect** with `144.217.73.51:30199`.
+5. Choose **play as a guest** — see above.
 
 **The first join downloads about 480 MB**, because the map mod comes from the
 server. Let it finish. The Race Manager client mod is 18 KB and arrives in the
