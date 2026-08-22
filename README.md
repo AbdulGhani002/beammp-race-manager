@@ -60,6 +60,13 @@ a function that exists:
 bash tools/check_bindings.sh
 ```
 
+Plans are LaTeX, compiled with Tectonic, which pulls what it needs on first run
+and caches it. No TeX install to maintain:
+
+```
+bash tools/build_plans.sh
+```
+
 71 checks covering joining, naming, the player list, the capture tool, the
 permission gate, persistence, and what a rewritten client can throw at it.
 
@@ -73,7 +80,7 @@ permission gate, persistence, and what a rewritten client can throw at it.
 | [PROTOCOL.md](docs/PROTOCOL.md) | every message, both directions |
 | [PERFORMANCE.md](docs/PERFORMANCE.md) | the rules and how they are met |
 | [TESTING.md](docs/TESTING.md) | the stage by stage test run |
-| [PHASE-2-PLAN.md](docs/PHASE-2-PLAN.md) | what phase 2 builds, and the decisions it turns on |
+| [phase-2-plan.pdf](docs/plans/phase-2-plan.pdf) | what phase 2 builds, and the decisions it turns on |
 | [PHASE-1.md](docs/PHASE-1.md) | scope check against the plan |
 | [CHANGES-FROM-V0.md](docs/CHANGES-FROM-V0.md) | what changed from the first attempt |
 
