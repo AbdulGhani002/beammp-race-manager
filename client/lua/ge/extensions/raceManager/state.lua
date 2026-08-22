@@ -103,6 +103,20 @@ local function onDraft(d)
   changed()
 end
 
+-- your own record, pushed when something about you changes. the roster only
+-- carries rows for the player list, and it is not open half the time.
+local function onMe(d)
+  if type(d) ~= "table" then return end
+  if d.id    ~= nil then S.me.id    = d.id end
+  if d.name  ~= nil then S.me.name  = d.name end
+  if d.role  ~= nil then S.me.role  = d.role end
+  if d.level ~= nil then S.me.level = d.level end
+  if d.guest ~= nil then S.me.guest = d.guest and true or false end
+  S.needsName = (S.me.name == nil or S.me.name == "")
+  log("I", "raceManager", "you are now " .. tostring(S.me.role))
+  changed()
+end
+
 local function onToast(d)
   S.toast = d
   changed()
@@ -129,6 +143,7 @@ local function onExtensionLoaded()
   net.on("track.list",     onTrackList)
   net.on("track.full",     onTrackFull)
   net.on("track.draft",    onDraft)
+  net.on("me",             onMe)
   net.on("toast",          onToast)
   net.on("capture.result", onCaptureResult)
   net.on("options.result", onOptionsResult)

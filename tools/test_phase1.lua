@@ -138,6 +138,14 @@ eq(RM.roles.of(0), "owner", "role applied to the live session")
 ok(RM.console.handle("rm role Nobody Here admin"):find("ever joined") ~= nil,
    "unknown names are refused")
 
+section("a role change reaches the player")
+M.clearOutbox()
+RM.console.handle("rm role Darren Hardesty owner")
+tick(1)
+local me = M.lastMessage(0, "me")
+ok(me ~= nil, "the player is told their own record changed")
+eq(me and me.role, "owner", "and it carries the new role")
+
 section("capturing a course")
 M.clearOutbox()
 M.clientSend(0, "track.begin", { id = "Baja 1000", name = "Baja 1000", kind = "race", level = "utah" })

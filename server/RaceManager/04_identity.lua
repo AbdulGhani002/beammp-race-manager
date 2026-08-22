@@ -181,3 +181,20 @@ function RM.identity.forget(key)
   RM.info(("forgot %s"):format(key))
   return true
 end
+
+-- Push a player's own record back to them. The roster carries everyone else's
+-- row, but a change to your own role has to reach you even with the player
+-- list closed, and it is what unlocks the admin parts of the interface.
+function RM.identity.sendMe(pid)
+  local s = session[pid]
+  if not s then return end
+  RM.bus.queue(pid, "me", {
+    id     = pid,
+    key    = s.key,
+    name   = s.name,
+    role   = s.role,
+    guest  = s.guest,
+    ranked = RM.identity.isRanked(pid),
+    level  = s.level,
+  })
+end

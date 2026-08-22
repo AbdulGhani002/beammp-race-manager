@@ -32,6 +32,7 @@ local function apply(key, newRole)
     local s = RM.identity.session(pid)
     if s then s.role = newRole end
     RM.players.onRoleChanged(pid)
+    RM.identity.sendMe(pid)
   end
   return true
 end

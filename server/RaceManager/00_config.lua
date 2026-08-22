@@ -44,7 +44,9 @@ RM.config = {
   maxTracks      = 64,
   maxPerfRuns    = 200,
 
-  discordUrl = "https://discord.gg/CHANGEME",
+  -- The button opens this in the default browser. On a fullscreen game the
+  -- browser lands behind the window, so it looks like nothing happened.
+  discordUrl = "https://discord.gg/beammp",
 }
 
 -- what the client is allowed to see
