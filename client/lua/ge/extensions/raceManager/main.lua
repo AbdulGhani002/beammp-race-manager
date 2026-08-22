@@ -8,6 +8,7 @@ local SUBS = {
   "raceManager_net",
   "raceManager_triggers",
   "raceManager_capture",
+  "raceManager_bottombar",
   "raceManager_perf",
   "raceManager_ui",
 }

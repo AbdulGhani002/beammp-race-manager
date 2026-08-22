@@ -12,7 +12,6 @@ angular.module("beamng.apps")
       $scope.s = { ready: false, needsName: false, me: {}, roster: [], tracks: [],
                    capture: {}, perf: {}, config: {} };
       $scope.panel = null;
-      $scope.lights = false;
       // ng-if and ng-repeat each make a child scope, so a bare string model is
       // written on the child and the parent never sees it. Anything two way
       // bound has to sit behind a dot.
@@ -136,11 +135,20 @@ angular.module("beamng.apps")
 
       $scope.lightItems = ["Headlights", "Lightbar", "Fog lights", "Siren", "Hazards", "Horn", "Flash"];
 
+      $scope.lightPick = function (which) {
+        call("raceManager_state", "notice", which + ": arrives in phase 3");
+      };
+
       $scope.stopped = function () { return $scope.speed < 1; };
 
+      // the key and the button go through the same lua, so the two cannot
+      // disagree about whether the submenu is open
       $scope.bottomClick = function (b) {
-        if (b.key === "lights") { $scope.lights = !$scope.lights; return; }
-        $scope.panel = "bottom";
+        var fn = {
+          reposition: "reposition", spare: "spareTire", repair: "repair",
+          fuel: "fuel", lights: "lights"
+        }[b.key];
+        if (fn) call("raceManager_bottombar", fn);
       };
 
       $scope.nameOk = function () {

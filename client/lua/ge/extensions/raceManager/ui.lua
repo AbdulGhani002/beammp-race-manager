@@ -30,6 +30,7 @@ local function build()
   -- the html gates the player list on this. leaving it out of the snapshot
   -- meant the list opened on the click and vanished on the next push.
   snap.rosterOpen = S.rosterOpen and true or false
+  snap.lights     = S.lights and true or false
 
   snap.me.id    = S.me.id
   snap.me.name  = S.me.name
@@ -93,6 +94,10 @@ function M.setRosterOpen(open)
   extensions.raceManager_state.get().rosterOpen = on
   extensions.raceManager_net.send("roster.sub", { on = on })
   M.push()
+end
+
+function M.toggleLights()
+  extensions.raceManager_state.toggleLights()
 end
 
 function M.togglePlayers()

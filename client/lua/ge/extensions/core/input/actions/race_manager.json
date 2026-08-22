@@ -26,5 +26,40 @@
     "desc": "Show or hide the player list",
     "cat": "gameplay",
     "order": 13
+  },
+  "rm_reposition": {
+    "onDown": "extensions.raceManager_bottombar.reposition()",
+    "title": "Race Manager: reposition",
+    "desc": "Flip the car upright in place. Car must be stopped. Logs a 1 minute recovery penalty during a race",
+    "cat": "gameplay",
+    "order": 20
+  },
+  "rm_spare_tire": {
+    "onDown": "extensions.raceManager_bottombar.spareTire()",
+    "title": "Race Manager: spare tire",
+    "desc": "Change one flat tire. Car must be stopped. 30 second hold and a 30 second penalty during a race",
+    "cat": "gameplay",
+    "order": 21
+  },
+  "rm_repair": {
+    "onDown": "extensions.raceManager_bottombar.repair()",
+    "title": "Race Manager: repair",
+    "desc": "Repair the car. Car must be stopped. 1 minute hold and a 30 second penalty during a race",
+    "cat": "gameplay",
+    "order": 22
+  },
+  "rm_fuel": {
+    "onDown": "extensions.raceManager_bottombar.fuel()",
+    "title": "Race Manager: fuel +25%",
+    "desc": "Add a quarter of a tank. Car must be stopped. 20 second hold, no penalty",
+    "cat": "gameplay",
+    "order": 23
+  },
+  "rm_lights": {
+    "onDown": "extensions.raceManager_bottombar.lights()",
+    "title": "Race Manager: lights menu",
+    "desc": "Open the lights submenu: headlights, lightbar, fog, siren, hazards, horn and flash",
+    "cat": "gameplay",
+    "order": 24
   }
 }

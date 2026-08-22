@@ -186,8 +186,8 @@
 
     <!-- bottom bar. every one of these needs the car stopped. -->
     <div class="rm-bottom">
-      <div class="rm-lightmenu" ng-if="lights">
-        <button ng-repeat="l in lightItems" ng-click="setPanel('bottom')">{{ l }}</button>
+      <div class="rm-lightmenu" ng-if="s.lights">
+        <button ng-repeat="l in lightItems" ng-click="lightPick(l)">{{ l }}</button>
       </div>
       <button ng-repeat="b in bottom" ng-click="bottomClick(b)"
               ng-disabled="!stopped() && b.key !== 'lights'"
@@ -197,6 +197,7 @@
 
     <div class="rm-toast" ng-if="s.toast" ng-click="clearToast()">
       <span ng-if="s.toast.key === 'player_named'">{{ s.toast.a }} joined the board</span>
+      <span ng-if="s.toast.text">{{ s.toast.text }}</span>
     </div>
   </div>
 

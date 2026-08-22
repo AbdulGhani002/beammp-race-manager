@@ -52,6 +52,14 @@ without the game:
 lua54 tools/test_phase1.lua
 ```
 
+Key bindings name their lua function as a string, so a typo fails silently in
+game and the key simply does nothing. This checks every one of them points at
+a function that exists:
+
+```
+bash tools/check_bindings.sh
+```
+
 71 checks covering joining, naming, the player list, the capture tool, the
 permission gate, persistence, and what a rewritten client can throw at it.
 

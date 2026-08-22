@@ -16,6 +16,7 @@ local S = {
   level      = nil,
   serverTime = 0,
   toast      = nil,
+  lights     = false,
 }
 
 function M.get() return S end
@@ -110,6 +111,19 @@ end
 
 -- your own record, pushed when something about you changes. the roster only
 -- carries rows for the player list, and it is not open half the time.
+-- a message from our own side rather than the server. same slot as a toast,
+-- so it expires the same way.
+function M.notice(text)
+  S.toast = { text = tostring(text or "") }
+  S.toastFor = 4
+  changed()
+end
+
+function M.toggleLights()
+  S.lights = not S.lights
+  changed()
+end
+
 local function onMe(d)
   if type(d) ~= "table" then return end
   if d.id    ~= nil then S.me.id    = d.id end
