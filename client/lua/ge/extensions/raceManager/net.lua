@@ -1,7 +1,9 @@
 local M = {}
 
-local C2S = "rm:c2s"
-local S2C = "rm:s2c"
+-- must match the server. no colon: BeamMP uses it as its wire delimiter.
+local C2S = "rmC2S"
+local S2C = "rmS2C"
+local S2C_LEGACY = "rm:s2c"
 
 local channels = {}
 local wired = false
@@ -63,6 +65,7 @@ local function wire()
   if wired then return end
   if type(AddEventHandler) ~= "function" then return end
   AddEventHandler(S2C, dispatch)
+  AddEventHandler(S2C_LEGACY, dispatch)
   wired = true
   log("I", "raceManager", "network bridge up")
 end

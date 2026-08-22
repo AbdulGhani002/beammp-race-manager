@@ -3,8 +3,13 @@ RM.bus = {}
 
 -- one event name each way, channels inside. BeamMP shares this pipe with
 -- vehicle position sync, so everything is queued and flushed once per tick.
-local C2S_EVENT = "rm:c2s"
-local S2C_EVENT = "rm:s2c"
+-- No colon in these names. BeamMP packs an event onto the wire with a colon
+-- delimiter, so "rm:c2s" arrives at the server as event "rm" and never matches
+-- a handler. The client sent forty hellos that went nowhere before this showed
+-- up. The old names stay registered so an older client still reaches us.
+local C2S_EVENT = "rmC2S"
+local S2C_EVENT = "rmS2C"
+local C2S_LEGACY = "rm:c2s"
 
 local queues   = {}
 local channels = {}
@@ -168,4 +173,5 @@ function RM.bus.stats() return stats end
 
 function RM.bus.init()
   RM.handler(C2S_EVENT, dispatch)
+  RM.handler(C2S_LEGACY, dispatch)
 end

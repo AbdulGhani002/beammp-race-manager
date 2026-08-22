@@ -47,7 +47,8 @@ end
 section("boot")
 M.fire("onInit")
 ok(M.hasHandler("rm:tick"), "tick handler registered")
-ok(M.hasHandler("rm:c2s"), "inbound handler registered")
+ok(M.hasHandler("rmC2S"), "inbound handler registered")
+ok(M.hasHandler("rm:c2s"), "the old event name still answers too")
 ok(M.hasHandler("onPlayerJoining"), "join handler registered")
 eq(RM.roles.countOwners(), 0, "nobody is owner on a fresh server")
 

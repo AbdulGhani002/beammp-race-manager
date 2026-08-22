@@ -77,11 +77,11 @@ end
 
 -- the client sending something up the pipe
 function M.clientSend(pid, channel, payload)
-  return M.fire("rm:c2s", pid, J.encode({ t = M.clock, m = { { c = channel, d = payload } } }))
+  return M.fire("rmC2S", pid, J.encode({ t = M.clock, m = { { c = channel, d = payload } } }))
 end
 
 function M.clientSendRaw(pid, raw)
-  return M.fire("rm:c2s", pid, raw)
+  return M.fire("rmC2S", pid, raw)
 end
 
 -------------------------------------------------------------------- globals

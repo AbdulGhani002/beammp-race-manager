@@ -18,7 +18,7 @@ local SUBS = {
 -- It repeats until the server answers, and stops costing anything the moment
 -- it does.
 local RETRY_EVERY = 2.0
-local GIVE_UP_AFTER = 40
+local GIVE_UP_AFTER = 90
 
 local done, attempts, since = false, 0, 0
 
