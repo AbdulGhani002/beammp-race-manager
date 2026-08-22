@@ -111,12 +111,17 @@ function M.openDiscord()
     return
   end
 
-  -- a fullscreen game keeps focus, so the browser opens behind it and the
-  -- button looks dead. the panel shows the link either way.
-  local ok, err = pcall(openWebBrowser, url)
-  log(ok and "I" or "W", "raceManager",
-    ok and ("opened " .. url .. " (alt-tab if you do not see it)")
-        or ("could not open a browser: " .. tostring(err) .. ". the link is " .. url))
+  -- openWebBrowser is an engine binding and is a no-op in some builds, so
+  -- fall through to the shell, which handles an http url on windows. the
+  -- panel shows the link regardless, which is the part that always works.
+  local browserOk = pcall(openWebBrowser, url)
+  local shellOk = false
+  if not browserOk then
+    shellOk = pcall(function() Engine.Platform.exploreFolder(url) end)
+  end
+
+  log("I", "raceManager", ("discord: browser=%s shell=%s url=%s")
+    :format(tostring(browserOk), tostring(shellOk), url))
 end
 
 function M.exitServer()
