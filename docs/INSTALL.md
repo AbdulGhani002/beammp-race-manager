@@ -115,3 +115,62 @@ Resources/Server/RaceManager/data/
 Written on a thirty second timer, on shutdown, and immediately whenever a
 course or a name changes. Each write goes to a temp file and is swapped in, so
 a crash mid-write leaves the old file or the new one and never a broken one.
+
+---
+
+## Deploying from the panel API
+
+The file manager works, but two things about it are worth knowing before you
+fight them.
+
+**Downloads are blocked.** Chrome refuses repeated automatic downloads from
+that origin, and the panel's own Download button goes through a scripted
+anchor, so it counts as automatic too. Getting a file *off* the box is
+painful. Getting one *on* is not, which is why the deploy is one upload rather
+than a sync.
+
+**`files/contents` truncates** at roughly 1.2 KB per call, so reading a large
+file back through it is not worth attempting.
+
+Everything else can be driven from the page with `fetch` and the `XSRF-TOKEN`
+cookie sent as an `X-XSRF-TOKEN` header:
+
+```
+POST /api/client/servers/<id>/files/decompress   {root, file}
+POST /api/client/servers/<id>/files/delete       {root, files[]}
+PUT  /api/client/servers/<id>/files/rename       {root, files[{from,to}]}
+POST /api/client/servers/<id>/files/write?file=  raw body
+POST /api/client/servers/<id>/power              {signal: "restart"}
+GET  /api/client/servers/<id>/files/list?directory=
+```
+
+So the whole deploy is: upload the bundle through the file input, wait for it
+to land, `decompress`, confirm the client zip grew, delete the bundle, restart.
+
+**Wait for the upload before decompressing.** Calling `decompress` too early
+returns 500, and if the delete runs anyway the bundle is gone without ever
+having been extracted. Poll `files/list` until the size is right.
+
+## Verifying a deploy
+
+```
+rm help
+```
+
+Every command should be listed, including any added in that build. Then:
+
+```
+rm status
+```
+
+Version, player count, bus counters and handler errors. `handler errors 0` is
+the one that matters.
+
+Byte comparison is the strongest check. `files/list` reports sizes, so compare
+one against the local file:
+
+```
+wc -c server/RaceManager/04_identity.lua
+```
+
+If those match, the file on the box is the file you built.
