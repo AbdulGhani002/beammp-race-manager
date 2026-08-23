@@ -80,11 +80,26 @@ local function wireChannels()
 
   RM.bus.on("name.set", function(pid, d)
     local raw = type(d) == "table" and d.name or d
-    local ok, result = RM.identity.setName(pid, raw)
+    local ok, result, code = RM.identity.setName(pid, raw)
     if ok then
       RM.players.onNameChanged(pid)
-      RM.bus.sendNow(pid, "name.result", { ok = true, name = result })
+      RM.bus.sendNow(pid, "name.result", { ok = true, name = result, code = code })
       RM.bus.broadcast("toast", { kind = "info", key = "player_named", a = result })
+    else
+      RM.bus.sendNow(pid, "name.result", { ok = false, reason = result })
+    end
+  end)
+
+  -- a player whose connection changed, getting their own name back without
+  -- needing an admin at the console
+  RM.bus.on("name.recover", function(pid, d)
+    local code = type(d) == "table" and d.code or d
+    local ok, result = RM.identity.recover(pid, code)
+    if ok then
+      RM.players.onNameChanged(pid)
+      RM.players.onRoleChanged(pid)
+      RM.identity.sendMe(pid)
+      RM.bus.sendNow(pid, "name.result", { ok = true, name = result, recovered = true })
     else
       RM.bus.sendNow(pid, "name.result", { ok = false, reason = result })
     end

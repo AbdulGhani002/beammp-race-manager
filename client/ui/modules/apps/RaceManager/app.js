@@ -15,7 +15,8 @@ angular.module("beamng.apps")
       // ng-if and ng-repeat each make a child scope, so a bare string model is
       // written on the child and the parent never sees it. Anything two way
       // bound has to sit behind a dot.
-      $scope.form = { name: "" };
+      $scope.form = { name: "", code: "" };
+      $scope.recovering = false;
       $scope.speed = 0;
       $scope.newTrack = { name: "", kind: "race", circuit: true, overwrite: false };
 
@@ -124,6 +125,7 @@ angular.module("beamng.apps")
       // same child scope trap: an inline assignment in the template writes to
       // whichever scope the click happened in, not this one
       $scope.setPanel = function (p) { $scope.panel = p; };
+      $scope.setRecovering = function (v) { $scope.recovering = !!v; };
 
       $scope.bottom = [
         { key: "reposition", label: "Reposition", note: "1 min penalty" },
@@ -162,13 +164,28 @@ angular.module("beamng.apps")
         ui("setName", $scope.form.name.trim());
       };
 
+      $scope.codeOk = function () {
+        return ($scope.form.code || "").replace(/[^a-zA-Z0-9]/g, "").length === 6;
+      };
+
+      $scope.submitRecover = function () {
+        if (!$scope.codeOk()) return;
+        ui("recoverName", $scope.form.code.trim());
+      };
+
+      $scope.dismissCode = function () { ui("dismissCode"); };
+
       $scope.nameProblem = function () {
         var map = {
           too_short: "That name is too short.",
           too_long: "That name is too long.",
           bad_chars: "Letters, numbers, spaces, dot, dash and underscore only.",
           taken: "Somebody already uses that name.",
-          already_named: "Your name is already set."
+          already_named: "Your name is already set.",
+          bad_code: "A code is six characters.",
+          no_match: "No name is held by that code.",
+          still_connected: "Whoever holds that name is on the server right now.",
+          already_yours: "That is already you."
         };
         return map[$scope.s.nameError] || null;
       };

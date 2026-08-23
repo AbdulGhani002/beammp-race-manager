@@ -63,6 +63,9 @@ local function onNameResult(d)
     S.me.name   = d.name
     S.needsName = false
     S.nameError = nil
+    -- shown once, so it has to be hard to miss
+    if d.code then S.myCode = d.code end
+    S.recovered = d.recovered and true or false
   else
     S.nameError = d.reason
   end

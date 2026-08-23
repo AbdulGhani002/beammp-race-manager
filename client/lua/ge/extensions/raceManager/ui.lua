@@ -31,6 +31,8 @@ local function build()
   -- meant the list opened on the click and vanished on the next push.
   snap.rosterOpen = S.rosterOpen and true or false
   snap.lights     = S.lights and true or false
+  snap.myCode     = S.myCode
+  snap.recovered  = S.recovered and true or false
 
   snap.me.id    = S.me.id
   snap.me.name  = S.me.name
@@ -87,6 +89,15 @@ end
 
 function M.setName(name)
   extensions.raceManager_net.send("name.set", { name = tostring(name or "") })
+end
+
+function M.recoverName(code)
+  extensions.raceManager_net.send("name.recover", { code = tostring(code or "") })
+end
+
+function M.dismissCode()
+  extensions.raceManager_state.get().myCode = nil
+  M.push()
 end
 
 function M.setRosterOpen(open)

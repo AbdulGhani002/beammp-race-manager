@@ -311,3 +311,33 @@
   word-break: break-all;
   user-select: text;
 }
+
+.rm-quiet {
+  background: transparent !important;
+  border-color: transparent !important;
+  opacity: 0.6;
+  font-size: 12px !important;
+  margin-top: 6px;
+}
+.rm-quiet:hover { opacity: 1; }
+
+.rm-code {
+  font-family: "Consolas", monospace;
+  font-size: 34px;
+  letter-spacing: 0.22em;
+  text-align: center;
+  padding: 14px 10px;
+  margin: 10px 0;
+  background: rgba(0, 0, 0, 0.45);
+  border: 1px solid rgba(120, 220, 255, 0.5);
+  border-radius: 6px;
+  user-select: text;
+}
+
+.rm-code-input {
+  text-align: center;
+  font-family: "Consolas", monospace;
+  font-size: 22px !important;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}

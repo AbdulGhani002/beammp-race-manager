@@ -3,7 +3,7 @@
 
   <!-- first join. no password, no signup: pick a name once. -->
   <div class="rm-veil" ng-if="s.ready && s.needsName">
-    <div class="rm-card rm-name">
+    <div class="rm-card rm-name" ng-if="!recovering">
       <h2>Pick your name</h2>
       <p>This is the name everyone sees on the board. You choose it once.</p>
       <input type="text" ng-model="form.name" ng-keydown="$event.keyCode === 13 && submitName()"
@@ -13,6 +13,33 @@
         {{ s.config.nameMinLen || 3 }} to {{ s.config.nameMaxLen || 20 }} characters.
       </div>
       <button class="rm-primary" ng-disabled="!nameOk()" ng-click="submitName()">Continue</button>
+      <button class="rm-quiet" ng-click="setRecovering(true)">I have been here before</button>
+    </div>
+
+    <!-- somebody whose connection changed, getting their own name back -->
+    <div class="rm-card rm-name" ng-if="recovering">
+      <h2>Welcome back</h2>
+      <p>Type the code you were given when you first picked your name. It brings
+         back your name, your level and anything you had earned.</p>
+      <input type="text" ng-model="form.code" ng-keydown="$event.keyCode === 13 && submitRecover()"
+             maxlength="8" placeholder="ABC234" class="rm-code-input" autofocus />
+      <div class="rm-problem" ng-if="nameProblem()">{{ nameProblem() }}</div>
+      <div class="rm-hint" ng-if="!nameProblem()">Six characters. Case does not matter.</div>
+      <button class="rm-primary" ng-disabled="!codeOk()" ng-click="submitRecover()">Get my name back</button>
+      <button class="rm-quiet" ng-click="setRecovering(false)">I am new here</button>
+    </div>
+  </div>
+
+  <!-- shown once, right after a name is taken -->
+  <div class="rm-veil" ng-if="s.ready && !s.needsName && s.myCode">
+    <div class="rm-card rm-name">
+      <h2>Write this down</h2>
+      <p>If you ever come back and the server does not recognise you, this code
+         gives you <strong>{{ s.me.name }}</strong> back, with your level and
+         everything you had earned.</p>
+      <div class="rm-code">{{ s.myCode }}</div>
+      <p class="rm-hint">You will not be shown it again. A screenshot is fine.</p>
+      <button class="rm-primary" ng-click="dismissCode()">I have written it down</button>
     </div>
   </div>
 

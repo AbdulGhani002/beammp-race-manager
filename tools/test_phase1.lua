@@ -272,6 +272,54 @@ eq(RM.roles.of(3), "admin", "and so does the role")
 M.fire("onPlayerDisconnect", 3)
 M.removePlayer(3)
 
+section("recovering a name without an admin")
+-- rm claim needs somebody at the console who can also work out which of
+-- twenty connected players you are. this is the path that does not.
+M.addPlayer(7, "guest_a", nil, true, "192.0.2.10")
+M.fire("onPlayerJoining", 7)
+M.clientSend(7, "hello", { version = RM.VERSION })
+M.clientSend(7, "name.set", { name = "Wanderer" })
+local res7 = M.lastMessage(7, "name.result")
+eq(res7.ok, true, "name taken")
+ok(type(res7.code) == "string" and #res7.code == 6, "and a six character code comes back with it")
+local code = res7.code
+RM.console.handle("rm role Wanderer staff")
+M.fire("onPlayerDisconnect", 7)
+M.removePlayer(7)
+
+-- somewhere else entirely, and other people are on the server
+M.addPlayer(8, "guest_b", nil, true, "198.18.0.5")
+M.addPlayer(9, "guest_c", nil, true, "198.18.0.6")
+M.fire("onPlayerJoining", 8)
+M.fire("onPlayerJoining", 9)
+eq(RM.identity.session(8).name, nil, "a new connection is a new person")
+
+M.clearOutbox()
+M.clientSend(8, "name.recover", { code = "AAAAAA" })
+eq(M.lastMessage(8, "name.result").reason, "no_match", "a wrong code gets nowhere")
+
+M.clientSend(8, "name.recover", { code = "abc" })
+eq(M.lastMessage(8, "name.result").reason, "bad_code", "and so does a malformed one")
+
+M.clearOutbox()
+M.clientSend(8, "name.recover", { code = code:lower() })
+tick(1)
+local rec8 = M.lastMessage(8, "name.result")
+eq(rec8 and rec8.ok, true, "the right code works, and is not case sensitive")
+eq(RM.identity.session(8).name, "Wanderer", "the name came back")
+eq(RM.roles.of(8), "staff", "with the role")
+ok(M.lastMessage(8, "me") ~= nil, "and the interface is told")
+
+M.clearOutbox()
+M.clientSend(9, "name.recover", { code = code })
+eq(M.lastMessage(9, "name.result").reason, "still_connected",
+   "the same code cannot be used while its owner is on")
+
+M.fire("onPlayerDisconnect", 8)
+M.removePlayer(8)
+M.fire("onPlayerDisconnect", 9)
+M.removePlayer(9)
+
 section("claiming a name back after the address changed")
 M.addPlayer(4, "guest_third", nil, true, "198.51.100.7")
 M.fire("onPlayerJoining", 4)

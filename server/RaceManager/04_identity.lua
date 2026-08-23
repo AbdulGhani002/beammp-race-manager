@@ -90,13 +90,14 @@ function RM.identity.setName(pid, raw)
   if not rec then return false, "no_record" end
 
   rec.name = result
+  rec.code = rec.code or RM.identity.makeCode()
   s.name = result
   taken[result:lower()] = s.key
 
   RM.store.markDirty(STORE)
   RM.store.flushNow(STORE)
-  RM.info(("player %d (%s) is now '%s'"):format(pid, s.key, result))
-  return true, result
+  RM.info(("player %d (%s) is now %s"):format(pid, s.key, result))
+  return true, result, rec.code
 end
 
 function RM.identity.onJoin(pid)
@@ -252,4 +253,78 @@ function RM.identity.unnamed()
   end
   table.sort(out)
   return out
+end
+
+-- A code handed out once, when a name is first taken, so a player who comes
+-- back unrecognised can get their own name back without an admin being awake.
+--
+-- That matters more than it sounds. rm claim needs somebody at the host
+-- console who can also work out which of twenty connected players you are.
+-- Fine for two people testing, useless on a public server.
+--
+-- Not a password: it is generated rather than chosen, shown once, and only
+-- ever used when the connection is not recognised. It is stored in the clear
+-- because anyone who can read that file already has the console, and the
+-- console can do more than this ever could.
+
+local ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"   -- no I O 0 1
+local seeded = false
+
+local function makeCode()
+  if not seeded then
+    math.randomseed(os.time() + math.floor(RM.now() * 1000))
+    seeded = true
+  end
+  local out = {}
+  for i = 1, 6 do
+    local n = math.random(1, #ALPHABET)
+    out[i] = ALPHABET:sub(n, n)
+  end
+  return table.concat(out)
+end
+
+RM.identity.makeCode = makeCode
+
+-- returns ok, name-or-reason
+function RM.identity.recover(pid, code)
+  local s = session[pid]
+  if not s then return false, "no_session" end
+  if s.name and s.name ~= "" then return false, "already_named" end
+
+  code = tostring(code or ""):upper():gsub("[^A-Z0-9]", "")
+  if #code ~= 6 then return false, "bad_code" end
+
+  local foundKey, found
+  for key, rec in pairs(players) do
+    if type(rec) == "table" and rec.code == code then
+      foundKey, found = key, rec
+      break
+    end
+  end
+
+  if not found then return false, "no_match" end
+  if foundKey == s.key then return false, "already_yours" end
+  if RM.identity.pidForKey(foundKey) then return false, "still_connected" end
+
+  local rec = players[s.key]
+  if not rec then return false, "no_record" end
+
+  rec.name      = found.name
+  rec.role      = found.role or "player"
+  rec.xp        = found.xp or 0
+  rec.level     = found.level or 1
+  rec.firstSeen = found.firstSeen or rec.firstSeen
+  rec.code      = found.code
+
+  if type(found.name) == "string" and found.name ~= "" then
+    taken[found.name:lower()] = s.key
+  end
+  players[foundKey] = nil
+
+  s.name, s.role, s.level = rec.name, rec.role, rec.level
+
+  RM.store.markDirty(STORE)
+  RM.store.flushNow(STORE)
+  RM.info(("%s recovered by code onto %s, role %s"):format(rec.name, s.key, rec.role))
+  return true, rec.name
 end
