@@ -28,6 +28,15 @@ function RM.identity.keyFor(pid)
   if not guest and ids.beammp and ids.beammp ~= "" then
     return "beammp:" .. tostring(ids.beammp), false
   end
+
+  -- BeamMP hands a guest a fresh name every session, so keying on it makes
+  -- every visit a different person: the display name they picked stays locked
+  -- to a record they can never reach again. The connection is the only thing
+  -- that stays put, and it is hashed so no address reaches the file.
+  if RM.config.guestKey == "ip" and type(ids.ip) == "string" and ids.ip ~= "" then
+    return "guest:ip:" .. RM.util.hash(ids.ip), true
+  end
+
   return "guest:" .. tostring(MP.GetPlayerName(pid) or pid), true
 end
 
@@ -197,4 +206,50 @@ function RM.identity.sendMe(pid)
     ranked = RM.identity.isRanked(pid),
     level  = s.level,
   })
+end
+
+-- Move a stored player onto whoever is connected now. Two things need this:
+-- a name stranded on a key nobody can reach any more, and a guest whose
+-- address changed because their router rebooted. It is deliberately not
+-- something a player can do to themselves.
+function RM.identity.claim(pid, name)
+  local s = session[pid]
+  if not s then return false, "no_session" end
+  if s.name and s.name ~= "" then return false, "already_named" end
+
+  local oldKey = RM.identity.keyForName(name)
+  if not oldKey then return false, "no_such_name" end
+  if oldKey == s.key then return false, "already_yours" end
+  if RM.identity.pidForKey(oldKey) then return false, "still_connected" end
+
+  local old = players[oldKey]
+  local rec = players[s.key]
+  if not old then return false, "no_such_name" end
+  if not rec then return false, "no_record" end
+
+  rec.name      = old.name
+  rec.role      = old.role or "player"
+  rec.xp        = old.xp or 0
+  rec.level     = old.level or 1
+  rec.firstSeen = old.firstSeen or rec.firstSeen
+
+  taken[tostring(old.name):lower()] = s.key
+  players[oldKey] = nil
+
+  s.name, s.role, s.level = rec.name, rec.role, rec.level
+
+  RM.store.markDirty(STORE)
+  RM.store.flushNow(STORE)
+  RM.info(("%s claimed by %s, carrying role %s"):format(rec.name, s.key, rec.role))
+  return true, rec.name
+end
+
+-- everyone connected who has not picked a name yet
+function RM.identity.unnamed()
+  local out = {}
+  for pid, s in pairs(session) do
+    if not s.name or s.name == "" then out[#out + 1] = pid end
+  end
+  table.sort(out)
+  return out
 end

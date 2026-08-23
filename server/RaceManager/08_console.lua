@@ -14,6 +14,7 @@ local HELP = {
   "rm drafts              captures in progress",
   "rm role <name> <role>  owner | admin | staff | player",
   "rm forget <name>      drop a stored player, frees the display name",
+  "rm claim <name>       give a stored name, and its role, to whoever just joined",
   "rm perf                recorded FPS runs",
   "rm save                write every store now",
 }
@@ -101,6 +102,40 @@ local function setRole(say, name, role)
   end
 end
 
+local function claim(say, rest)
+  local id, name = rest:match("^claim%s+(%d+)%s+(.+)%s*$")
+  local pid = tonumber(id)
+
+  if not pid then
+    name = rest:match("^claim%s+(.+)%s*$")
+    local waiting = RM.identity.unnamed()
+    if #waiting == 0 then
+      say("  nobody is connected without a name")
+      return
+    elseif #waiting > 1 then
+      say("  more than one player has no name yet, so say which:")
+      for _, p in ipairs(waiting) do
+        say(("    rm claim %d <name>   (%s)"):format(p, RM.identity.displayName(p)))
+      end
+      return
+    end
+    pid = waiting[1]
+  end
+
+  if not name then say("  usage: rm claim <name>   or   rm claim <id> <name>") return end
+
+  local ok, result = RM.identity.claim(pid, name)
+  if not ok then
+    say("  " .. tostring(result))
+    return
+  end
+
+  RM.players.onNameChanged(pid)
+  RM.players.onRoleChanged(pid)
+  RM.identity.sendMe(pid)
+  say(("  player %d is now %s, role %s"):format(pid, result, RM.roles.of(pid)))
+end
+
 local function forget(say, name)
   if not name then say("  usage: rm forget <name>") return end
   local key = RM.identity.keyForName(name)
@@ -139,6 +174,8 @@ function RM.console.handle(input)
   elseif cmd == "role" then
     local name, role = rest:match("^role%s+(.+)%s+(%S+)%s*$")
     setRole(say, name, role)
+  elseif cmd == "claim" then
+    claim(say, rest)
   elseif cmd == "forget" then
     local name = rest:match("^forget%s+(.+)%s*$")
     forget(say, name)

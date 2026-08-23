@@ -21,8 +21,9 @@ function M.reset()
   M.logs = { info = {}, warn = {}, error = {}, debug = {} }
 end
 
-function M.addPlayer(pid, name, beammp, guest)
-  M.players[pid] = { name = name, beammp = beammp, guest = guest and true or false }
+function M.addPlayer(pid, name, beammp, guest, ip)
+  M.players[pid] = { name = name, beammp = beammp, guest = guest and true or false,
+                     ip = ip or "10.0.0.1" }
 end
 
 function M.removePlayer(pid)
@@ -127,7 +128,7 @@ end
 function MP.GetPlayerIdentifiers(pid)
   local p = M.players[pid]
   if not p then return {} end
-  return { beammp = p.beammp, ip = "127.0.0.1" }
+  return { beammp = p.beammp, ip = p.ip or "10.0.0.1" }
 end
 
 function MP.GetPositionRaw(pid, vid)

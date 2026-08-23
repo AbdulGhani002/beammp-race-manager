@@ -81,7 +81,7 @@ eq(res and res.reason, "already_named", "and says why")
 M.addPlayer(1, "Guest_1234", nil, true)
 M.fire("onPlayerJoining", 1)
 M.clientSend(1, "hello", { version = RM.VERSION })
-eq(RM.identity.session(1).key, "guest:Guest_1234", "guests key on their name")
+ok(RM.identity.session(1).key:find("guest:ip:") == 1, "guests key on their connection")
 eq(RM.identity.isRanked(1), false, "guests are not ranked")
 
 M.clientSend(1, "name.set", { name = "darren hardesty" })
@@ -248,6 +248,41 @@ M.clientSendRaw(0, Util.JsonEncode(huge))
 ok(true, "an oversized batch did not raise")
 
 eq(RM.util.handlerErrorCount(), 0, "no handler raised at any point")
+
+section("a guest keeps their name across sessions")
+-- BeamMP hands a guest a new name every visit, so the old key was a new
+-- person every time and the name they picked was stranded
+M.addPlayer(2, "guest_first", nil, true, "203.0.113.9")
+M.fire("onPlayerJoining", 2)
+local firstKey = RM.identity.session(2).key
+ok(firstKey:find("guest:ip:") == 1, "a guest keys on their connection, not the name")
+
+M.clientSend(2, "name.set", { name = "Dard" })
+eq(M.lastMessage(2, "name.result").ok, true, "and can pick a name")
+RM.console.handle("rm role Dard admin")
+M.fire("onPlayerDisconnect", 2)
+M.removePlayer(2)
+
+-- same house, brand new BeamMP guest name
+M.addPlayer(3, "guest_second", nil, true, "203.0.113.9")
+M.fire("onPlayerJoining", 3)
+eq(RM.identity.session(3).key, firstKey, "the same connection is the same person")
+eq(RM.identity.session(3).name, "Dard", "so the name comes back")
+eq(RM.roles.of(3), "admin", "and so does the role")
+M.fire("onPlayerDisconnect", 3)
+M.removePlayer(3)
+
+section("claiming a name back after the address changed")
+M.addPlayer(4, "guest_third", nil, true, "198.51.100.7")
+M.fire("onPlayerJoining", 4)
+ok(RM.identity.session(4).name == nil, "a new address is a new person")
+
+ok(RM.console.handle("rm claim Dard"):find("Dard") ~= nil, "console hands the name over")
+eq(RM.identity.session(4).name, "Dard", "the name moved")
+eq(RM.roles.of(4), "admin", "and the role came with it")
+eq(RM.identity.keyForName("Dard"), RM.identity.session(4).key, "the name points at the new key")
+M.fire("onPlayerDisconnect", 4)
+M.removePlayer(4)
 
 section("forgetting a stored player")
 eq(RM.console.handle("rm forget Speedy"):find("still_connected") ~= nil, true,

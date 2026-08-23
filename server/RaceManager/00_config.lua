@@ -11,6 +11,15 @@ RM.config = {
   -- across sessions. set AllowGuests = false in ServerConfig.toml to drop the case.
   guestsRanked = false,
 
+  -- How a guest is recognised on a later visit.
+  --   "ip"   the connection, hashed. survives the new name BeamMP hands out
+  --          every session, which is the only thing that works while the
+  --          forum is down and nobody can register.
+  --   "name" the name BeamMP gave them. a different person every join.
+  -- Put this back to "name" once accounts work again: a real BeamMP id is
+  -- better than an address that changes when a router reboots.
+  guestKey = "ip",
+
   tickMs     = 100,
   rosterMs   = 500,
   autosaveMs = 30000,

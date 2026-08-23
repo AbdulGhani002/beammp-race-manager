@@ -137,3 +137,15 @@ function RM.util.mph(vx, vy, vz)
   if not (RM.util.isNum(vx) and RM.util.isNum(vy) and RM.util.isNum(vz)) then return 0 end
   return math.sqrt(vx * vx + vy * vy + vz * vz) * MPS_TO_MPH
 end
+
+-- FNV-1a. Used to key a guest on their connection without ever writing an
+-- address into the player file.
+function RM.util.hash(s)
+  local h = 2166136261
+  s = tostring(s or "")
+  for i = 1, #s do
+    h = h ~ s:byte(i)
+    h = (h * 16777619) & 0xFFFFFFFF
+  end
+  return ("%08x"):format(h)
+end
