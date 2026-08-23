@@ -170,15 +170,40 @@ end
 --
 -- Preview only. Nothing here runs during a race.
 
-local POST    = ColorF(0.10, 0.70, 1.00, 0.90)
-local FACE    = ColorF(0.10, 0.60, 1.00, 0.13)
-local LABEL   = ColorF(1, 1, 1, 1)
-local LABELBG = ColorI(10, 90, 130, 200)
+-- A trigger volume only renders inside the world editor, so the gate you see
+-- is drawn here: two posts, a top bar and a translucent face, built from the
+-- same width, height and yaw the volume uses. What is on screen is the thing
+-- you drive through, not a marker near it.
+--
+-- Two sets get drawn. A saved course is blue. A capture in progress is amber,
+-- because you need to see the gates you have already dropped while you are
+-- still laying the rest out, and it should be obvious which of the two you are
+-- looking at.
+
+local SAVED_POST  = ColorF(0.10, 0.70, 1.00, 0.90)
+local SAVED_FACE  = ColorF(0.10, 0.60, 1.00, 0.13)
+local DRAFT_POST  = ColorF(1.00, 0.62, 0.10, 0.90)
+local DRAFT_FACE  = ColorF(1.00, 0.55, 0.10, 0.13)
+local LABEL       = ColorF(1, 1, 1, 1)
+local SAVED_BG    = ColorI(10, 90, 130, 200)
+local DRAFT_BG    = ColorI(150, 80, 10, 200)
 
 local DRAW_RANGE = 900
 local errLogged = false
 
-local function drawGate(cp, index)
+local draft = nil
+
+-- the gates dropped so far in a capture. drawn but not built: there is nothing
+-- to collide with until the course is saved.
+function M.setDraft(checkpoints)
+  draft = checkpoints
+end
+
+function M.clearDraft()
+  draft = nil
+end
+
+local function drawGate(cp, index, post, face, bg)
   local w, h = gateOf(cp)
   local yaw = tonumber(cp.yaw) or 0
 
@@ -187,42 +212,50 @@ local function drawGate(cp, index)
   local half = w * 0.5
 
   local lx, ly = cp.pos.x + rx * half, cp.pos.y + ry * half
-  local rx2, ry2 = cp.pos.x - rx * half, cp.pos.y - ry * half
+  local mx, my = cp.pos.x - rx * half, cp.pos.y - ry * half
   local z = cp.pos.z
 
   local l  = vec3(lx, ly, z)
-  local r  = vec3(rx2, ry2, z)
+  local r  = vec3(mx, my, z)
   local lt = vec3(lx, ly, z + h)
-  local rt = vec3(rx2, ry2, z + h)
+  local rt = vec3(mx, my, z + h)
 
-  debugDrawer:drawCylinder(l, lt, 0.22, POST)
-  debugDrawer:drawCylinder(r, rt, 0.22, POST)
-  debugDrawer:drawCylinder(lt, rt, 0.16, POST)
-  debugDrawer:drawQuadSolid(l, r, rt, lt, FACE)
+  debugDrawer:drawCylinder(l, lt, 0.22, post)
+  debugDrawer:drawCylinder(r, rt, 0.22, post)
+  debugDrawer:drawCylinder(lt, rt, 0.16, post)
+  debugDrawer:drawQuadSolid(l, r, rt, lt, face)
 
   debugDrawer:drawTextAdvanced(
     vec3(cp.pos.x, cp.pos.y, z + h + 1.2),
-    String(tostring(index)), LABEL, true, false, LABELBG)
+    String(tostring(index)), LABEL, true, false, bg)
 end
 
-local function onUpdate()
-  if not visible or not course then return end
-
-  local eye
-  local okEye, p = pcall(function() return core_camera.getPosition() end)
-  if okEye then eye = p end
-
-  local cps = course.checkpoints
-  local ok, err = pcall(function()
-    for i = 1, #cps do
-      local cp = cps[i]
+local function drawSet(cps, eye, post, face, bg)
+  for i = 1, #cps do
+    local cp = cps[i]
+    if cp and cp.pos then
       local near = true
       if eye then
         local dx, dy = cp.pos.x - eye.x, cp.pos.y - eye.y
         near = (dx * dx + dy * dy) < (DRAW_RANGE * DRAW_RANGE)
       end
-      if near then drawGate(cp, i) end
+      if near then drawGate(cp, i, post, face, bg) end
     end
+  end
+end
+
+local function onUpdate()
+  local showSaved = visible and course
+  local showDraft = draft and #draft > 0
+  if not showSaved and not showDraft then return end
+
+  local eye
+  local okEye, p = pcall(function() return core_camera.getPosition() end)
+  if okEye then eye = p end
+
+  local ok, err = pcall(function()
+    if showSaved then drawSet(course.checkpoints, eye, SAVED_POST, SAVED_FACE, SAVED_BG) end
+    if showDraft then drawSet(draft, eye, DRAFT_POST, DRAFT_FACE, DRAFT_BG) end
   end)
 
   if not ok and not errLogged then
@@ -230,7 +263,6 @@ local function onUpdate()
     log("W", "raceManager", "could not draw the gates: " .. tostring(err))
   end
 end
-
 
 M.onBeamNGTrigger = onBeamNGTrigger
 M.onUpdate        = onUpdate

@@ -9,6 +9,7 @@ local SUBS = {
   "raceManager_triggers",
   "raceManager_capture",
   "raceManager_bottombar",
+  "raceManager_hud",
   "raceManager_perf",
   "raceManager_ui",
 }
@@ -77,6 +78,7 @@ end
 -- handshake has to be able to happen more than once
 local function onClientPostStartMission()
   trySayHello()
+  extensions.raceManager_hud.install()
 end
 
 local function onExtensionUnloaded()

@@ -18,6 +18,14 @@ local st = {
   previewing = false,
 }
 
+-- the gates dropped so far, kept here so they can be drawn while the capture
+-- is still going. the server holds the real copy.
+local gates = {}
+
+local function pushDraft()
+  extensions.raceManager_triggers.setDraft(gates)
+end
+
 local acc = 0
 
 local function atan2(y, x)
@@ -146,6 +154,8 @@ function M.resume(draft)
   st.level   = draft.level
   st.circuit = draft.circuit and true or false
   st.count   = #(draft.checkpoints or {})
+  gates = draft.checkpoints or {}
+  pushDraft()
   local last = draft.checkpoints and draft.checkpoints[st.count]
   if last then
     st.lastGateAt = last.pos
@@ -157,6 +167,8 @@ function M.resume(draft)
 end
 
 local function onBegin(d)
+  gates = {}
+  pushDraft()
   st.active     = true
   st.id         = d.id
   st.name       = d.name
@@ -170,6 +182,8 @@ end
 local function onMark(d)
   st.count = d.i or (st.count + 1)
   st.lastGateAt = d.pos
+  gates[st.count] = d
+  pushDraft()
 end
 
 function M.onResult(d)
@@ -190,12 +204,20 @@ function M.onResult(d)
     onMark(d.data or {})
   elseif a == "undo" then
     st.count = tonumber(d.data) or math.max(0, st.count - 1)
+    for i = st.count + 1, #gates do gates[i] = nil end
+    st.lastGateAt = gates[st.count] and gates[st.count].pos or nil
+    pushDraft()
   elseif a == "gate" and type(d.data) == "table" and d.data.size then
     st.gate = { w = d.data.size.w, h = d.data.size.h, d = d.data.size.d }
+    local i = tonumber(d.data.i) or st.count
+    if gates[i] then gates[i].size = d.data.size end
+    pushDraft()
   elseif a == "finish" then
     st.active = false
     st.count  = 0
     st.lastGateAt = nil
+    gates = {}
+    extensions.raceManager_triggers.clearDraft()
     if type(d.data) == "table" then
       st.previewing = extensions.raceManager_triggers.preview(d.data) > 0
     end
@@ -203,6 +225,8 @@ function M.onResult(d)
     st.active = false
     st.count  = 0
     st.lastGateAt = nil
+    gates = {}
+    extensions.raceManager_triggers.clearDraft()
   end
 
   extensions.raceManager_ui.push()
