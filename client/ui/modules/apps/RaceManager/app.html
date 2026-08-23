@@ -54,7 +54,7 @@
     </div>
 
     <!-- side player list -->
-    <div class="rm-players" ng-if="s.rosterOpen">
+    <div class="rm-players" rm-drag="players" ng-if="s.rosterOpen">
       <div class="rm-players-head">
         <span>On track</span><span class="rm-count">{{ s.roster.length }}</span>
       </div>
@@ -68,7 +68,7 @@
     </div>
 
     <!-- panels -->
-    <div class="rm-card rm-panel" ng-if="panel === 'discord'">
+    <div class="rm-card rm-panel" rm-drag="discord" ng-if="panel === 'discord'">
       <button class="rm-x" ng-click="close()">close</button>
       <h2>Discord</h2>
       <p class="rm-hint">The game holds focus, so the browser opens behind it.
@@ -77,14 +77,15 @@
       <button class="rm-primary" ng-click="launchDiscord()">Open in browser</button>
     </div>
 
-    <div class="rm-card rm-panel" ng-if="panel && panel !== 'options' && panel !== 'capture' && panel !== 'discord'">
+    <div class="rm-card rm-panel" rm-drag="info"
+         ng-if="panel && panel !== 'options' && panel !== 'capture' && panel !== 'discord'">
       <button class="rm-x" ng-click="close()">close</button>
       <h2>{{ panel === 'bottom' ? 'Recovery' : (buttons | filter:{key: panel})[0].label }}</h2>
       <p class="rm-soon">{{ panel === 'bottom' ? SOON.bottom : SOON[panel] }}</p>
       <p class="rm-hint">The button is here so the layout is final. What sits behind it is not built yet.</p>
     </div>
 
-    <div class="rm-card rm-panel" ng-if="panel === 'options'">
+    <div class="rm-card rm-panel" rm-drag="options" ng-if="panel === 'options'">
       <button class="rm-x" ng-click="close()">close</button>
       <h2>Options</h2>
 
@@ -117,6 +118,13 @@
       </div>
 
       <div class="rm-group">
+        <h3>Windows</h3>
+        <p class="rm-hint">Drag a window by its title, resize it from the bottom
+          right corner. Where you put it is remembered.</p>
+        <button ng-click="resetPanels()">Put the windows back</button>
+      </div>
+
+      <div class="rm-group">
         <h3>Later</h3>
         <p class="rm-soon">Language and XP tracking arrive in phase 6.</p>
       </div>
@@ -129,7 +137,7 @@
     </div>
 
     <!-- checkpoint capture. drive the route, press the key at each point. -->
-    <div class="rm-card rm-panel rm-capture" ng-if="panel === 'capture'">
+    <div class="rm-card rm-panel rm-capture" rm-drag="capture" ng-if="panel === 'capture'">
       <button class="rm-x" ng-click="close()">close</button>
       <h2>Checkpoint capture</h2>
 
@@ -165,7 +173,9 @@
         <div class="rm-track" ng-repeat="t in s.tracks">
           <span class="rm-track-name">{{ t.name }}</span>
           <span class="rm-track-meta">{{ t.kind }} &middot; {{ t.count }} checkpoints &middot; {{ t.level }}</span>
-          <button ng-click="cap('openTrack', t.id)">Show</button>
+          <button ng-if="s.capture.showing !== t.id" ng-click="cap('openTrack', t.id)">Show gates</button>
+          <button ng-if="s.capture.showing === t.id" class="on"
+                  ng-click="cap('stopPreview')">Hide gates</button>
           <button class="rm-danger" ng-click="cap('deleteTrack', t.id)">Delete</button>
         </div>
       </div>

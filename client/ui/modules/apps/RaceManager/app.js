@@ -1,4 +1,92 @@
 angular.module("beamng.apps")
+
+// Drag a panel by its heading, resize it from the bottom right corner, and
+// remember where it was put. He asked for this after using it: a window that
+// sits where the mod decided is fine until it covers the bit of road you are
+// looking at.
+//
+// Position is kept per panel in localStorage, so it survives a rejoin. Panels
+// are clamped back on screen when they load, otherwise a window dragged off
+// the edge on a wide monitor is gone for good on a narrow one.
+.directive("rmDrag", [function () {
+  return {
+    restrict: "A",
+    link: function (scope, element, attrs) {
+      var node = element[0];
+      var key = "rm.panel." + (attrs.rmDrag || "panel");
+      var MIN_W = 320, MIN_H = 160, EDGE = 24;
+
+      function clamp(v, lo, hi) { return v < lo ? lo : (v > hi ? hi : v); }
+
+      function place(box) {
+        var maxX = window.innerWidth - EDGE;
+        var maxY = window.innerHeight - EDGE;
+        node.style.left = clamp(box.x, -MIN_W + EDGE, maxX) + "px";
+        node.style.top = clamp(box.y, 0, maxY) + "px";
+        node.style.transform = "none";
+        node.style.right = "auto";
+        node.style.bottom = "auto";
+        if (box.w) node.style.width = Math.max(MIN_W, box.w) + "px";
+        if (box.h) node.style.height = Math.max(MIN_H, box.h) + "px";
+      }
+
+      function remember(box) {
+        try { localStorage.setItem(key, JSON.stringify(box)); } catch (e) { }
+      }
+
+      var saved = null;
+      try { saved = JSON.parse(localStorage.getItem(key)); } catch (e) { }
+      if (saved && typeof saved.x === "number") place(saved);
+
+      function beginDrag(startEvent, mode) {
+        startEvent.preventDefault();
+        var rect = node.getBoundingClientRect();
+        var ox = startEvent.clientX, oy = startEvent.clientY;
+        var box = { x: rect.left, y: rect.top, w: rect.width, h: rect.height };
+
+        function onMove(e) {
+          var dx = e.clientX - ox, dy = e.clientY - oy;
+          if (mode === "move") {
+            place({ x: box.x + dx, y: box.y + dy, w: box.w, h: box.h });
+          } else {
+            place({ x: box.x, y: box.y, w: box.w + dx, h: box.h + dy });
+          }
+        }
+
+        function onUp() {
+          document.removeEventListener("mousemove", onMove);
+          document.removeEventListener("mouseup", onUp);
+          var r = node.getBoundingClientRect();
+          remember({ x: r.left, y: r.top, w: r.width, h: r.height });
+        }
+
+        document.addEventListener("mousemove", onMove);
+        document.addEventListener("mouseup", onUp);
+      }
+
+      var handle = node.querySelector("h2") || node.querySelector(".rm-players-head");
+      if (handle) {
+        handle.classList.add("rm-handle");
+        handle.addEventListener("mousedown", function (e) { beginDrag(e, "move"); });
+      }
+
+      var grip = document.createElement("div");
+      grip.className = "rm-grip";
+      grip.title = "Drag to resize";
+      grip.addEventListener("mousedown", function (e) { beginDrag(e, "resize"); });
+      node.appendChild(grip);
+
+      // put it back where the css wanted it
+      scope.rmResetPanel = function () {
+        try { localStorage.removeItem(key); } catch (e) { }
+        node.style.left = ""; node.style.top = ""; node.style.width = "";
+        node.style.height = ""; node.style.transform = ""; node.style.right = "";
+        node.style.bottom = "";
+      };
+    }
+  };
+}])
+
 .directive("raceManager", [function () {
   return {
     templateUrl: "/ui/modules/apps/RaceManager/app.html",
@@ -174,6 +262,20 @@ angular.module("beamng.apps")
       };
 
       $scope.dismissCode = function () { ui("dismissCode"); };
+
+      // a window dragged somewhere silly on one monitor is hard to find on
+      // another, so there is a way back
+      $scope.resetPanels = function () {
+        try {
+          var kill = [];
+          for (var i = 0; i < localStorage.length; i++) {
+            var k = localStorage.key(i);
+            if (k && k.indexOf("rm.panel.") === 0) kill.push(k);
+          }
+          for (var j = 0; j < kill.length; j++) localStorage.removeItem(kill[j]);
+        } catch (e) { }
+        $scope.panel = null;
+      };
 
       $scope.nameProblem = function () {
         var map = {

@@ -341,3 +341,32 @@
   letter-spacing: 0.18em;
   text-transform: uppercase;
 }
+
+/* a panel is dragged by its heading and resized from the corner */
+.rm-handle {
+  cursor: move;
+  user-select: none;
+}
+.rm-handle::after {
+  content: "";
+  display: inline-block;
+  width: 22px;
+  height: 3px;
+  margin-left: 10px;
+  vertical-align: middle;
+  border-top: 1px solid rgba(255, 255, 255, 0.28);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.28);
+}
+
+.rm-grip {
+  position: absolute;
+  right: 2px;
+  bottom: 2px;
+  width: 16px;
+  height: 16px;
+  cursor: nwse-resize;
+  pointer-events: auto;
+  background:
+    linear-gradient(135deg, transparent 0 45%, rgba(255,255,255,0.32) 45% 55%, transparent 55%),
+    linear-gradient(135deg, transparent 0 70%, rgba(255,255,255,0.32) 70% 80%, transparent 80%);
+}

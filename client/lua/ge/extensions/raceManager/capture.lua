@@ -56,6 +56,7 @@ local function readPose()
 end
 
 function M.status()
+  st.showing = extensions.raceManager_triggers.shownId()
   return st
 end
 

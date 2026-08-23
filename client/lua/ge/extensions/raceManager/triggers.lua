@@ -20,6 +20,11 @@ local spawned = {}
 local course  = nil
 local visible = false
 
+-- which saved course is on screen. kept across a level change so a course you
+-- asked to see is still there when you come back, rather than quietly
+-- vanishing and leaving you to wonder whether it ever worked.
+local shownId = nil
+
 local function removeOne(name)
   local ok, obj = pcall(function() return scenetree.findObject(name) end)
   if ok and obj then pcall(function() obj:delete() end) end
@@ -119,12 +124,16 @@ function M.setVisible(on)
 end
 
 function M.preview(track)
+  shownId = type(track) == "table" and track.id or nil
   return M.build(track, true)
 end
 
 function M.stopPreview()
+  shownId = nil
   M.setVisible(false)
 end
+
+function M.shownId() return shownId end
 
 function M.isDrawing() return visible end
 function M.count() return #spawned end
@@ -135,6 +144,11 @@ function M.onLevelLoaded()
   spawned = {}
   course = nil
   visible = false
+
+  -- but the intent to see a course does. ask for it again.
+  if shownId then
+    extensions.raceManager_net.send("track.get", { id = shownId })
+  end
 end
 
 local function localVehicleId()
