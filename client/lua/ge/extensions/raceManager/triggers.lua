@@ -194,13 +194,16 @@ end
 -- still laying the rest out, and it should be obvious which of the two you are
 -- looking at.
 
-local SAVED_POST  = ColorF(0.10, 0.70, 1.00, 0.90)
-local SAVED_FACE  = ColorF(0.10, 0.60, 1.00, 0.13)
-local DRAFT_POST  = ColorF(1.00, 0.62, 0.10, 0.90)
-local DRAFT_FACE  = ColorF(1.00, 0.55, 0.10, 0.13)
+-- Badge colours, but read against tan dirt first. Red posts on this map would
+-- be nearly invisible, so the posts are white and the face carries the red.
+-- A gate you cannot see is a bug, not a style choice.
+local SAVED_POST  = ColorF(0.95, 0.94, 0.92, 0.95)
+local SAVED_FACE  = ColorF(0.66, 0.11, 0.13, 0.20)
+local DRAFT_POST  = ColorF(0.94, 0.71, 0.16, 0.95)
+local DRAFT_FACE  = ColorF(0.91, 0.50, 0.12, 0.18)
 local LABEL       = ColorF(1, 1, 1, 1)
-local SAVED_BG    = ColorI(10, 90, 130, 200)
-local DRAFT_BG    = ColorI(150, 80, 10, 200)
+local SAVED_BG    = ColorI(122, 20, 24, 215)
+local DRAFT_BG    = ColorI(150, 85, 12, 215)
 
 local DRAW_RANGE = 900
 local errLogged = false
