@@ -4,6 +4,7 @@
   <!-- first join. no password, no signup: pick a name once. -->
   <div class="rm-veil" ng-if="s.ready && s.needsName">
     <div class="rm-card rm-name" ng-if="!recovering">
+      <img class="rm-crest" src="/ui/modules/apps/RaceManager/logo-shield.png" alt="Baja Sim" />
       <h2>Pick your name</h2>
       <p>This is the name everyone sees on the board. You choose it once.</p>
       <input type="text" ng-model="form.name" ng-keydown="$event.keyCode === 13 && submitName()"
@@ -18,6 +19,7 @@
 
     <!-- somebody whose connection changed, getting their own name back -->
     <div class="rm-card rm-name" ng-if="recovering">
+      <img class="rm-crest" src="/ui/modules/apps/RaceManager/logo-shield.png" alt="Baja Sim" />
       <h2>Welcome back</h2>
       <p>Type the code you were given when you first picked your name. It brings
          back your name, your level and anything you had earned.</p>
@@ -33,6 +35,7 @@
   <!-- shown once, right after a name is taken -->
   <div class="rm-veil" ng-if="s.ready && !s.needsName && s.myCode">
     <div class="rm-card rm-name">
+      <img class="rm-crest" src="/ui/modules/apps/RaceManager/logo-shield.png" alt="Baja Sim" />
       <h2>Write this down</h2>
       <p>If you ever come back and the server does not recognise you, this code
          gives you <strong>{{ s.me.name }}</strong> back, with your level and
@@ -47,6 +50,7 @@
 
     <!-- top banner -->
     <div class="rm-top">
+      <img class="rm-mark" src="/ui/modules/apps/RaceManager/logo-round.png" alt="Baja Sim" />
       <button ng-repeat="b in buttons" ng-click="open(b.key)"
               ng-class="{on: panel === b.key}">{{ b.label }}</button>
       <button class="rm-players-toggle" ng-click="togglePlayers()"
