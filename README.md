@@ -52,6 +52,7 @@ without the game:
 
 ```
 lua54 tools/test_phase1.lua
+lua54 tools/test_phase2.lua
 ```
 
 Key bindings name their lua function as a string, so a typo fails silently in
@@ -69,8 +70,13 @@ and caches it. No TeX install to maintain:
 bash tools/build_plans.sh
 ```
 
-71 checks covering joining, naming, the player list, the capture tool, the
-permission gate, persistence, and what a rewritten client can throw at it.
+91 checks over phase 1: joining, naming, the player list, the capture tool,
+the permission gate, persistence, and what a rewritten client can throw at it.
+
+70 more over phase 2, with the clock driven by hand so a run plays through
+without waiting for real seconds: clock offset, lap timing, cut corners, a
+stamp claiming the impossible, ten drivers at once, and heap growth while a
+car is on track.
 
 ## Documentation
 

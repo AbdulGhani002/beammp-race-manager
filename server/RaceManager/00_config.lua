@@ -43,7 +43,18 @@ RM.config = {
   -- run "rm owner <name>" in the host console, which only you can reach.
   owners = {},
 
-  penalties = { recovery = 60.0, flatTire = 30.0, repair = 30.0 },
+  -- his document names every penalty except this one, so it is a guess until
+  -- he says otherwise. flagged in the phase 2 plan.
+  penalties = { recovery = 60.0, flatTire = 30.0, repair = 30.0, missedGate = 30.0 },
+
+  -- a run is thrown away if nobody crosses anything for this long
+  raceIdleTimeoutMs = 900000,
+
+  -- nothing on wheels does this, so a split implying it is a lie
+  maxPlausibleMph = 300,
+
+  -- how far a client stamp may sit outside what the server believes
+  clockTrustMs = 2000,
   holds     = { spareTire = 30.0, repair = 60.0, fuel = 20.0 },
 
   speedZoneMph = 37,
@@ -62,6 +73,7 @@ RM.config = {
 RM.config.public = {
   version       = RM.VERSION,
   penalties     = RM.config.penalties,
+  maxCheckpointsPerLap = RM.config.maxCheckpoints,
   holds         = RM.config.holds,
   speedZoneMph  = RM.config.speedZoneMph,
   discordUrl    = RM.config.discordUrl,

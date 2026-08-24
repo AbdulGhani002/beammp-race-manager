@@ -17,6 +17,14 @@ local function onTick()
   if ticks % rosterEvery == 0 then RM.players.sample() end
 
   RM.players.tick()
+
+  -- the clock probe rides the batch that is already going out
+  if ticks % rosterEvery == 0 then
+    for pid, s in pairs(RM.identity.sessions()) do
+      if s.hello then RM.clock.maybeProbe(pid, s) end
+    end
+  end
+
   RM.bus.flush()
 
   if ticks % saveEvery  == 0 then RM.store.flushDirty() end
@@ -31,6 +39,7 @@ local function onPlayerJoining(pid)
 end
 
 local function onPlayerDisconnect(pid)
+  RM.race.onLeave(pid)
   RM.players.onLeave(pid)
   RM.identity.onLeave(pid)
   RM.bus.forget(pid)
@@ -139,12 +148,45 @@ local function wireChannels()
     RM.bus.queue(pid, "options.result", { action = "demoteSelf", ok = ok, value = result })
   end)
 
-  -- phase 1 only proves the pipe. timing and results are phase 2.
+  RM.bus.on("clock.pong", function(pid, d)
+    RM.clock.onPong(pid, d)
+  end)
+
+  RM.bus.on("race.arm", function(pid, d)
+    local ok, result = RM.race.arm(pid, d)
+    if ok then
+      RM.bus.queue(pid, "race.state", RM.race.wire(pid))
+      local track = RM.tracks.get(result.track)
+      if track and track.start then
+        RM.bus.queue(pid, "race.teleport", track.start)
+      end
+    else
+      RM.bus.queue(pid, "race.result", { ok = false, reason = result })
+    end
+  end)
+
+  RM.bus.on("race.end", function(pid)
+    local ok = RM.race.endRace(pid)
+    if ok then RM.bus.queue(pid, "race.state", RM.race.wire(pid)) end
+  end)
+
+  -- a crossing, stamped by the client at the frame the trigger fired. the
+  -- server decides what that stamp is worth.
   RM.bus.on("cp.hit", function(pid, d)
     if type(d) ~= "table" then return end
     if not RM.identity.session(pid) then return end
-    RM.debug(("cp.hit %s/%s from %s at t=%.3f"):format(
-      tostring(d.track), tostring(d.i), RM.identity.displayName(pid), RM.now()))
+
+    local ok, result = RM.race.gate(pid, d.i, tonumber(d.t))
+    if not ok then
+      RM.debug(("gate %s from %s: %s"):format(tostring(d.i),
+        RM.identity.displayName(pid), tostring(result)))
+      return
+    end
+
+    RM.bus.queue(pid, "race.split", result)
+    if result.finished then
+      RM.bus.queue(pid, "race.state", RM.race.wire(pid))
+    end
   end)
 
   -- the FPS baseline every later delivery is measured against
