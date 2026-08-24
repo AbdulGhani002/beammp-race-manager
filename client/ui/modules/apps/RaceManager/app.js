@@ -309,6 +309,13 @@ angular.module("beamng.apps")
         return null;
       };
 
+      // the gates spawn at coordinates that only mean anything on the map they
+      // were captured on. arming somewhere else puts them under the world.
+      $scope.wrongLevel = function () {
+        var t = $scope.chosen();
+        return !!(t && t.level && $scope.s.level && t.level !== $scope.s.level);
+      };
+
       $scope.raceProblem = function () {
         var why = ($scope.s.race || {}).problem;
         if (!why) return "";
@@ -364,8 +371,10 @@ angular.module("beamng.apps")
         var best = e.bestSector || null;
         var out = [];
 
+        // the lua table is indexed from one and arrives here indexed from
+        // zero, so the sector into gate g sits at g - 1
         for (var g = 2; g <= gates + 1; g++) {
-          var v = secs[g];
+          var v = secs[g - 1];
           var have = typeof v === "number";
           out.push({
             label: g <= gates

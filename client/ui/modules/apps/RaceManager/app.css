@@ -259,8 +259,11 @@
   filter: drop-shadow(0 3px 10px rgba(0, 0, 0, 0.6));
 }
 
-.rm-name { width: 380px; text-align: center; }
-.rm-name input { margin: 10px 0 4px; text-align: center; font-size: 16px; }
+/* Scoped to the card. rm-name is also the name cell in a player list row, and
+   a bare rule here gave that cell a fixed 380px inside a 300px list, which
+   pushed speed and ping off the side of the panel. */
+.rm-card.rm-name { width: 380px; text-align: center; }
+.rm-card.rm-name input { margin: 10px 0 4px; text-align: center; font-size: 16px; }
 
 .rm-root input[type="text"],
 .rm-root input[type="number"],

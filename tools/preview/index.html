@@ -1,0 +1,193 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<title>Race Manager preview</title>
+<!-- Run tools/preview/serve.sh, do not open this file directly. -->
+<style>
+  html, body { margin: 0; height: 100%; background: #2a2f36; font-family: sans-serif; }
+  /* stands in for the game behind the overlay */
+  /* stands in for sky and dirt behind the overlay, so contrast is judged
+     against something like the map rather than against black */
+  #stage { position: absolute; inset: 0;
+    background: linear-gradient(#6b7f96 0%, #97a4ae 40%, #bda887 40%, #8e7a5c 100%); }
+  #picker { position: fixed; bottom: 6px; left: 6px; z-index: 9999; }
+  #picker button { font: 12px sans-serif; margin-right: 4px; padding: 4px 8px; }
+</style>
+<script src="angular.min.js"></script>
+</head>
+<body>
+<div id="stage"></div>
+
+<div id="picker">
+  <button onclick="show('idle')">idle</button>
+  <button onclick="show('picking')">picking</button>
+  <button onclick="show('armed')">armed</button>
+  <button onclick="show('running')">running</button>
+  <button onclick="show('waiting')">waiting</button>
+  <button onclick="show('results')">results</button>
+</div>
+
+<div ng-app="preview" style="position:absolute; inset:0;">
+  <race-manager></race-manager>
+</div>
+
+<script>
+// the two globals the app talks to in the game
+window.bngApi = { engineLua: function (e) { console.log("engineLua:", e); } };
+window.StreamsManager = { add: function () {}, remove: function () {} };
+
+angular.module("beamng.apps", []);
+</script>
+
+<script src="ui/modules/apps/RaceManager/app.js"></script>
+
+<script>
+var TRACKS = [
+  { id: "baja-1000", name: "Baja 1000", kind: "race", level: "utah_sc", circuit: true, count: 30 },
+  { id: "sprint", name: "Airfield sprint", kind: "timeattack", level: "utah_sc", circuit: false, count: 12 }
+];
+
+function base() {
+  return {
+    ready: true, needsName: false, connected: true, isAdmin: true,
+    level: "utah_sc",
+    me: { id: 1, name: "abd", role: "owner", level: 7, guest: false },
+    roster: [
+      { id: 1, name: "abd", level: 7, speed: 62, ping: 38 },
+      { id: 2, name: "Dard", level: 12, speed: 0, ping: 74 },
+      { id: 3, name: "Marx", level: 3, speed: 91, ping: 210, guest: true }
+    ],
+    rosterOpen: true,
+    tracks: TRACKS,
+    capture: { active: false, gate: { w: 20, h: 8, d: 3 } },
+    perf: {},
+    config: { discordUrl: "https://discord.gg/beammp", nameMinLen: 3, nameMaxLen: 20,
+              penalties: { recovery: 60, flatTire: 30, repair: 30, missedGate: 30 } },
+    race: { state: "idle" }
+  };
+}
+
+function splitsFor(n, step, holes) {
+  var out = [], t = 0;
+  for (var i = 1; i <= n; i++) {
+    if (holes && holes.indexOf(i) >= 0) { out.push(false); t += step; continue; }
+    out.push(Math.round(t * 1000) / 1000);
+    t += step;
+  }
+  return out;
+}
+
+function sectorsFor(splits, n, lapTime) {
+  var out = [false];
+  for (var g = 2; g <= n; g++) {
+    var a = splits[g - 2], b = splits[g - 1];
+    out.push((typeof a === "number" && typeof b === "number")
+      ? Math.round((b - a) * 1000) / 1000 : false);
+  }
+  var last = splits[n - 1];
+  out.push(typeof last === "number" ? Math.round((lapTime - last) * 1000) / 1000 : false);
+  return out;
+}
+
+function entry(name, pos, corrected, clean, penalties, holes) {
+  var GATES = 30, lapTime = clean;
+  var sp = splitsFor(GATES, clean / GATES, holes);
+  var se = sectorsFor(sp, GATES, lapTime);
+  return {
+    name: name, pos: pos, corrected: corrected, clean: clean,
+    penalties: penalties, suspect: name === "Marx",
+    bestLap: { time: lapTime, lap: 1 },
+    bestSector: { time: 21.418, gate: 14, lap: 1 },
+    laps: [{ lap: 1, time: lapTime, splits: sp, sectors: se, missed: holes || [] }]
+  };
+}
+
+var SCENES = {
+  idle: function () { var s = base(); return s; },
+
+  picking: function () {
+    var s = base();
+    s.race = { state: "idle" };
+    return s;
+  },
+
+  armed: function () {
+    var s = base();
+    s.race = { state: "armed", track: "baja-1000", trackName: "Baja 1000",
+               mode: "wheel", laps: 2, lap: 0, gates: 30, next: 1, circuit: true,
+               penalties: 0, elapsed: 0 };
+    return s;
+  },
+
+  running: function () {
+    var s = base();
+    s.race = { state: "running", track: "baja-1000", trackName: "Baja 1000",
+               mode: "wheel", laps: 2, lap: 1, gates: 30, next: 14, circuit: true,
+               penalties: 1, elapsed: 447.3,
+               lastSplit: { gate: 13, lap: 1, split: 421.882 } };
+    return s;
+  },
+
+  waiting: function () {
+    var s = base();
+    s.race = { state: "finished", track: "baja-1000", trackName: "Baja 1000",
+               mode: "wheel", laps: 1, lap: 1, gates: 30, next: 0, circuit: true,
+               penalties: 0, waiting: 2 };
+    return s;
+  },
+
+  results: function () {
+    var s = base();
+    s.race = {
+      state: "finished", track: "baja-1000", trackName: "Baja 1000",
+      results: {
+        track: "baja-1000", trackName: "Baja 1000", circuit: true, gates: 30,
+        bestLap: { time: 618.441, lap: 1, name: "Marx" },
+        finished: [
+          entry("Dard", 1, 642.118, 642.118, [], []),
+          entry("abd", 2, 659.004, 659.004, [], []),
+          entry("Marx", 3, 678.441, 618.441, [
+            { seconds: 30, reason: "missed_gate", gate: 11, lap: 1 },
+            { seconds: 30, reason: "missed_gate", gate: 12, lap: 1 }
+          ], [11, 12])
+        ],
+        dnf: [{ name: "Vince", why: "ended by the driver", lap: 1, dnf: true }]
+      }
+    };
+    s.race.results.finished[1].toLeader = 16.886;
+    s.race.results.finished[1].toAhead = 16.886;
+    s.race.results.finished[2].toLeader = 36.323;
+    s.race.results.finished[2].toAhead = 19.437;
+    s.race.results.finished[0].toLeader = 0;
+    s.race.results.finished[0].toAhead = 0;
+    return s;
+  }
+};
+
+angular.module("preview", ["beamng.apps"])
+  .run(["$templateCache", "$http", "$rootScope",
+    function ($templateCache, $http, $rootScope) {
+      $http.get("ui/modules/apps/RaceManager/app.html").then(function (r) {
+        $templateCache.put("/ui/modules/apps/RaceManager/app.html", r.data);
+        window.__root = $rootScope;
+        setTimeout(function () { show(location.hash.slice(1) || "results"); }, 60);
+      });
+    }]);
+
+function show(which) {
+  if (!window.__root) return;
+  location.hash = which;
+  var scene = (SCENES[which] || SCENES.idle)();
+  window.__root.$broadcast("rmState", scene);
+  window.__root.$applyAsync();
+  if (which === "picking") {
+    setTimeout(function () {
+      var sel = document.querySelector(".rm-race select");
+      if (sel) { sel.selectedIndex = 0; sel.dispatchEvent(new Event("change")); }
+    }, 80);
+  }
+}
+</script>
+</body>
+</html>

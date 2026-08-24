@@ -122,7 +122,13 @@
           <p class="rm-hint" ng-if="chosen() && !chosen().circuit">
             Point to point, so it is one run from the start line to the last checkpoint.</p>
 
-          <button class="rm-primary" ng-disabled="!entry.track" ng-click="arm()">
+          <div class="rm-problem" ng-if="wrongLevel()">
+            That course was built on {{ chosen().level }} and you are on
+            {{ s.level }}. Load that map first.
+          </div>
+
+          <button class="rm-primary" ng-disabled="!entry.track || wrongLevel()"
+                  ng-click="arm()">
             Go to the grid
           </button>
         </div>
@@ -351,7 +357,7 @@
     <!-- results. built once on the server when the last car is off track and
          sent once. nothing here is recomputed while anybody is driving. -->
     <div class="rm-veil rm-results-veil" ng-if="s.race.results">
-      <div class="rm-card rm-results" rm-drag="results">
+      <div class="rm-card rm-results">
         <img class="rm-crest rm-crest-small"
              src="/ui/modules/apps/RaceManager/logo-shield.png" alt="Baja Sim" />
         <h2>{{ s.race.results.trackName }}</h2>
