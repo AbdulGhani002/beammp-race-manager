@@ -4,10 +4,10 @@ Race management for a private BeamMP server: timing, records, roles, XP,
 challenges and a checkpoint capture tool. Built from scratch against the
 BeamMP and BeamNG APIs.
 
-**Status: phase 1 of six, delivered and verified in game.** Base and the
-checkpoint tool, confirmed on the client server: joined, recognised, named,
-course captured, gates drawn and driven through. Racing, timing and results
-are phase 2.
+**Status: phase 2 of six, built and deployed.** Phase 1 is the base and the
+checkpoint tool, verified in game on the client server. Phase 2 is the time
+trial: grid, honest split timing, missed checkpoints, penalties and the full
+results screen. Qualifying and Race on a shared grid are phase 4.
 
 ## The three pieces
 
@@ -20,6 +20,25 @@ are phase 2.
 The server decides anything that could be cheated. BeamMP ships the client mod
 to every player as a readable zip, so the client only draws the screen and
 reports what the car is doing.
+
+## What phase 2 delivers
+
+- **Time trial.** Pick a course, controller or wheel, a lap count. You are put
+  on the grid and the clock starts on the start line.
+- **Honest split timing.** A crossing is stamped by the client at the frame
+  the trigger fires and converted on the server. Stamping it on arrival would
+  charge every driver half their own ping on every gate, and the player on the
+  worse connection would quietly lose seconds they never lost on the road.
+- Missed checkpoints caught and priced, penalties only inside a run
+- End Race, on a button and on a key
+- **The results screen.** Corrected time decides it, raw time is shown and
+  decides nothing. Gaps to the leader and the car ahead, best lap, and every
+  penalty and sector one click away.
+- No live leaderboard, which was his call and removes the largest network cost
+  in the system
+
+Checked line by line against the plan in [docs/PHASE-2.md](docs/PHASE-2.md).
+What to test in game is [docs/TESTING-PHASE-2.md](docs/TESTING-PHASE-2.md).
 
 ## What phase 1 delivers
 
@@ -53,6 +72,22 @@ without the game:
 ```
 lua54 tools/test_phase1.lua
 lua54 tools/test_phase2.lua
+lua54 tools/test_results.lua
+```
+
+The interface is checked against itself, because three bugs in this project
+have had the same shape, where the template names something that is not there,
+and none of them fail loudly:
+
+```
+python tools/check_ui.py
+```
+
+And it can be run in a browser with made up state instead of a server, which
+is where a layout problem should be found rather than in the game:
+
+```
+bash tools/preview/serve.sh
 ```
 
 Key bindings name their lua function as a string, so a typo fails silently in

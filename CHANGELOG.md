@@ -2,27 +2,62 @@
 
 One entry per phase, because one phase is one milestone.
 
-## 0.2.0-phase2 (in progress)
+## 0.2.0-phase2
 
-Phase 2: racing, timing and results. The server half is done and deployed.
+Phase 2: time trial, timing and results. See [PHASE-2.md](docs/PHASE-2.md) for
+this checked line by line against what was promised.
 
 **Timing**
-- Race state machine: idle, armed, countdown, running, finished.
-- Clock offset per player, from the same four timestamp exchange NTP uses.
-  Crossings are stamped by the client at the frame the trigger fires and
-  converted on the server, so a driver on a worse connection is not punished
-  for it. A claimed time still has to be monotonic, inside a window the
-  connection could hide, and not imply a speed no car reaches.
-- Splits per gate, lap times measured to the line rather than to the last gate
-  before it, and missed gate detection.
-- Penalties for recovery, flat tire, repair and a missed gate.
+- Race state machine: idle, armed, running, finished, abandoned.
+- A crossing is stamped by the client at the frame the trigger fires and
+  converted on the server through a per player offset, from the same four
+  timestamp exchange NTP uses. Stamping on arrival would charge every driver
+  half their own ping on every gate, and jitter would make it a different
+  amount each time.
+- A claimed stamp still has to be later than the last split, not in the
+  future, not further back than the connection could hide, and not imply a
+  speed no car reaches between two gates whose distance apart is known. One
+  that fails is not a kick: the arrival time is used and the run is marked.
+- Splits per gate per lap, lap times measured to the line rather than to the
+  last gate before it, and missed checkpoints caught and priced.
+- Penalties only exist inside a run. Free driving costs nothing.
+
+**Racing**
+- Pick a course, controller or wheel, and a lap count. Refused if the course
+  was captured on a map you are not on, because the gates would spawn under
+  the world.
+- Teleport to the grid, and the clock starts on the start line and not before.
+- Checkpoint volumes are built for the run, with the gate being scored drawn
+  in yellow and the rest dropped back.
+- End Race, on a button and on a key, stops everything at once.
+
+**Results**
+- Everyone racing a course is a heat. The payload is built once, when the last
+  of them is off track, and sent once. There is no live leaderboard and
+  nothing recomputes on a timer.
+- Corrected time decides the order. Raw time is shown and decides nothing.
+  Gaps to the leader and to the car ahead, overall best lap, personal best lap
+  and personal best sector.
+- A row opens into every penalty with the gate it was for, and a lap opens
+  into every sector, including the run from the last gate back to the line.
+- Four ways a heat could have hung are closed: a disconnect, End Race, a run
+  nobody finished, and arming on a second course.
 
 **Interface**
-- Baja Sim palette across every surface: black and grey with the deep red off
-  the badge, orange and yellow as accents.
-- The badges themselves, cut out of their black background and used on the
-  name cards, in the top bar and as the app picker thumbnail.
+- Baja Sim palette across every surface, and the badges themselves cut out of
+  their black background and used on the name cards, in the top bar and as the
+  app picker thumbnail.
 - Windows can be moved and resized, and the bottom bar has keybinds.
+
+**Checked**
+- 239 automated tests against the mock host, which drives the clock by hand so
+  a run plays through without waiting for real seconds.
+- A consistency check that reads the template, the controller and the lua and
+  makes sure every call, every field and every image on one side exists on the
+  other.
+- The interface runs in a browser with made up state, which caught sectors
+  being labelled with the wrong gate and a player list whose speed and ping
+  columns sat outside the panel.
 
 **Repository**
 - The project has its own folder rather than sharing a general one.

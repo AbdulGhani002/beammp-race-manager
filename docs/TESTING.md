@@ -1,5 +1,8 @@
 # Testing phase 1
 
+This gets you connected, named, owner, and a course captured. Racing is in
+[TESTING-PHASE-2.md](TESTING-PHASE-2.md), which starts from the end of this.
+
 Everything below is done once, in order. Stages 0 to 5 are setup. Stage 6
 onward is the actual test of what was built.
 

@@ -8,17 +8,19 @@ Three pieces that have to stay in step.
    Resources/Server/RaceManager      Resources/Client/RaceManager.zip
                                        |
    99_main.lua      wiring             +-- scripts/modScript.lua
-   10_race.lua      the race           |     loads the extension
-   09_clock.lua     clock offset       |
-   08_console.lua   host console       +-- lua/ge/extensions/raceManager/
-   07_tracks.lua    courses            |     main      lifecycle
-   06_players.lua   the list           |     net       the pipe
+   11_results.lua   the heat           |     loads the extension
+   10_race.lua      the race           |
+   09_clock.lua     clock offset       +-- lua/ge/extensions/raceManager/
+   08_console.lua   host console       |     main      lifecycle
+   07_tracks.lua    courses            |     net       the pipe
+   06_players.lua   the list           |     clock     stamps a crossing
    05_roles.lua     permissions        |     state     mirror of the server
    04_identity.lua  who you are        |     triggers  checkpoint volumes
    03_bus.lua       the pipe  <------->|     capture   the tool
-   02_store.lua     disk               |     bottombar recovery, repair
-   01_util.lua      clock, pool        |     hud       the racing overlay
-   00_config.lua    settings           |     perf      fps meter
+   02_store.lua     disk               |     race      grid, clock, results
+   01_util.lua      clock, pool        |     bottombar recovery, repair
+   00_config.lua    settings           |     hud       puts us in the layout
+                                       |     perf      fps meter
                                        |     ui        the only bridge to html
                                        |
                                        +-- ui/modules/apps/RaceManager/
@@ -112,3 +114,35 @@ only file that registers host events.
 
 The client loads `main.lua`, which loads the rest with `ui` last, because `ui`
 reads from all of them the moment it comes up.
+
+## Who owns the clock
+
+Three clocks matter and they are deliberately kept apart.
+
+The **server clock** decides everything. A lap time is server seconds and
+nothing else.
+
+The **client clock** exists only to stamp the moment a trigger fires. It is
+monotonic and otherwise meaningless: the server converts it through a per
+player offset and then decides whether to believe the result. Nothing is timed
+by when a message arrived, because that would charge every driver half their
+own ping on every gate.
+
+The **clock on screen** is neither. It is counted locally from a start the
+server gave, and it is a display rather than a measurement, so it is allowed
+to be a frame out. Pushing a real time down the wire ten times a second would
+put our traffic on the same channel BeamMP uses for car positions, for a
+number nobody is scored on.
+
+## Nothing recomputes on a timer
+
+The plugin still has one 100ms timer. Phase 2 added no work to it beyond a
+sweep for runs nobody finished, which happens on the roster interval and looks
+only at runs that are open.
+
+A split is worked out when a gate fires and never again. A results payload is
+built once, when the last car on a course is off track, and never again. There
+is no leaderboard to recompute, no gap to recalculate and no position to poll,
+which is what dropping the live leaderboard actually bought.
+
+Anything that would need a new timer is a design mistake.

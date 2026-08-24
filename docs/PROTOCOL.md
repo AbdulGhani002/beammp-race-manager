@@ -38,7 +38,11 @@ the list of messages. `c` is the channel, `d` is whatever that channel carries.
 | `track.delete` | `{id}` | admin only |
 | `track.get` | `{id}` | ask for one course in full |
 | `options.demoteSelf` | none | |
-| `cp.hit` | `{track,i}` | a checkpoint was crossed. Logged in phase 1, timed in phase 2. |
+| `cp.hit` | `{track,i,t}` | a checkpoint was crossed. `t` is the client clock at the frame the trigger fired, not when the message was sent. |
+| `clock.pong` | `{t1,t2,t3}` | the reply to a probe. `t1` is what came in, `t2` is when it arrived, `t3` is when the reply left. |
+| `race.arm` | `{id,mode,laps}` | go to the grid. `mode` is `controller` or `wheel`. |
+| `race.end` | none | End Race. Files a did not finish. |
+| `race.clear` | none | the results screen was closed, the run can be let go |
 | `perf` | `{label,seconds,frames,avg,min,max,p1low}` | an FPS run |
 
 ## Server to client
@@ -56,6 +60,68 @@ the list of messages. `c` is the channel, `d` is whatever that channel carries.
 | `capture.result` | `{action,ok,reason,data}` | reply to any `track.*` |
 | `options.result` | `{action,ok,value}` | |
 | `toast` | `{kind,key,a}` | short message, the client turns the key into text |
+| `clock.ping` | server clock as a number | rides a batch that was already going out, so it costs no messages |
+| `race.state` | `{state,track,mode,laps,lap,gates,next,circuit,penalties,waiting,why}` | the whole state, sent when it changes and never on a timer |
+| `race.teleport` | `{pos,yaw}` | put the car on the grid |
+| `race.split` | `{lap,gate,split,next,penalties,lapTime,lapTimeLap,missed,started,lapDone,finished}` | one crossing. `split` is seconds from the start of the run. |
+| `race.waiting` | `{left}` | you are in, this many are still on track |
+| `race.results` | the whole payload | built once when the last car is off track, sent once |
+| `race.result` | `{ok:false,reason}` | why an arm was refused |
+
+
+## The results payload
+
+Built once, on the server, when the last driver on that course is off track,
+and never recomputed. Nothing in it is worked out by the interface.
+
+```
+{ track, trackName, circuit, gates,
+  bestLap: { time, lap, name },
+  finished: [ {
+    pos, name, key, mode, clean, corrected, toLeader, toAhead, suspect,
+    penalties: [ { seconds, reason, gate, lap, at } ],
+    bestLap:    { time, lap },
+    bestSector: { time, gate, lap },
+    laps: [ { lap, time, start, splits[], sectors[], missed[] } ]
+  } ],
+  dnf: [ { name, key, why, lap } ] }
+```
+
+`clean` is the time before penalties and decides nothing. `corrected` is
+`clean` plus every penalty, and that is the result.
+
+`splits[g]` is seconds from the start of the run to gate `g`, not a delta. A
+stored delta cannot be recovered into an absolute once a gate is missed, and
+an absolute can always be turned into a delta.
+
+`sectors[g]` is the time taken to get into gate `g`, worked out from the
+splits. `sectors[gates+1]` is the run from the last gate back to the line.
+
+A gate that was cut has `false` in `splits`, and the sectors either side of it
+are `false` too, because neither can be known. False and not null: a hole in
+the middle of the array turns it into an object once it is encoded, and then
+the interface indexes it by number and finds nothing.
+
+Both arrays are indexed from one on the server and arrive indexed from zero in
+the interface, so the sector into gate `g` is at `sectors[g - 1]` there.
+
+## Timing
+
+A crossing is stamped by the client at the frame the trigger fires. Stamping
+it when the server hears about it would add half a round trip to every split,
+and jitter makes that a different amount each time, so the driver with the
+worse connection loses seconds over a lap they never lost on the road.
+
+The server converts the stamp with a per player offset, from the same four
+timestamp exchange NTP uses, keeping the sample with the lowest delay of the
+last eight rather than an average. A slow sample is one that sat in a queue,
+and queuing is asymmetric, which is exactly what poisons an averaged offset.
+
+A converted stamp still has to survive four checks: later than the previous
+split, not in the future, not further back than the connection could hide, and
+not implying a speed no car reaches between two gates whose distance apart we
+already know. A stamp that fails is not a kick. The arrival time is used
+instead and the run is marked, which shows in the results as `suspect`.
 
 ## Reason codes
 
