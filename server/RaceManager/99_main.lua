@@ -174,6 +174,8 @@ local function wireChannels()
       return
     end
 
+    -- whatever they were entered for before, they are not in it now
+    RM.results.forget(pid)
     RM.results.join(pid, result.track)
     RM.bus.queue(pid, "race.state", RM.race.wire(pid))
 

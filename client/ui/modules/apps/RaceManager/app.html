@@ -81,8 +81,80 @@
       <button class="rm-primary" ng-click="launchDiscord()">Open in browser</button>
     </div>
 
+    <!-- race. time trial: grid, start line, a split at every gate, results. -->
+    <div class="rm-card rm-panel rm-race" rm-drag="race" ng-if="panel === 'race'">
+      <button class="rm-x" ng-click="close()">close</button>
+      <h2>Race</h2>
+
+      <div class="rm-problem" ng-if="s.race.problem">{{ raceProblem() }}</div>
+
+      <div ng-if="raceIdle()">
+        <p class="rm-hint">Time trial. You are put on the grid, and the clock starts
+          when you drive through the start line. Nothing you do outside a run costs
+          you anything.</p>
+
+        <div class="rm-empty" ng-if="!s.tracks.length">
+          No course is saved yet. Capture one under Options, Course tools.
+        </div>
+
+        <div ng-if="s.tracks.length">
+          <label>Course
+            <select ng-model="entry.track"
+                    ng-options="t.id as t.name for t in s.tracks"></select>
+          </label>
+
+          <div class="rm-track-meta" ng-if="chosen()">
+            {{ chosen().count }} checkpoints &middot;
+            {{ chosen().circuit ? "circuit" : "point to point" }} &middot;
+            {{ chosen().level }}
+          </div>
+
+          <label>Driving with
+            <select ng-model="entry.mode">
+              <option value="controller">Controller</option>
+              <option value="wheel">Wheel</option>
+            </select>
+          </label>
+
+          <label ng-if="chosen().circuit">Laps
+            <input type="number" min="1" max="99" ng-model="entry.laps" />
+          </label>
+          <p class="rm-hint" ng-if="chosen() && !chosen().circuit">
+            Point to point, so it is one run from the start line to the last checkpoint.</p>
+
+          <button class="rm-primary" ng-disabled="!entry.track" ng-click="arm()">
+            Go to the grid
+          </button>
+        </div>
+      </div>
+
+      <div ng-if="s.race.state === 'armed'">
+        <div class="rm-armed">
+          <span class="rm-big">On the grid</span>
+          <span class="rm-capture-sub">{{ s.race.trackName || s.race.track }}</span>
+        </div>
+        <p class="rm-hint">The clock starts the moment you cross the start line and
+          not before, so take as long as you like getting ready.</p>
+        <button class="rm-danger" ng-click="endRace()">Cancel</button>
+      </div>
+
+      <div ng-if="s.race.state === 'running'">
+        <p class="rm-hint">The clock is on screen. This window is not needed while
+          you drive.</p>
+        <button class="rm-danger" ng-click="endRace()">End race</button>
+      </div>
+
+      <div ng-if="s.race.state === 'finished' || s.race.state === 'abandoned'">
+        <p class="rm-hint" ng-if="s.race.waiting">You are in. Waiting on
+          {{ s.race.waiting }} {{ s.race.waiting === 1 ? "driver" : "drivers" }}
+          still on track.</p>
+        <button class="rm-primary" ng-click="raceAgain()">Go again</button>
+      </div>
+    </div>
+
     <div class="rm-card rm-panel" rm-drag="info"
-         ng-if="panel && panel !== 'options' && panel !== 'capture' && panel !== 'discord'">
+         ng-if="panel && panel !== 'options' && panel !== 'capture'
+                && panel !== 'discord' && panel !== 'race'">
       <button class="rm-x" ng-click="close()">close</button>
       <h2>{{ panel === 'bottom' ? 'Recovery' : (buttons | filter:{key: panel})[0].label }}</h2>
       <p class="rm-soon">{{ panel === 'bottom' ? SOON.bottom : SOON[panel] }}</p>
@@ -225,6 +297,45 @@
       </div>
     </div>
 
+    <!-- the racing clock. on screen whenever a run is on, panel open or not,
+         counted locally from a start the server gave us. -->
+    <div class="rm-hud" ng-if="raceActive()">
+      <div class="rm-hud-arm" ng-if="s.race.state === 'armed'">
+        <span class="rm-hud-arm-big">Drive through the start line</span>
+        <span class="rm-hud-arm-sub">{{ s.race.trackName || s.race.track }}</span>
+      </div>
+
+      <div ng-if="s.race.state === 'running'">
+        <div class="rm-hud-clock">{{ bigClock(s.race.elapsed) }}</div>
+        <div class="rm-hud-row">
+          <span ng-if="s.race.laps > 1">Lap {{ s.race.lap }} / {{ s.race.laps }}</span>
+          <span ng-if="s.race.next">Next gate {{ s.race.next }}</span>
+          <span class="rm-hud-pen" ng-if="s.race.penalties">
+            {{ s.race.penalties }} penalt{{ s.race.penalties === 1 ? "y" : "ies" }}
+          </span>
+        </div>
+      </div>
+
+      <div class="rm-hud-split" ng-if="s.race.lastSplit">
+        <span ng-if="s.race.lastSplit.lapTime">
+          Lap {{ s.race.lastSplit.lapTimeLap }}
+          &mdash; {{ clock(s.race.lastSplit.lapTime) }}
+        </span>
+        <span ng-if="!s.race.lastSplit.lapTime">
+          Gate {{ s.race.lastSplit.gate }} &mdash; {{ clock(s.race.lastSplit.split) }}
+        </span>
+      </div>
+
+      <button class="rm-hud-end" ng-click="endRace()">End race</button>
+    </div>
+
+    <!-- finished, but somebody else is still out there -->
+    <div class="rm-waiting" ng-if="s.race.waiting && !s.race.results">
+      <span class="rm-waiting-big">You are in</span>
+      <span>Waiting on {{ s.race.waiting }}
+        {{ s.race.waiting === 1 ? "driver" : "drivers" }} still on track</span>
+    </div>
+
     <!-- bottom bar. every one of these needs the car stopped. -->
     <div class="rm-bottom">
       <div class="rm-lightmenu" ng-if="s.lights">
@@ -234,6 +345,85 @@
               ng-disabled="!stopped() && b.key !== 'lights'"
               title="{{ b.note }}">{{ b.label }}</button>
       <span class="rm-moving" ng-if="!stopped()">stop the car to use these</span>
+    </div>
+
+
+    <!-- results. built once on the server when the last car is off track and
+         sent once. nothing here is recomputed while anybody is driving. -->
+    <div class="rm-veil rm-results-veil" ng-if="s.race.results">
+      <div class="rm-card rm-results" rm-drag="results">
+        <img class="rm-crest rm-crest-small"
+             src="/ui/modules/apps/RaceManager/logo-shield.png" alt="Baja Sim" />
+        <h2>{{ s.race.results.trackName }}</h2>
+
+        <div class="rm-best" ng-if="s.race.results.bestLap">
+          Best lap <strong>{{ clock(s.race.results.bestLap.time) }}</strong>
+          by {{ s.race.results.bestLap.name }}
+        </div>
+
+        <div class="rm-results-head">
+          <span>#</span><span>Driver</span><span>Time</span>
+          <span>Leader</span><span>Ahead</span>
+        </div>
+
+        <div class="rm-entry" ng-repeat="e in s.race.results.finished">
+          <div class="rm-result-row" ng-click="expand(e.name)"
+               ng-class="{open: opened === e.name, me: e.name === s.me.name}">
+            <span class="rm-pos">{{ e.pos }}</span>
+            <span class="rm-rname">{{ e.name }}<em ng-if="e.suspect"
+              title="The clock could not vouch for part of this run">marked</em></span>
+            <span class="rm-time">{{ clock(e.corrected) }}</span>
+            <span class="rm-gap">{{ e.pos === 1 ? "&mdash;" : "+" + clock(e.toLeader) }}</span>
+            <span class="rm-gap">{{ e.pos === 1 ? "&mdash;" : "+" + clock(e.toAhead) }}</span>
+          </div>
+
+          <div class="rm-detail" ng-if="opened === e.name">
+            <div class="rm-detail-row">
+              <span>Raw time</span><span class="rm-time">{{ clock(e.clean) }}</span>
+            </div>
+            <div class="rm-detail-row" ng-if="e.bestSector">
+              <span>Best split, gate {{ e.bestSector.gate }}</span>
+              <span class="rm-time">{{ clock(e.bestSector.time) }}</span>
+            </div>
+            <p class="rm-hint">Raw time is before penalties, and decides nothing.
+              The time above it is the one that counts.</p>
+
+            <h3 ng-if="e.penalties.length">Penalties</h3>
+            <div class="rm-pen" ng-repeat="p in e.penalties">
+              <span>{{ penaltyText(p, e.laps.length > 1) }}</span>
+              <span class="rm-pen-secs">+{{ p.seconds }}s</span>
+            </div>
+            <p class="rm-hint" ng-if="!e.penalties.length">A clean run. Nothing added.</p>
+
+            <h3>Laps</h3>
+            <div ng-repeat="l in e.laps">
+              <div class="rm-lap" ng-click="expandLap(e, l)"
+                   ng-class="{open: openedLap === lapKey(e, l)}">
+                <span>Lap {{ l.lap }}</span>
+                <span class="rm-time" ng-class="{best: isBestLap(e, l)}">{{ clock(l.time) }}</span>
+                <span class="rm-missed" ng-if="l.missed.length">cut {{ l.missed.join(", ") }}</span>
+              </div>
+              <div class="rm-sectors" ng-if="openedLap === lapKey(e, l)">
+                <div class="rm-sector" ng-repeat="sec in sectors">
+                  <span>{{ sec.label }}</span>
+                  <span class="rm-time" ng-class="{best: sec.best}">{{ sec.text }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <h3 ng-if="s.race.results.dnf.length">Did not finish</h3>
+        <div class="rm-dnf" ng-repeat="d in s.race.results.dnf">
+          <span>{{ d.name }}</span>
+          <span class="rm-hint">{{ d.why }}</span>
+        </div>
+
+        <div class="rm-buttons rm-finish">
+          <button class="rm-primary" ng-click="raceAgain()">Go again</button>
+          <button ng-click="closeResults()">Close</button>
+        </div>
+      </div>
     </div>
 
     <div class="rm-toast" ng-if="s.toast" ng-click="clearToast()">

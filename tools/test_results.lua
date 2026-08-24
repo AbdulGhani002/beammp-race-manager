@@ -272,6 +272,44 @@ M.advance(RM.config.raceIdleTimeoutMs / 1000 + 10)
 tick(20)
 eq(RM.race.state(0), "idle", "and gone after the idle timeout")
 
+section("arming somewhere else leaves the first heat behind")
+M.clientSend(0, "race.clear", {})
+tick(1)
+
+M.clientSend(0, "track.begin",
+  { id = "second", name = "Second", kind = "race", level = "utah_sc", circuit = true })
+tick(1)
+for i = 1, 3 do
+  M.advance(1)
+  M.clientSend(0, "track.mark", { pos = { x = i * 100, y = 500, z = 0 }, yaw = 0 })
+  tick(1)
+end
+M.clientSend(0, "track.finish")
+tick(1)
+
+M.clientSend(0, "race.arm", { id = "loop", mode = "controller", laps = 1 })
+M.clientSend(1, "race.arm", { id = "loop", mode = "controller", laps = 1 })
+tick(1)
+eq(RM.results.waitingOn("loop"), 2, "two entered on the first course")
+
+-- Alfa changes their mind before starting and enters the other course
+M.clientSend(0, "race.arm", { id = "second", mode = "controller", laps = 1 })
+tick(1)
+eq(RM.results.waitingOn("loop"), 1, "the first heat is only waiting on the one still in it")
+
+M.clearOutbox(1)
+crossAfter(DRIVERS[2], 1, 5)
+for g = 2, 5 do crossAfter(DRIVERS[2], g, 10) end
+crossAfter(DRIVERS[2], 1, 10)
+local lone = M.lastMessage(1, "race.results")
+ok(lone ~= nil, "so it closes rather than waiting on somebody who left it")
+eq(#lone.finished, 1, "with the one driver who actually ran it")
+
+M.clientSend(0, "race.end", {})
+M.clientSend(0, "race.clear", {})
+M.clientSend(1, "race.clear", {})
+tick(1)
+
 section("one lonely driver still gets a results screen")
 M.clearOutbox(0)
 M.clientSend(0, "race.arm", { id = "loop", mode = "controller", laps = 1 })

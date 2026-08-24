@@ -165,13 +165,16 @@ local function onSplit(d)
   end
 
   st.lastSplit = {
-    gate    = d.gate,
-    lap     = d.lap,
-    split   = d.split,
-    lapTime = d.lapTime,
-    missed  = d.missed,
+    gate       = d.gate,
+    lap        = d.lap,
+    split      = d.split,
+    lapTime    = d.lapTime,
+    lapTimeLap = d.lapTimeLap,
+    missed     = d.missed,
   }
   st.lastSplitFor = 5
+
+  if d.penalties then st.penalties = d.penalties end
 
   if d.lap then st.lap = d.lap end
   if d.lapDone then startedLocal = extensions.raceManager_clock.now() - (d.split or 0) end

@@ -98,7 +98,7 @@ angular.module("beamng.apps")
 
       // everything drawn comes from here. the server owns it, this only mirrors.
       $scope.s = { ready: false, needsName: false, me: {}, roster: [], tracks: [],
-                   capture: {}, perf: {}, config: {} };
+                   capture: {}, perf: {}, config: {}, race: {} };
       $scope.panel = null;
       // ng-if and ng-repeat each make a child scope, so a bare string model is
       // written on the child and the parent never sees it. Anything two way
@@ -107,6 +107,10 @@ angular.module("beamng.apps")
       $scope.recovering = false;
       $scope.speed = 0;
       $scope.newTrack = { name: "", kind: "race", circuit: true, overwrite: false };
+      $scope.entry = { track: null, mode: "controller", laps: 1 };
+      $scope.opened = null;
+      $scope.openedLap = null;
+      $scope.sectors = [];
 
       // engineLua takes a lua expression, not json, so values have to go over
       // as a lua table literal. JSON.stringify already produces a string
@@ -173,6 +177,15 @@ angular.module("beamng.apps")
             $scope.panel = "capture";
             capturePanelShown = true;
           }
+
+          var race = (data && data.race) || {};
+          if (race.state === "running" && $scope.panel === "race") $scope.panel = null;
+
+          // default the course picker to something real rather than an empty
+          // select the Go button refuses to work with
+          if (!$scope.entry.track && data && data.tracks && data.tracks.length) {
+            $scope.entry.track = data.tracks[0].id;
+          }
         });
       });
 
@@ -181,7 +194,6 @@ angular.module("beamng.apps")
       // which phase each unfinished button lands in. the shell says so rather
       // than looking broken.
       $scope.SOON = {
-        race: "Time Trial, Qualifying and Race arrive in phase 2.",
         records: "Records arrive in phase 5.",
         copilot: "CoPilot and Chase arrive in phase 6.",
         challenges: "Challenges arrive in phase 6.",
@@ -239,6 +251,140 @@ angular.module("beamng.apps")
           fuel: "fuel", lights: "lights"
         }[b.key];
         if (fn) call("raceManager_bottombar", fn);
+      };
+
+
+      // ------------------------------------------------------------- racing
+
+      var PENALTY = {
+        missed_gate: "Missed checkpoint",
+        recovery:    "Recovery",
+        flatTire:    "Spare tire",
+        repair:      "Repair"
+      };
+
+      var PROBLEM = {
+        no_such_track:   "That course is gone.",
+        course_too_short: "That course has too few checkpoints to race.",
+        bad_mode:        "Pick controller or wheel.",
+        bad_laps:        "Between one and ninety nine laps.",
+        not_a_circuit:   "That course is point to point, so it is one lap.",
+        already_running: "You are already on a run. End it first.",
+        no_session:      "The server has not finished recognising you yet."
+      };
+
+      function fmt(sec, places) {
+        if (typeof sec !== "number" || !isFinite(sec)) return "—";
+        var neg = sec < 0;
+        if (neg) sec = -sec;
+        var m = Math.floor(sec / 60);
+        var rest = sec - m * 60;
+        var body = m > 0
+          ? m + ":" + (rest < 10 ? "0" : "") + rest.toFixed(places)
+          : rest.toFixed(places);
+        return (neg ? "-" : "") + body;
+      }
+
+      $scope.clock = function (sec) { return fmt(sec, 3); };
+
+      // the big one redraws ten times a second, so it shows tenths. three
+      // decimals flickering at that rate is unreadable and looks broken.
+      $scope.bigClock = function (sec) { return fmt(sec, 1); };
+
+      $scope.raceIdle = function () {
+        var st = ($scope.s.race || {}).state;
+        return !st || st === "idle";
+      };
+
+      $scope.raceActive = function () {
+        var st = ($scope.s.race || {}).state;
+        return st === "armed" || st === "running";
+      };
+
+      $scope.chosen = function () {
+        var list = $scope.s.tracks || [];
+        for (var i = 0; i < list.length; i++) {
+          if (list[i].id === $scope.entry.track) return list[i];
+        }
+        return null;
+      };
+
+      $scope.raceProblem = function () {
+        var why = ($scope.s.race || {}).problem;
+        if (!why) return "";
+        return PROBLEM[why] || why;
+      };
+
+      $scope.arm = function () {
+        if (!$scope.entry.track) return;
+        var t = $scope.chosen();
+        var laps = (t && !t.circuit) ? 1 : Math.max(1, parseInt($scope.entry.laps, 10) || 1);
+        ui("armRace", [$scope.entry.track, $scope.entry.mode, laps]);
+      };
+
+      $scope.endRace = function () { ui("endRace"); };
+
+      $scope.raceAgain = function () {
+        $scope.opened = null;
+        $scope.openedLap = null;
+        ui("restartRace");
+      };
+
+      $scope.closeResults = function () {
+        $scope.opened = null;
+        $scope.openedLap = null;
+        ui("closeResults");
+      };
+
+      // child scope again: a click inside ng-repeat writes to the row's own
+      // scope, so the toggle has to be a call on this one
+      $scope.expand = function (name) {
+        $scope.opened = ($scope.opened === name) ? null : name;
+        $scope.openedLap = null;
+      };
+
+      $scope.lapKey = function (e, l) { return e.name + ":" + l.lap; };
+
+      $scope.isBestLap = function (e, l) {
+        return !!(e.bestLap && e.bestLap.lap === l.lap);
+      };
+
+      // worked out once, on the click, and kept. building it inside ng-repeat
+      // would hand angular a new array every digest and never settle.
+      $scope.expandLap = function (e, l) {
+        var key = $scope.lapKey(e, l);
+        if ($scope.openedLap === key) {
+          $scope.openedLap = null;
+          $scope.sectors = [];
+          return;
+        }
+
+        var gates = ($scope.s.race.results || {}).gates || 0;
+        var secs = l.sectors || [];
+        var best = e.bestSector || null;
+        var out = [];
+
+        for (var g = 2; g <= gates + 1; g++) {
+          var v = secs[g];
+          var have = typeof v === "number";
+          out.push({
+            label: g <= gates
+              ? "Gate " + (g - 1) + " to " + g
+              : "Gate " + gates + " to the line",
+            text: have ? fmt(v, 3) : "—",
+            best: have && !!best && best.lap === l.lap && best.gate === g
+          });
+        }
+
+        $scope.openedLap = key;
+        $scope.sectors = out;
+      };
+
+      $scope.penaltyText = function (p, showLap) {
+        var text = PENALTY[p.reason] || p.reason;
+        if (p.gate) text += " " + p.gate;
+        if (showLap && p.lap) text += ", lap " + p.lap;
+        return text;
       };
 
       $scope.nameOk = function () {

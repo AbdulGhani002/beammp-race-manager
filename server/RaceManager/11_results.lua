@@ -28,26 +28,33 @@ end
 
 -- how many are still out there. nil rather than 0 so the interface can tell
 -- "waiting for two" from "nobody is racing".
+--
+-- The run has to be on this course, not merely active. Somebody who arms on
+-- one course and then arms on another is no longer racing the first, and
+-- counting them would leave that heat waiting on a car that is somewhere else.
 function RM.results.waitingOn(trackId)
   local h = heats[trackId]
   if not h then return nil end
   local n = 0
   for pid in pairs(h.members) do
-    if RM.race.isActive(pid) then n = n + 1 end
+    local r = RM.race.get(pid)
+    if r and r.track == trackId and (r.state == "armed" or r.state == "running") then
+      n = n + 1
+    end
   end
   return n > 0 and n or nil
 end
 
--- splits are stored as seconds from the start of the run, because a stored
--- delta cannot be recovered into an absolute once a gate is missed. The
--- deltas people actually read are worked out here, once.
--- sectors[g] is the time taken to get into gate g. A gate that was cut has no
--- split, so the sector either side of it is unknowable and is left false
--- rather than guessed at, the same way the splits themselves are.
+-- Splits are stored as seconds from the start of the run, because a stored
+-- delta cannot be recovered into an absolute once a gate is missed, while an
+-- absolute can always be turned into a delta. So the deltas people actually
+-- read are worked out here, once, and sectors[g] is the time taken to get
+-- into gate g.
 --
--- false and not nil: a hole in the middle of a lua table makes it an object
--- once it is encoded, and then the interface indexes it by number and finds
--- nothing.
+-- A gate that was cut has no split, so the sector either side of it is
+-- unknowable and is left false rather than guessed at. False and not nil: a
+-- hole in the middle of a lua table makes it an object once it is encoded,
+-- and then the interface indexes it by number and finds nothing.
 local function sectorsFor(lap, gates)
   local splits = lap.splits
   local out = {}

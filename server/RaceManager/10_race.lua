@@ -185,7 +185,8 @@ function RM.race.gate(pid, index, clientTime)
     r.splits[1][1] = 0
     r.lapStart[1] = 0
     r.nextGate   = 2
-    return true, { lap = 1, gate = 1, split = 0, started = true, next = 2 }
+    return true, { lap = 1, gate = 1, split = 0, started = true, next = 2,
+                   penalties = 0 }
   end
 
   if r.state ~= "running" then return false, "not_running" end
@@ -215,7 +216,8 @@ function RM.race.gate(pid, index, clientTime)
     if r.currentLap >= r.laps then
       finish(pid, r, t)
       return true, { lap = r.currentLap, gate = 1, split = elapsed,
-                     lapTime = r.lapTime[r.currentLap], finished = true, next = 0 }
+                     lapTime = r.lapTime[r.currentLap], lapTimeLap = r.currentLap,
+                     finished = true, next = 0, penalties = #r.penalties }
     end
 
     local doneLap = r.currentLap
@@ -224,7 +226,8 @@ function RM.race.gate(pid, index, clientTime)
     r.lapStart[r.currentLap] = elapsed
     r.nextGate = 2
     return true, { lap = r.currentLap, gate = 1, split = elapsed,
-                   lapTime = r.lapTime[doneLap], lapDone = true, next = 2 }
+                   lapTime = r.lapTime[doneLap], lapTimeLap = doneLap,
+                   lapDone = true, next = 2, penalties = #r.penalties }
   end
 
   local expected = r.nextGate
@@ -259,12 +262,14 @@ function RM.race.gate(pid, index, clientTime)
     r.lapTime[r.currentLap] = RM.util.round(elapsed - (r.lapStart[r.currentLap] or 0), 3)
     finish(pid, r, t)
     return true, { lap = r.currentLap, gate = index, split = elapsed,
-                   finished = true, next = 0 }
+                   lapTime = r.lapTime[r.currentLap], lapTimeLap = r.currentLap,
+                   finished = true, next = 0, penalties = #r.penalties }
   end
 
   return true, {
     lap = r.currentLap, gate = index, split = elapsed,
     next = r.nextGate > r.gates and 1 or r.nextGate,
+    penalties = #r.penalties,
     missed = index > expected and (index - expected) or nil,
   }
 end

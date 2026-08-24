@@ -27,6 +27,13 @@
     "cat": "gameplay",
     "order": 13
   },
+  "rm_end_race": {
+    "onDown": "extensions.raceManager_ui.endRace()",
+    "title": "Race Manager: end race",
+    "desc": "Stop the run and take the result as it stands. Does nothing when you are not racing",
+    "cat": "gameplay",
+    "order": 14
+  },
   "rm_reposition": {
     "onDown": "extensions.raceManager_bottombar.reposition()",
     "title": "Race Manager: reposition",

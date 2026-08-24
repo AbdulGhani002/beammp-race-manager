@@ -1,0 +1,167 @@
+"""Checks the interface against itself.
+
+    python tools/check_ui.py
+
+Three things have gone wrong in this project that a person reading the code
+did not catch, and all three are the same shape: the template names something
+that is not there.
+
+  - a model bound inside ng-if, written to a child scope the controller
+    never sees
+  - a field read from the snapshot that the lua never put in it, so the
+    player list opened on the click and vanished on the next push
+  - a click calling a function that was never added to the scope
+
+None of them fail loudly. The panel just quietly does nothing, and you find
+out in the game. So they are checked here instead.
+"""
+
+import io
+import os
+import re
+import sys
+
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+APP = os.path.join(ROOT, "client", "ui", "modules", "apps", "RaceManager")
+LUA = os.path.join(ROOT, "client", "lua", "ge", "extensions", "raceManager")
+
+VOID = {"img", "br", "hr", "input", "link", "meta", "source", "col"}
+
+problems = []
+checks = [0]
+
+
+def read(path):
+    return io.open(path, encoding="utf-8").read()
+
+
+def check(cond, what):
+    checks[0] += 1
+    if not cond:
+        problems.append(what)
+
+
+def tags_balance(html):
+    stack = []
+    for close, name, attrs, selfclose in re.findall(
+            r"<(/?)([a-zA-Z][\w-]*)([^>]*?)(/?)>", html):
+        n = name.lower()
+        if n in VOID or selfclose:
+            continue
+        if close:
+            if stack and stack[-1] == n:
+                stack.pop()
+            else:
+                return "mismatched </%s>" % n
+        else:
+            stack.append(n)
+    if stack:
+        return "never closed: " + ", ".join(stack)
+    return None
+
+
+def scope_functions(js):
+    return set(re.findall(r"\$scope\.(\w+)\s*=\s*function", js))
+
+
+def scope_values(js):
+    return set(re.findall(r"\$scope\.(\w+)\s*=(?!=)", js))
+
+
+def template_calls(html):
+    """Every function the template calls, from any angular attribute."""
+    out = set()
+    for attr in re.findall(r'ng-(?:click|if|disabled|class|change|keydown|options|repeat|model)="([^"]*)"', html):
+        for name in re.findall(r"\b([a-zA-Z_]\w*)\s*\(", attr):
+            out.add(name)
+    for expr in re.findall(r"\{\{([^}]*)\}\}", html):
+        for name in re.findall(r"\b([a-zA-Z_]\w*)\s*\(", expr):
+            out.add(name)
+    return out
+
+
+def template_roots(html):
+    """Top level scope names the template reads, so a typo shows up."""
+    out = set()
+    blob = " ".join(re.findall(r'ng-\w+="([^"]*)"', html))
+    blob += " " + " ".join(re.findall(r"\{\{([^}]*)\}\}", html))
+    # not $event: angular puts that one there itself
+    for name in re.findall(r"(?<![.\w$])([a-zA-Z_]\w*)\s*\.", blob):
+        out.add(name)
+    for name in re.findall(r'ng-model="([a-zA-Z_]\w*)(?:\.|")', blob + ' ng-model="x"'):
+        out.add(name)
+    return out
+
+
+def lua_functions(path):
+    return set(re.findall(r"function\s+M\.(\w+)", read(path)))
+
+
+def snapshot_fields(uilua):
+    return set(re.findall(r"snap\.(\w+)", uilua))
+
+
+def main():
+    html = read(os.path.join(APP, "app.html"))
+    js = read(os.path.join(APP, "app.js"))
+    uilua = read(os.path.join(LUA, "ui.lua"))
+
+    bad = tags_balance(html)
+    check(bad is None, "app.html tags: %s" % bad)
+
+    # 1. every function the template calls is on the scope
+    fns = scope_functions(js)
+    builtin = {
+        "filter", "number", "json", "date", "lowercase", "uppercase",
+        "join", "toFixed", "indexOf", "charAt", "substring", "trim", "split",
+    }
+    for name in sorted(template_calls(html)):
+        if name in builtin:
+            continue
+        check(name in fns, "app.html calls %s() which is not on the scope" % name)
+
+    # 2. every top level name the template reads exists on the scope
+    known = scope_functions(js) | scope_values(js) | {
+        "s", "b", "p", "t", "l", "e", "d", "sec", "$event", "Math",
+    }
+    for name in sorted(template_roots(html)):
+        if name in known or len(name) <= 2:
+            continue
+        check(name in known, "app.html reads %s which the controller never sets" % name)
+
+    # 3. every field read off the snapshot is one the lua actually sends
+    fields = snapshot_fields(uilua)
+    for name in sorted(set(re.findall(r"\bs\.(\w+)", html))):
+        check(name in fields, "app.html reads s.%s which ui.lua never puts in the snapshot" % name)
+
+    # 4. every lua function the controller calls exists in that module
+    for module, fn in re.findall(r'call\(\s*"raceManager_(\w+)"\s*,\s*"(\w+)"', js):
+        path = os.path.join(LUA, module + ".lua")
+        check(os.path.exists(path), "app.js calls into raceManager_%s which has no file" % module)
+        if os.path.exists(path):
+            check(fn in lua_functions(path),
+                  "app.js calls raceManager_%s.%s which is not defined there" % (module, fn))
+
+    for fn in sorted(set(re.findall(r'\bui\(\s*"(\w+)"', js))):
+        check(fn in lua_functions(os.path.join(LUA, "ui.lua")),
+              "app.js calls ui.%s which is not defined in ui.lua" % fn)
+
+    # 5. anything two way bound has to sit behind a dot, or ng-if hides it on
+    #    a child scope and the controller never sees what was typed
+    for model in re.findall(r'ng-model="([^"]+)"', html):
+        check("." in model, 'ng-model="%s" has no dot, so a child scope will swallow it' % model)
+
+    # 6. every image the page asks for is actually shipped
+    for src in sorted(set(re.findall(r'src="/ui/modules/apps/RaceManager/([^"]+)"', html))):
+        check(os.path.exists(os.path.join(APP, src)), "app.html asks for %s which is not there" % src)
+
+    print("%d checks" % checks[0])
+    if problems:
+        for p in problems:
+            print("  FAIL  " + p)
+        print("%d problem(s)" % len(problems))
+        sys.exit(1)
+    print("interface is consistent with itself")
+
+
+main()
