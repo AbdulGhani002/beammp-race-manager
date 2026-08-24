@@ -2,6 +2,31 @@
 
 One entry per phase, because one phase is one milestone.
 
+## 0.2.0-phase2 (in progress)
+
+Phase 2: racing, timing and results. The server half is done and deployed.
+
+**Timing**
+- Race state machine: idle, armed, countdown, running, finished.
+- Clock offset per player, from the same four timestamp exchange NTP uses.
+  Crossings are stamped by the client at the frame the trigger fires and
+  converted on the server, so a driver on a worse connection is not punished
+  for it. A claimed time still has to be monotonic, inside a window the
+  connection could hide, and not imply a speed no car reaches.
+- Splits per gate, lap times measured to the line rather than to the last gate
+  before it, and missed gate detection.
+- Penalties for recovery, flat tire, repair and a missed gate.
+
+**Interface**
+- Baja Sim palette across every surface: black and grey with the deep red off
+  the badge, orange and yellow as accents.
+- The badges themselves, cut out of their black background and used on the
+  name cards, in the top bar and as the app picker thumbnail.
+- Windows can be moved and resized, and the bottom bar has keybinds.
+
+**Repository**
+- The project has its own folder rather than sharing a general one.
+
 ## 0.2.0-phase1
 
 Phase 1: base and the checkpoint tool. Deployed, running, and confirmed in

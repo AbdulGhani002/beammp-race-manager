@@ -8,19 +8,23 @@ Three pieces that have to stay in step.
    Resources/Server/RaceManager      Resources/Client/RaceManager.zip
                                        |
    99_main.lua      wiring             +-- scripts/modScript.lua
-   08_console.lua   host console       |     loads the extension
-   07_tracks.lua    courses            |
-   06_players.lua   the list           +-- lua/ge/extensions/raceManager/
-   05_roles.lua     permissions        |     main      lifecycle
-   04_identity.lua  who you are        |     net       the pipe
-   03_bus.lua       the pipe  <------->|     state     mirror of the server
-   02_store.lua     disk               |     triggers  checkpoint volumes
-   01_util.lua      clock, pool        |     capture   the tool
+   10_race.lua      the race           |     loads the extension
+   09_clock.lua     clock offset       |
+   08_console.lua   host console       +-- lua/ge/extensions/raceManager/
+   07_tracks.lua    courses            |     main      lifecycle
+   06_players.lua   the list           |     net       the pipe
+   05_roles.lua     permissions        |     state     mirror of the server
+   04_identity.lua  who you are        |     triggers  checkpoint volumes
+   03_bus.lua       the pipe  <------->|     capture   the tool
+   02_store.lua     disk               |     bottombar recovery, repair
+   01_util.lua      clock, pool        |     hud       the racing overlay
    00_config.lua    settings           |     perf      fps meter
                                        |     ui        the only bridge to html
                                        |
                                        +-- ui/modules/apps/RaceManager/
                                              one overlay: bars, list, windows
+                                             app.png is the picker thumbnail,
+                                             logo-*.png the Baja Sim badges
 ```
 
 ## Who decides what
@@ -46,8 +50,8 @@ cannot invent.
 One BeamMP event name in each direction, with channels inside.
 
 ```
-client  --- rm:c2s --->  server        { m: [ { c: "track.mark", d: {...} } ] }
-client  <-- rm:s2c ----  server        { t: 1234.5, m: [ ... ] }
+client  --- rmC2S --->  server         { m: [ { c: "track.mark", d: {...} } ] }
+client  <-- rmS2C ----  server         { t: 1234.5, m: [ ... ] }
 ```
 
 BeamMP shares that channel with vehicle position sync. Flooding it makes every

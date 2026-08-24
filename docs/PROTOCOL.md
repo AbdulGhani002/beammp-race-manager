@@ -4,8 +4,13 @@ Two BeamMP event names carry everything.
 
 | | |
 | --- | --- |
-| `rm:c2s` | client to server |
-| `rm:s2c` | server to client |
+| `rmC2S` | client to server |
+| `rmS2C` | server to client |
+
+No colon in either name. BeamMP splits its own wire format on `:`, so an event
+called `rm:c2s` is registered without complaint and then never delivered: the
+client reports the send succeeded and the server never sees it. The old names
+stay registered on the server so a player running a stale mod still works.
 
 Both carry the same envelope:
 
