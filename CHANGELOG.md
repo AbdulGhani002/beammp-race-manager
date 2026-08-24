@@ -4,7 +4,8 @@ One entry per phase, because one phase is one milestone.
 
 ## 0.2.0-phase1
 
-Phase 1: base and the checkpoint tool. Deployed and running.
+Phase 1: base and the checkpoint tool. Deployed, running, and confirmed in
+game on the client server.
 
 **Server plugin**
 - Identity from the verified BeamMP account plus a display name picked once.

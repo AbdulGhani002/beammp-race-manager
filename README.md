@@ -4,8 +4,10 @@ Race management for a private BeamMP server: timing, records, roles, XP,
 challenges and a checkpoint capture tool. Built from scratch against the
 BeamMP and BeamNG APIs.
 
-**Status: phase 1 of six, delivered.** Base and the checkpoint tool, tested end
-to end on the client server. Racing, timing and results are phase 2.
+**Status: phase 1 of six, delivered and verified in game.** Base and the
+checkpoint tool, confirmed on the client server: joined, recognised, named,
+course captured, gates drawn and driven through. Racing, timing and results
+are phase 2.
 
 ## The three pieces
 
