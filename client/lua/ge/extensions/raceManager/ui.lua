@@ -52,6 +52,7 @@ local function build()
   snap.tracks = S.tracks
   snap.capture = extensions.raceManager_capture.status()
   snap.perf = extensions.raceManager_perf.status()
+  snap.race = extensions.raceManager_race.status()
 
   return snap
 end
@@ -154,6 +155,22 @@ end
 function M.clearToast()
   extensions.raceManager_state.get().toast = nil
   M.push()
+end
+
+function M.armRace(id, mode, laps)
+  extensions.raceManager_race.arm(id, mode, laps)
+end
+
+function M.endRace()
+  extensions.raceManager_race.endRace()
+end
+
+function M.restartRace()
+  extensions.raceManager_race.restart()
+end
+
+function M.closeResults()
+  extensions.raceManager_race.closeResults()
 end
 
 M.onUpdate = onUpdate

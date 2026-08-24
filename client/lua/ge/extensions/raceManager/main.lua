@@ -1,13 +1,15 @@
 local M = {}
 
-M.VERSION = "0.2.0-phase1"
+M.VERSION = "0.2.0-phase2"
 
 -- ui goes last: it reads from every other module the moment it comes up
 local SUBS = {
   "raceManager_state",
   "raceManager_net",
+  "raceManager_clock",
   "raceManager_triggers",
   "raceManager_capture",
+  "raceManager_race",
   "raceManager_bottombar",
   "raceManager_hud",
   "raceManager_perf",
@@ -69,7 +71,10 @@ local function onClientStartMission(levelPath)
   trySayHello()
 end
 
+-- leaving the level ends a run, the same as the button does. a run left open
+-- would hold up the results for everybody else on the course.
 local function onClientEndMission()
+  extensions.raceManager_race.onLevelUnloaded()
   extensions.raceManager_triggers.clear()
   extensions.raceManager_capture.onLevelUnloaded()
 end

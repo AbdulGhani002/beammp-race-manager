@@ -20,6 +20,12 @@ local spawned = {}
 local course  = nil
 local visible = false
 
+-- a race has the same volumes up but a different job for them: the debug box
+-- stays off and the gate you are being scored on is drawn differently to the
+-- other twenty nine
+local racing   = false
+local nextGate = 1
+
 -- which saved course is on screen. kept across a level change so a course you
 -- asked to see is still there when you come back, rather than quietly
 -- vanishing and leaving you to wonder whether it ever worked.
@@ -133,6 +139,36 @@ function M.stopPreview()
   M.setVisible(false)
 end
 
+-- the volumes a race is scored on. the same ones the preview uses, without
+-- the engine debug box, because during a run the gate is drawn by us and a
+-- second wireframe on top of it is just noise.
+function M.startRace(track, gate)
+  racing = true
+  nextGate = tonumber(gate) or 1
+  local made = M.build(track, false)
+  log("I", "raceManager", ("race volumes up: %d gates on %s"):format(made, tostring(track.id)))
+  return made
+end
+
+function M.stopRace()
+  if not racing then return end
+  racing = false
+  nextGate = 1
+
+  -- a course somebody asked to look at outlives the run they just did
+  if shownId and course and shownId == course.id then
+    M.setVisible(true)
+  else
+    M.clear()
+  end
+end
+
+function M.setNextGate(i)
+  nextGate = tonumber(i) or nextGate
+end
+
+function M.isRacing() return racing end
+
 function M.shownId() return shownId end
 
 function M.isDrawing() return visible end
@@ -144,6 +180,7 @@ function M.onLevelLoaded()
   spawned = {}
   course = nil
   visible = false
+  racing = false
 
   -- but the intent to see a course does. ask for it again.
   if shownId then
@@ -168,11 +205,12 @@ local function onBeamNGTrigger(data)
   local mine = localVehicleId()
   if mine and data.subjectID and data.subjectID ~= mine then return end
 
-  log("I", "raceManager", "checkpoint " .. index .. " crossed")
-
+  -- stamped here, at the frame the trigger fired, because anything later
+  -- carries half a round trip and the server cannot take that back out
   extensions.raceManager_net.send("cp.hit", {
     track = course.id,
     i     = tonumber(index),
+    t     = extensions.raceManager_clock.now(),
   })
   extensions.raceManager_capture.onGatePassed(tonumber(index))
 end
@@ -205,7 +243,17 @@ local LABEL       = ColorF(1, 1, 1, 1)
 local SAVED_BG    = ColorI(122, 20, 24, 215)
 local DRAFT_BG    = ColorI(150, 85, 12, 215)
 
+-- during a run the gate being scored is yellow and everything else drops back,
+-- so at a junction it is obvious which way the course goes without a minimap
+local NEXT_POST   = ColorF(0.94, 0.71, 0.16, 1.00)
+local NEXT_FACE   = ColorF(0.91, 0.50, 0.12, 0.26)
+local NEXT_BG     = ColorI(150, 85, 12, 230)
+local REST_POST   = ColorF(0.95, 0.94, 0.92, 0.45)
+local REST_FACE   = ColorF(0.66, 0.11, 0.13, 0.08)
+local REST_BG     = ColorI(122, 20, 24, 140)
+
 local DRAW_RANGE = 900
+local RACE_RANGE = 400
 local errLogged = false
 
 local draft = nil
@@ -261,16 +309,42 @@ local function drawSet(cps, eye, post, face, bg)
   end
 end
 
+-- the gate being scored, drawn on its own so it can be picked out of the rest
+-- without walking the whole course twice
+local function drawRace(cps, eye)
+  for i = 1, #cps do
+    local cp = cps[i]
+    if cp and cp.pos then
+      local isNext = (i == nextGate)
+      local near = true
+      if eye then
+        local dx, dy = cp.pos.x - eye.x, cp.pos.y - eye.y
+        local range = isNext and DRAW_RANGE or RACE_RANGE
+        near = (dx * dx + dy * dy) < (range * range)
+      end
+      if near then
+        if isNext then
+          drawGate(cp, i, NEXT_POST, NEXT_FACE, NEXT_BG)
+        else
+          drawGate(cp, i, REST_POST, REST_FACE, REST_BG)
+        end
+      end
+    end
+  end
+end
+
 local function onUpdate()
-  local showSaved = visible and course
+  local showRace  = racing and course
+  local showSaved = (not racing) and visible and course
   local showDraft = draft and #draft > 0
-  if not showSaved and not showDraft then return end
+  if not showRace and not showSaved and not showDraft then return end
 
   local eye
   local okEye, p = pcall(function() return core_camera.getPosition() end)
   if okEye then eye = p end
 
   local ok, err = pcall(function()
+    if showRace  then drawRace(course.checkpoints, eye) end
     if showSaved then drawSet(course.checkpoints, eye, SAVED_POST, SAVED_FACE, SAVED_BG) end
     if showDraft then drawSet(draft, eye, DRAFT_POST, DRAFT_FACE, DRAFT_BG) end
   end)

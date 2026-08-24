@@ -101,7 +101,18 @@ end
 
 local function onTrackFull(d)
   S.track = type(d) == "table" and d or nil
-  if S.track then extensions.raceManager_triggers.preview(S.track) end
+
+  -- the same course arrives for two different reasons. armed means the
+  -- volumes go up to be raced on; anything else is somebody looking at it.
+  if S.track then
+    local race = extensions.raceManager_race
+    if race.isActive() and race.status().track == S.track.id then
+      race.onTrackReady(S.track)
+    else
+      extensions.raceManager_triggers.preview(S.track)
+    end
+  end
+
   extensions.raceManager_capture.onPreview()
   changed()
 end

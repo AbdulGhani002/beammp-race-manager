@@ -8,7 +8,7 @@ local M = {}
 local MPS_TO_MPH = 2.2369363
 local STOPPED_MPH = 1.0
 
-local PHASE3 = "This arrives in phase 3, with the hold and the penalty"
+local PHASE3 = "This arrives in phase 3, with the hold"
 
 local LABEL = {
   reposition = "Reposition",
@@ -17,6 +17,26 @@ local LABEL = {
   fuel       = "Fuel +25%",
   lights     = "Lights",
 }
+
+-- which penalty each button carries. the seconds come from the server so the
+-- host can change them without anybody reinstalling the mod.
+local COSTS = {
+  reposition = "recovery",
+  spare      = "flatTire",
+  repair     = "repair",
+}
+
+-- free driving costs nothing. a penalty only exists inside a run, which is
+-- the one question the bar has to ask rather than a special case per button.
+function M.penaltyFor(which)
+  if not extensions.raceManager_race.isRunning() then return nil end
+  local key = COSTS[which]
+  if not key then return nil end
+  local set = extensions.raceManager_state.get().config.penalties
+  local seconds = type(set) == "table" and tonumber(set[key]) or nil
+  if not seconds or seconds <= 0 then return nil end
+  return seconds
+end
 
 local function speedMph()
   local ok, veh = pcall(function() return be:getPlayerVehicle(0) end)
@@ -54,7 +74,13 @@ local function press(which)
     return
   end
 
-  extensions.raceManager_state.notice(label .. ": " .. PHASE3)
+  local cost = M.penaltyFor(which)
+  if cost then
+    extensions.raceManager_state.notice(
+      ("%s: %s, and it would cost %ds in this run"):format(label, PHASE3, cost))
+  else
+    extensions.raceManager_state.notice(label .. ": " .. PHASE3)
+  end
 end
 
 function M.reposition() press("reposition") end
