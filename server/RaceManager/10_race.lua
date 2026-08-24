@@ -185,7 +185,7 @@ function RM.race.gate(pid, index, clientTime)
     r.splits[1][1] = 0
     r.lapStart[1] = 0
     r.nextGate   = 2
-    return true, { lap = 1, gate = 1, split = 0, started = true }
+    return true, { lap = 1, gate = 1, split = 0, started = true, next = 2 }
   end
 
   if r.state ~= "running" then return false, "not_running" end
@@ -215,7 +215,7 @@ function RM.race.gate(pid, index, clientTime)
     if r.currentLap >= r.laps then
       finish(pid, r, t)
       return true, { lap = r.currentLap, gate = 1, split = elapsed,
-                     lapTime = r.lapTime[r.currentLap], finished = true }
+                     lapTime = r.lapTime[r.currentLap], finished = true, next = 0 }
     end
 
     local doneLap = r.currentLap
@@ -224,7 +224,7 @@ function RM.race.gate(pid, index, clientTime)
     r.lapStart[r.currentLap] = elapsed
     r.nextGate = 2
     return true, { lap = r.currentLap, gate = 1, split = elapsed,
-                   lapTime = r.lapTime[doneLap], lapDone = true }
+                   lapTime = r.lapTime[doneLap], lapDone = true, next = 2 }
   end
 
   local expected = r.nextGate
@@ -258,11 +258,13 @@ function RM.race.gate(pid, index, clientTime)
   if not r.circuit and index == r.gates then
     r.lapTime[r.currentLap] = RM.util.round(elapsed - (r.lapStart[r.currentLap] or 0), 3)
     finish(pid, r, t)
-    return true, { lap = r.currentLap, gate = index, split = elapsed, finished = true }
+    return true, { lap = r.currentLap, gate = index, split = elapsed,
+                   finished = true, next = 0 }
   end
 
   return true, {
     lap = r.currentLap, gate = index, split = elapsed,
+    next = r.nextGate > r.gates and 1 or r.nextGate,
     missed = index > expected and (index - expected) or nil,
   }
 end
@@ -282,7 +284,34 @@ function RM.race.onLeave(pid)
   if r and (r.state == "running" or r.state == "armed") then
     RM.race.abandon(pid, "left the server")
   end
-  runs[pid] = nil
+end
+
+function RM.race.forEach(fn)
+  for pid, r in pairs(runs) do fn(pid, r) end
+end
+
+function RM.race.isActive(pid)
+  local r = runs[pid]
+  return r ~= nil and (r.state == "armed" or r.state == "running")
+end
+
+-- a run nobody finished would hold the results open for everyone else on the
+-- course, so one that has been sitting there too long is ended for them
+function RM.race.sweep()
+  local now = RM.now()
+  local limit = RM.config.raceIdleTimeoutMs / 1000
+  local ended = nil
+  for pid, r in pairs(runs) do
+    if r.state == "armed" or r.state == "running" then
+      local since = now - (r.startedAt or r.armedAt or now)
+      if since > limit then
+        RM.race.abandon(pid, "no lap finished in " .. math.floor(limit / 60) .. " minutes")
+        ended = ended or {}
+        ended[#ended + 1] = pid
+      end
+    end
+  end
+  return ended
 end
 
 -- what the interface is allowed to know while a run is going. deliberately
@@ -304,6 +333,7 @@ function RM.race.wire(pid)
     corrected = r.corrected,
     penalties = #r.penalties,
     why      = r.why,
+    waiting  = RM.results and RM.results.waitingOn(r.track) or nil,
   }
 end
 
@@ -319,6 +349,7 @@ function RM.race.results(pid)
       splits = r.splits[lap],
       missed = r.missed[lap] or {},
       time   = r.lapTime[lap],
+      start  = r.lapStart[lap],
     }
   end
 

@@ -15,6 +15,7 @@ local HELP = {
   "rm role <name> <role>  owner | admin | staff | player",
   "rm forget <name>      drop a stored player, frees the display name",
   "rm claim <name>       give a stored name, and its role, to whoever just joined",
+  "rm races               runs on track now, and who results are waiting on",
   "rm perf                recorded FPS runs",
   "rm save                write every store now",
 }
@@ -136,6 +137,29 @@ local function claim(say, rest)
   say(("  player %d is now %s, role %s"):format(pid, result, RM.roles.of(pid)))
 end
 
+local function raceLines(say)
+  local n = 0
+  RM.race.forEach(function(pid, r)
+    n = n + 1
+    local when = r.startedAt and (RM.now() - r.startedAt) or 0
+    say(("  %-20s %-14s %-9s lap %d/%d  gate %d/%d  %6.1fs  %d penalty%s%s"):format(
+      RM.identity.displayName(pid), r.track, r.state,
+      r.currentLap, r.laps, math.min(r.nextGate, r.gates), r.gates, when,
+      #r.penalties, #r.penalties == 1 and "" or "s",
+      r.suspect and "  (marked)" or ""))
+  end)
+  if n == 0 then say("  nobody is racing") end
+
+  local heats = 0
+  for track in pairs(RM.results.heats()) do
+    heats = heats + 1
+    local left = RM.results.waitingOn(track)
+    say(("  heat %s: %s"):format(track,
+      left and ("waiting on " .. left) or "everyone is in, results go out next tick"))
+  end
+  if heats == 0 then say("  no heat open") end
+end
+
 local function forget(say, name)
   if not name then say("  usage: rm forget <name>") return end
   local key = RM.identity.keyForName(name)
@@ -171,6 +195,8 @@ function RM.console.handle(input)
     draftLines(say)
   elseif cmd == "perf" then
     perfLines(say)
+  elseif cmd == "races" or cmd == "race" then
+    raceLines(say)
   elseif cmd == "role" then
     local name, role = rest:match("^role%s+(.+)%s+(%S+)%s*$")
     setRole(say, name, role)

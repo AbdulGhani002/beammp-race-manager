@@ -23,6 +23,16 @@ local function onTick()
     for pid, s in pairs(RM.identity.sessions()) do
       if s.hello then RM.clock.maybeProbe(pid, s) end
     end
+
+    local ended = RM.race.sweep()
+    if ended then
+      for i = 1, #ended do
+        local pid = ended[i]
+        RM.bus.queue(pid, "race.state", RM.race.wire(pid))
+        RM.results.onRunEnded(pid)
+        RM.race.clear(pid)
+      end
+    end
   end
 
   RM.bus.flush()
@@ -39,7 +49,12 @@ local function onPlayerJoining(pid)
 end
 
 local function onPlayerDisconnect(pid)
+  -- the run has to be read before it is thrown away, or whoever is still on
+  -- track waits forever for somebody who is not coming back
   RM.race.onLeave(pid)
+  RM.results.onRunEnded(pid)
+  RM.race.clear(pid)
+  RM.results.forget(pid)
   RM.players.onLeave(pid)
   RM.identity.onLeave(pid)
   RM.bus.forget(pid)
@@ -154,20 +169,33 @@ local function wireChannels()
 
   RM.bus.on("race.arm", function(pid, d)
     local ok, result = RM.race.arm(pid, d)
-    if ok then
-      RM.bus.queue(pid, "race.state", RM.race.wire(pid))
-      local track = RM.tracks.get(result.track)
-      if track and track.start then
-        RM.bus.queue(pid, "race.teleport", track.start)
-      end
-    else
+    if not ok then
       RM.bus.queue(pid, "race.result", { ok = false, reason = result })
+      return
+    end
+
+    RM.results.join(pid, result.track)
+    RM.bus.queue(pid, "race.state", RM.race.wire(pid))
+
+    local track = RM.tracks.get(result.track)
+    if track and track.start then
+      RM.bus.queue(pid, "race.teleport", track.start)
     end
   end)
 
   RM.bus.on("race.end", function(pid)
     local ok = RM.race.endRace(pid)
-    if ok then RM.bus.queue(pid, "race.state", RM.race.wire(pid)) end
+    if not ok then return end
+    RM.bus.queue(pid, "race.state", RM.race.wire(pid))
+    RM.results.onRunEnded(pid)
+    RM.race.clear(pid)
+  end)
+
+  -- the results screen is closed, so the run it was showing can go
+  RM.bus.on("race.clear", function(pid)
+    RM.race.clear(pid)
+    RM.results.forget(pid)
+    RM.bus.queue(pid, "race.state", RM.race.wire(pid))
   end)
 
   -- a crossing, stamped by the client at the frame the trigger fired. the
@@ -186,6 +214,7 @@ local function wireChannels()
     RM.bus.queue(pid, "race.split", result)
     if result.finished then
       RM.bus.queue(pid, "race.state", RM.race.wire(pid))
+      RM.results.onRunEnded(pid)
     end
   end)
 
