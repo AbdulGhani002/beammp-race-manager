@@ -67,6 +67,5 @@ zones, teams, challenges and CoPilot. All are scheduled in later phases.
 
 ### Still needed
 
-FPS numbers taken on the server with the game, a second account for two driver
-testing, the race class list, whether all vehicles are allowed, and
-confirmation that "airspeed" means current speed.
+The race class list, whether all vehicles are allowed, and confirmation that
+"airspeed" means current speed.

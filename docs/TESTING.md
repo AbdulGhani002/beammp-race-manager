@@ -334,12 +334,9 @@ stutter is exactly what he complained about in other race mods.
 
 ## Stage 10. Two drivers
 
-Still blocked. The second account was agreed but never received, and nothing
-in the player list, the roster updates or the permission gate is properly
-tested until two people are on at once.
-
-Worth chasing before phase 2, because timing and results cannot be signed off
-single handed.
+Two drivers can be on at once now. Nothing in the player list, the roster
+updates or the permission gate is properly tested until they are, and phase 2
+results cannot be signed off single handed either.
 
 ---
 

@@ -80,7 +80,8 @@ of them belongs to a later phase in the plan.
 
 | Item | Needed for | Status |
 | --- | --- | --- |
-| Test server, admin, second account | two driver testing | server received, second account not confirmed |
+| Test server and admin | everything | received |
+| A second driver | two driver testing | in hand |
 | What the race classes are | phase 5, records sorting | waiting |
 | All vehicles allowed, or a list | phase 4 | waiting |
 | Confirm airspeed means current speed | phase 1, player list | waiting, assumed |
