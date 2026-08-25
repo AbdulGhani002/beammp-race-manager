@@ -301,6 +301,18 @@ angular.module("beamng.apps")
         return st === "armed" || st === "running";
       };
 
+      // A native select does not open in the game's interface layer. None of
+      // the 116 apps that ship with the game use one, and the one that needs a
+      // picker reaches for angular material instead. So these are buttons: they
+      // work, they match the rest of the panel, and they are easier to hit with
+      // a controller than a dropdown would have been.
+      //
+      // Written through functions rather than bound with ng-model because
+      // ng-if makes a child scope, and a bare assignment lands on the child.
+      $scope.pickTrack = function (id) { $scope.entry.track = id; };
+      $scope.pickMode  = function (m)  { $scope.entry.mode = m; };
+      $scope.pickKind  = function (k)  { $scope.newTrack.kind = k; };
+
       $scope.chosen = function () {
         var list = $scope.s.tracks || [];
         for (var i = 0; i < list.length; i++) {

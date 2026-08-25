@@ -252,6 +252,46 @@
   color: var(--rm-dim) !important;
 }
 
+/* pickers. a native select does not open in the game, so these are buttons */
+.rm-field {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--rm-dim);
+  margin: 12px 0 5px;
+}
+
+.rm-pickrow { display: flex; gap: 5px; flex-wrap: wrap; }
+.rm-pickrow button { flex: 1 1 auto; }
+
+.rm-picklist {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 168px;
+  overflow-y: auto;
+}
+
+.rm-picklist button {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 10px;
+  text-align: left;
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 14px;
+}
+
+.rm-pick-note {
+  font-size: 11px;
+  color: var(--rm-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.rm-picklist button.on .rm-pick-note { color: rgba(255, 255, 255, 0.75); }
+
 .rm-crest {
   display: block;
   width: 96px;

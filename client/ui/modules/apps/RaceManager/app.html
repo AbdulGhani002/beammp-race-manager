@@ -98,10 +98,14 @@
         </div>
 
         <div ng-if="s.tracks.length">
-          <label>Course
-            <select ng-model="entry.track"
-                    ng-options="t.id as t.name for t in s.tracks"></select>
-          </label>
+          <div class="rm-field">Course</div>
+          <div class="rm-picklist">
+            <button ng-repeat="t in s.tracks" ng-click="pickTrack(t.id)"
+                    ng-class="{on: entry.track === t.id}">
+              <span class="rm-pick-name">{{ t.name }}</span>
+              <span class="rm-pick-note">{{ t.count }} gates</span>
+            </button>
+          </div>
 
           <div class="rm-track-meta" ng-if="chosen()">
             {{ chosen().count }} checkpoints &middot;
@@ -109,12 +113,13 @@
             {{ chosen().level }}
           </div>
 
-          <label>Driving with
-            <select ng-model="entry.mode">
-              <option value="controller">Controller</option>
-              <option value="wheel">Wheel</option>
-            </select>
-          </label>
+          <div class="rm-field">Driving with</div>
+          <div class="rm-pickrow">
+            <button ng-click="pickMode('controller')"
+                    ng-class="{on: entry.mode === 'controller'}">Controller</button>
+            <button ng-click="pickMode('wheel')"
+                    ng-class="{on: entry.mode === 'wheel'}">Wheel</button>
+          </div>
 
           <label ng-if="chosen().circuit">Laps
             <input type="number" min="1" max="99" ng-model="entry.laps" />
@@ -233,13 +238,15 @@
           <input type="text" ng-model="newTrack.name" maxlength="40" placeholder="Baja 1000" />
         </label>
 
-        <label>Kind
-          <select ng-model="newTrack.kind">
-            <option value="race">Race</option>
-            <option value="qualifying">Qualifying</option>
-            <option value="timeattack">Time attack</option>
-          </select>
-        </label>
+        <div class="rm-field">Kind</div>
+        <div class="rm-pickrow">
+          <button ng-click="pickKind('race')"
+                  ng-class="{on: newTrack.kind === 'race'}">Race</button>
+          <button ng-click="pickKind('qualifying')"
+                  ng-class="{on: newTrack.kind === 'qualifying'}">Qualifying</button>
+          <button ng-click="pickKind('timeattack')"
+                  ng-class="{on: newTrack.kind === 'timeattack'}">Time attack</button>
+        </div>
 
         <label class="rm-check">
           <input type="checkbox" ng-model="newTrack.circuit" /> Circuit, finish is the start line

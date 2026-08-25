@@ -151,7 +151,13 @@ def main():
     for model in re.findall(r'ng-model="([^"]+)"', html):
         check("." in model, 'ng-model="%s" has no dot, so a child scope will swallow it' % model)
 
-    # 6. every image the page asks for is actually shipped
+    # 6. no native select. it does not open in the game's interface layer, and
+    #    the panel just sits there when you click it. None of the 116 apps that
+    #    ship with the game use one either.
+    check("<select" not in html,
+          "app.html has a native <select>, which does not open in the game")
+
+    # 7. every image the page asks for is actually shipped
     for src in sorted(set(re.findall(r'src="/ui/modules/apps/RaceManager/([^"]+)"', html))):
         check(os.path.exists(os.path.join(APP, src)), "app.html asks for %s which is not there" % src)
 
