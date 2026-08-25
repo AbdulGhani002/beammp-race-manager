@@ -94,10 +94,13 @@ function entry(name, pos, corrected, clean, penalties, holes) {
   var GATES = 30, lapTime = clean;
   var sp = splitsFor(GATES, clean / GATES, holes);
   var se = sectorsFor(sp, GATES, lapTime);
+  var cut = (holes || []).length > 0;
   return {
     name: name, pos: pos, corrected: corrected, clean: clean,
     penalties: penalties, suspect: name === "Marx",
-    bestLap: { time: lapTime, lap: 1 },
+    // the server refuses a cut lap the record, so the fixture has to as well
+    // or the preview shows a screen the game will never produce
+    bestLap: cut ? null : { time: lapTime, lap: 1 },
     bestSector: { time: 21.418, gate: 14, lap: 1 },
     laps: [{ lap: 1, time: lapTime, splits: sp, sectors: se, missed: holes || [] }]
   };
@@ -143,7 +146,7 @@ var SCENES = {
       state: "finished", track: "baja-1000", trackName: "Baja 1000",
       results: {
         track: "baja-1000", trackName: "Baja 1000", circuit: true, gates: 30,
-        bestLap: { time: 618.441, lap: 1, name: "Marx" },
+        bestLap: { time: 642.118, lap: 1, name: "Dard" },
         finished: [
           entry("Dard", 1, 642.118, 642.118, [], []),
           entry("abd", 2, 659.004, 659.004, [], []),
