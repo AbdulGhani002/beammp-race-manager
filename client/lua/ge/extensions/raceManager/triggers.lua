@@ -73,8 +73,12 @@ local function spawnGate(cp, index)
 
     obj:setPosition(vec3(cp.pos.x, cp.pos.y, cp.pos.z))
 
+    -- setScale takes the whole size, not half of it: the game's own
+    -- cylinderMarker scales a disc by radius * 2 to get a diameter. Halving it
+    -- here built a volume half the size of the gate on screen, so a car could
+    -- drive through the middle of a 20 metre gate and miss a 10 metre box.
     local w, h, d = gateOf(cp)
-    obj:setScale(vec3(w * 0.5, d * 0.5, h * 0.5))
+    obj:setScale(vec3(w, d, h))
 
     -- yaw only. a gate leaning with the camber of the road buys nothing and
     -- makes the volume harder to drive through.
