@@ -338,7 +338,13 @@ function RM.race.wire(pid)
     corrected = r.corrected,
     penalties = #r.penalties,
     why      = r.why,
-    waiting  = RM.results and RM.results.waitingOn(r.track) or nil,
+
+    -- only somebody who is off track is waiting on anyone. waitingOn counts
+    -- every live run on the course including this one, so sending it while the
+    -- clock is going tells a driver racing alone that they are waiting on
+    -- themselves, which is what the screen showed.
+    waiting  = (r.state == "finished" or r.state == "abandoned")
+               and RM.results and RM.results.waitingOn(r.track) or nil,
   }
 end
 

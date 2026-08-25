@@ -100,9 +100,20 @@ end
 local tp = M.lastMessage(0, "race.teleport")
 ok(tp and tp.pos, "and gets put on the grid")
 
+section("a driver still on track is not waiting on anybody")
+-- Alfa has started but not finished. waitingOn counts every live run on the
+-- course, this one included, so reporting it here told a driver racing alone
+-- that they were waiting on themselves while their own clock was running.
+crossAfter(DRIVERS[1], 1, 5)
+do
+  local w = RM.race.wire(DRIVERS[1].pid)
+  eq(w.state, "running", "Alfa is on the road")
+  eq(w.waiting, nil, "so is told nothing about waiting")
+  ok(RM.results.waitingOn("loop") ~= nil, "even though the heat does have cars out")
+end
+
 section("results wait for the last car")
 -- Alfa: gates ten seconds apart, but quick from four to five
-crossAfter(DRIVERS[1], 1, 5)
 crossAfter(DRIVERS[1], 2, 10)
 crossAfter(DRIVERS[1], 3, 10)
 crossAfter(DRIVERS[1], 4, 10)

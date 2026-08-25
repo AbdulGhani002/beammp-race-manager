@@ -31,6 +31,24 @@ this checked line by line against what was promised.
   in yellow and the rest dropped back.
 - End Race, on a button and on a key, stops everything at once.
 
+**Gate geometry, after the first real run**
+
+- The trigger volume was built at half the size of the gate drawn on screen,
+  because `setScale` takes the whole size and it was being given half. A car
+  could drive through the middle of a 20 metre gate and miss a 10 metre box.
+- A gate stored the heading the car had when the key went down, so a gate
+  tapped mid corner faced where the car was pointing rather than lying across
+  the road. One came out 89 degrees off and could not be driven through from
+  any direction. Angles are now read off the racing line when a course is
+  saved, and capped so a switchback cannot swing a gate back along the road.
+- On a loop the numbering is rolled round so gate 1 is the gate the grid points
+  at. A grid left half way round a course put gate 1 behind the car, and the
+  only way to start a run was to reverse into it.
+- Cars line up in front of gate 1 and facing it rather than on the saved grid,
+  which was left by driving somewhere and stopping and can sit past the gate it
+  is meant to be in front of.
+- Courses already on disk are put through the same pass when they load.
+
 **Results**
 - Everyone racing a course is a heat. The payload is built once, when the last
   of them is off track, and sent once. There is no live leaderboard and
@@ -41,6 +59,9 @@ this checked line by line against what was promised.
 - A lap that cut a gate cannot hold the best lap, personal or overall. It is a
   shorter lap, so it would have taken the record almost every time. It is
   still timed and still shown; it just sets nothing.
+- A driver still on track is no longer told they are waiting on somebody. The
+  count included their own run, so racing alone said you were waiting on
+  yourself while your own clock was going.
 - A row opens into every penalty with the gate it was for, and a lap opens
   into every sector, including the run from the last gate back to the line.
 - Four ways a heat could have hung are closed: a disconnect, End Race, a run
