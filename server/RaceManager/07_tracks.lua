@@ -17,6 +17,12 @@ local KINDS = { race = true, qualifying = true, timeattack = true }
 function RM.tracks.init()
   tracks = RM.store.load(STORE, {})
   drafts = RM.store.load(DSTORE, {})
+
+  -- courses captured before the gates were squared up carry the old angles and
+  -- the old numbering, and both are unracable. Fixing them on load costs one
+  -- pass at boot and saves recapturing a thirty gate course by hand.
+  for _, track in pairs(tracks) do RM.tracks.squareUp(track) end
+  RM.store.markDirty(STORE)
 end
 
 local function keyOf(pid)
@@ -37,6 +43,161 @@ local function gateFrom(d)
     w = RM.util.clamp(tonumber(d and d.w) or DEFAULT_GATE.w, 2.0, 200.0),
     h = RM.util.clamp(tonumber(d and d.h) or DEFAULT_GATE.h, 2.0, 60.0),
     d = RM.util.clamp(tonumber(d and d.d) or DEFAULT_GATE.d, 1.0, 40.0),
+  }
+end
+
+local function unit(dx, dy)
+  local m = math.sqrt(dx * dx + dy * dy)
+  if m < 1e-6 then return nil end
+  return dx / m, dy / m
+end
+
+local function angleGap(a, b)
+  local d = (a - b) % (2 * math.pi)
+  if d > math.pi then d = d - 2 * math.pi end
+  return d
+end
+
+-- A gate stores the heading the car had at the moment the key went down. Press
+-- it mid corner and the gate faces where the car was pointing rather than
+-- lying across the road. Gate 4 of the first test course came out 89 degrees
+-- off the racing line, which turned a 20 metre doorway into a 3 metre slot
+-- running along the road, and it could not be driven through from any
+-- direction.
+--
+-- Once the whole course exists the line through each gate is known, so the
+-- angle is taken from that instead: square to the way in, swung part way
+-- toward the way out so a hairpin gate stays open to a car that is already
+-- rotating. The captured heading is only kept where there is no line to read.
+--
+-- The swing is capped, because half of a near switchback is most of a right
+-- angle and would put the gate back along the road. This course has one: the
+-- corner turns 149 degrees, and splitting it evenly leaves the gate 75 degrees
+-- off the way in, which is the fault being fixed rather than a fix for it.
+local MOST_SWING = math.pi / 4
+
+local function faceAlongTheLine(cps, circuit)
+  local n = #cps
+  if n < 2 then return 0 end
+
+  local want = {}
+  for i = 1, n do
+    local here = cps[i]
+    local prev = cps[i - 1] or (circuit and cps[n] or nil)
+    local nxt  = cps[i + 1] or (circuit and cps[1] or nil)
+
+    local ix, iy, ox, oy
+    if prev then ix, iy = unit(here.pos.x - prev.pos.x, here.pos.y - prev.pos.y) end
+    if nxt  then ox, oy = unit(nxt.pos.x - here.pos.x, nxt.pos.y - here.pos.y) end
+
+    if ix and ox then
+      local into = math.atan(iy, ix)
+      local away = math.atan(oy, ox)
+      local swing = angleGap(away, into) * 0.5
+      if swing >  MOST_SWING then swing =  MOST_SWING end
+      if swing < -MOST_SWING then swing = -MOST_SWING end
+      want[i] = into + swing
+    elseif ix then want[i] = math.atan(iy, ix)
+    elseif ox then want[i] = math.atan(oy, ox) end
+  end
+
+  local moved = 0
+  for i = 1, n do
+    if want[i] then
+      if math.abs(angleGap(want[i], cps[i].yaw or 0)) > 0.05 then moved = moved + 1 end
+      cps[i].yaw = want[i]
+    end
+  end
+  return moved
+end
+
+-- The clock starts on gate 1, so gate 1 has to be the gate the grid points at.
+-- Leave the grid half way round a loop and gate 1 ends up behind the car: the
+-- first test course put it 176 degrees behind, and the only way to start a run
+-- was to reverse through it.
+--
+-- A loop has no natural first gate, so the numbering is rolled round to match
+-- where the grid was actually left. A point to point course does have one, so
+-- that is left alone and the problem is reported instead.
+local function startWhereTheGridPoints(track)
+  local cps = track.checkpoints
+  local n = #cps
+  if n < 2 or type(track.start) ~= "table" then return 0, nil end
+
+  local yaw = tonumber(track.start.yaw) or 0
+  local fx, fy = math.cos(yaw), math.sin(yaw)
+  local sx, sy = track.start.pos.x, track.start.pos.y
+
+  -- how far down the road each gate sits. the grid is meant to sit just short
+  -- of the first one, so a small negative reading still counts as in front.
+  local best, bestAt
+  for i = 1, n do
+    local along = (cps[i].pos.x - sx) * fx + (cps[i].pos.y - sy) * fy
+    if along > -2.0 and (not best or along < best) then best, bestAt = along, i end
+  end
+
+  if not bestAt then return 0, "no gate sits in front of the grid" end
+  if bestAt == 1 then return 0, nil end
+  if not track.circuit then
+    return 0, ("gate 1 is behind the grid; gate %d is the one in front"):format(bestAt)
+  end
+
+  local rolled = {}
+  for i = 1, n do
+    local cp = cps[((bestAt - 2 + i) % n) + 1]
+    cp.i = i
+    rolled[i] = cp
+  end
+  track.checkpoints = rolled
+  return bestAt - 1, nil
+end
+
+-- Everything above, run over one course. Idempotent: the gate the grid points
+-- at is gate 1 once it has been rolled, and an angle read off the line does not
+-- move when it is read again.
+function RM.tracks.squareUp(track)
+  if type(track) ~= "table" or type(track.checkpoints) ~= "table" then return end
+  local rolled, problem = startWhereTheGridPoints(track)
+  local turned = faceAlongTheLine(track.checkpoints, track.circuit and true or false)
+
+  if rolled > 0 then
+    RM.info(("%s: rolled the numbering by %d so gate 1 is the one the grid points at")
+      :format(tostring(track.id), rolled))
+  end
+  if turned > 0 then
+    RM.info(("%s: squared %d gate%s to the racing line")
+      :format(tostring(track.id), turned, turned == 1 and "" or "s"))
+  end
+  if problem then
+    RM.warn(("%s: %s"):format(tostring(track.id), problem))
+  end
+end
+
+-- Where the cars line up. The saved grid decides which part of a loop the lap
+-- starts on, but it is a poor place to put a car down: it was left by driving
+-- there and stopping, so it can sit a metre past the gate it is meant to be in
+-- front of, and facing away from it. Both courses captured so far do exactly
+-- that, and neither can be started by driving forwards.
+--
+-- Worse, a grid inside the gate volume never fires at all: the car is already
+-- through it before the run begins, and there is no crossing left to make.
+--
+-- So the lineup is taken from gate 1 instead. Square in front of it, back far
+-- enough to be clear of the volume, pointing at it. The saved grid keeps the
+-- one job it is good at, which is saying where the lap starts.
+local GRID_SETBACK = 8.0
+
+function RM.tracks.gridFor(track)
+  local cp = track and type(track.checkpoints) == "table" and track.checkpoints[1]
+  if not cp then return track and track.start or nil end
+  local yaw = tonumber(cp.yaw) or 0
+  return {
+    pos = {
+      x = cp.pos.x - math.cos(yaw) * GRID_SETBACK,
+      y = cp.pos.y - math.sin(yaw) * GRID_SETBACK,
+      z = cp.pos.z,
+    },
+    yaw = yaw,
   }
 end
 
@@ -163,6 +324,8 @@ function RM.tracks.finishCapture(pid)
   if not draft.start then
     draft.start = { pos = draft.checkpoints[1].pos, yaw = draft.checkpoints[1].yaw }
   end
+
+  RM.tracks.squareUp(draft)
 
   draft.replaces = nil
   draft.savedAt = os.time()

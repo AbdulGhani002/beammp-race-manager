@@ -54,8 +54,10 @@ circuit, a controller or wheel picker, and a lap box on a circuit only.
 
 Press **Go to the grid** on the course you want.
 
-Expect: the car is picked up and put on the start line facing the right way
-and settled on its suspension. The Race panel says you are on the grid, and
+Expect: the car is put eight metres in front of gate 1, facing it, and settled
+on its suspension. That is worked out from gate 1 rather than from where you
+left the grid, so it is right even on a course whose grid was parked past its
+own first gate. The Race panel says you are on the grid, and
 the top of the screen says **Drive through the start line**. The clock is not
 running. The gates are drawn, gate 1 in yellow and the rest dimmer.
 
@@ -64,7 +66,8 @@ running. The gates are drawn, gate 1 in yellow and the rest dimmer.
 
 ## Stage 3. Start the clock
 
-Drive through gate 1.
+Drive forward through gate 1. You should never have to reverse into it: if you
+do, tell me, because that is the bug this stage exists to catch.
 
 Expect: the message at the top is replaced by a running clock showing tenths.
 Under it, the lap if you asked for more than one, and **Next gate 2**. Gate 2

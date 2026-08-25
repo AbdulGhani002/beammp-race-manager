@@ -181,7 +181,7 @@ local function wireChannels()
 
     local track = RM.tracks.get(result.track)
     if track and track.start then
-      RM.bus.queue(pid, "race.teleport", track.start)
+      RM.bus.queue(pid, "race.teleport", RM.tracks.gridFor(track))
     end
   end)
 
