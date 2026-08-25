@@ -201,6 +201,29 @@ function RM.race.gate(pid, index, clientTime)
 
   local wrapping = r.circuit and r.nextGate > r.gates
 
+  -- The line can also come up early, because the gates at the end of the lap
+  -- were cut. Without this the crossing is read as gate 1 arriving before its
+  -- turn and thrown out as already crossed, and then nothing finishes the run
+  -- at all: the clock keeps going, the line does nothing however many times it
+  -- is crossed, and the only way out is to quit. That is what happened on the
+  -- run that missed gate 5.
+  --
+  -- Crossing the line two gates into a five gate loop is turning round, not
+  -- finishing, so the lap has to be mostly done before the line will close it
+  -- early. Anyone who has abandoned the course before that has End Race, which
+  -- files the run properly rather than leaving it open.
+  local doneGates = r.nextGate - 1
+  if r.circuit and not wrapping and index == 1 and doneGates * 2 > r.gates then
+    local missed = r.missed[r.currentLap] or {}
+    for g = r.nextGate, r.gates do
+      missed[#missed + 1] = g
+      RM.race.penalty(pid, RM.config.penalties.missedGate, "missed_gate", g)
+    end
+    r.missed[r.currentLap] = missed
+    r.nextGate = r.gates + 1
+    wrapping = true
+  end
+
   if wrapping then
     -- every gate is done, so the only thing left is the lap line
     if index ~= 1 then return false, "expected_lap_line" end
@@ -337,6 +360,11 @@ function RM.race.wire(pid)
     clean    = r.clean,
     corrected = r.corrected,
     penalties = #r.penalties,
+
+    -- the seconds as well as the count, so the clock on screen can carry them.
+    -- a penalty that does not move the time reads as free until the results
+    -- come up, which is far too late to change how you are driving.
+    penaltyTime = RM.race.penaltyTotal(r),
     why      = r.why,
 
     -- only somebody who is off track is waiting on anyone. waitingOn counts

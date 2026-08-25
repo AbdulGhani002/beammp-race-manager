@@ -19,6 +19,7 @@ local st = {
   elapsed   = 0,
   lastSplit = nil,
   penalties = 0,
+  penaltyTime = 0,
   waiting   = nil,
   results   = nil,
   why       = nil,
@@ -118,6 +119,7 @@ local function onState(d)
   st.next      = d.next or 1
   st.circuit   = d.circuit and true or false
   st.penalties = d.penalties or 0
+  st.penaltyTime = d.penaltyTime or 0
   st.waiting   = d.waiting
   st.why       = d.why
 
@@ -175,6 +177,7 @@ local function onSplit(d)
   st.lastSplitFor = 5
 
   if d.penalties then st.penalties = d.penalties end
+  if d.penaltyTime then st.penaltyTime = d.penaltyTime end
 
   if d.lap then st.lap = d.lap end
   if d.lapDone then startedLocal = extensions.raceManager_clock.now() - (d.split or 0) end
@@ -232,7 +235,11 @@ local function onUpdate(dt)
 
   if not startedLocal then return end
 
-  st.elapsed = extensions.raceManager_clock.now() - startedLocal
+  -- what the run is worth right now, which is the time on the road plus
+  -- whatever has been added to it. A penalty that leaves the clock alone reads
+  -- as free until the results come up, and by then there is nothing to be done
+  -- about it.
+  st.elapsed = (extensions.raceManager_clock.now() - startedLocal) + (st.penaltyTime or 0)
   local tenths = math.floor(st.elapsed * 10)
   if tenths ~= shownTenths then
     shownTenths = tenths

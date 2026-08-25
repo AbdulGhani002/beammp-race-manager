@@ -94,8 +94,13 @@ Expect: a message saying **Missed 2 checkpoints**, and the penalty count under
 the clock going to 2. The next gate should be the one after the ones you
 skipped, not the ones you missed.
 
-This is the one that was not being caught before the last deploy, so it is
-worth doing on purpose rather than hoping.
+The clock should jump by the penalty as it lands. It counts what the run is
+worth, not what the road took, so a cut costs you where you can see it.
+
+Then do the other one: drive the lap properly but **cut the last gate before
+the line**. The lap must still finish, with that gate priced. It used to be
+thrown away as a gate arriving out of turn, which left the run open forever
+with no way out but quitting the server.
 
 ## Stage 6. Finish
 

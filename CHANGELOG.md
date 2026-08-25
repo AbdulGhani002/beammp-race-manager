@@ -49,6 +49,18 @@ this checked line by line against what was promised.
   is meant to be in front of.
 - Courses already on disk are put through the same pass when they load.
 
+**Found by racing it**
+
+- Cutting the gates at the end of a lap left the run unfinishable. The line was
+  read as gate 1 arriving out of turn and thrown away, so nothing closed the
+  run: the clock kept going, the line did nothing however many times it was
+  crossed, and the only way out was to quit the server. The line closes the lap
+  now and prices what was cut. It still wants most of the lap done first, so
+  turning round two gates in is a reverse over the line rather than a lap.
+- The clock on screen carries the penalties. It was showing time on the road
+  only, with the penalties as a count, so a cut looked free until the results
+  came up and there was nothing left to do about it.
+
 **Results**
 - Everyone racing a course is a heat. The payload is built once, when the last
   of them is off track, and sent once. There is no live leaderboard and

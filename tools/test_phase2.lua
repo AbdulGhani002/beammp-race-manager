@@ -304,6 +304,51 @@ eq(select(2, RM.race.gate(0, -1, RM.now() + 30)), "no_such_gate", "and a negativ
 ok(RM.race.gate(0, 2, "not a number"), "a junk stamp still records, marked")
 eq(RM.race.get(0).suspect, true, "and marks the run")
 
+section("cutting the gates at the end of a lap still finishes it")
+-- The run that found this missed gate 5 and then crossed the line. The line
+-- was read as gate 1 arriving out of turn and thrown away, so nothing ever
+-- finished the run: the clock kept going and the only way out was to quit.
+RM.race.clear(0)
+RM.race.arm(0, { id = "loop", mode = "controller", laps = 1 })
+cross(1, 5)
+cross(2, 10)
+cross(3, 10)
+cross(4, 10)
+-- gate 5 is cut, and the next thing the car crosses is the line
+local okLine = cross(1, 10)
+ok(okLine, "the line closes the lap even though a gate was cut")
+eq(RM.race.state(0), "finished", "so the run actually ends")
+
+local run = RM.race.get(0)
+eq(#run.penalties, 1, "the cut gate is priced once")
+eq(run.penalties[1].gate, 5, "and it is named as gate five")
+eq(run.penalties[1].reason, "missed_gate", "for the right reason")
+near(run.clean, 40, 0.2, "the time on the road is 40")
+near(run.corrected, 40 + RM.config.penalties.missedGate, 0.2,
+     "and the time that counts carries the penalty")
+ok(run.corrected > run.clean, "which is the whole point: a cut costs time")
+
+section("the clock on screen carries the penalty too")
+RM.race.clear(0)
+RM.race.arm(0, { id = "loop", mode = "controller", laps = 1 })
+cross(1, 5)
+eq(RM.race.wire(0).penaltyTime, 0, "nothing added yet")
+cross(3, 10)
+do
+  local w = RM.race.wire(0)
+  eq(w.penalties, 1, "one gate cut")
+  near(w.penaltyTime, RM.config.penalties.missedGate, 0.001,
+       "and the seconds go out with it, so the clock can show what it cost")
+end
+
+section("crossing the line straight back off the grid is not a lap")
+RM.race.clear(0)
+RM.race.arm(0, { id = "loop", mode = "controller", laps = 1 })
+cross(1, 5)
+eq(select(2, cross(1, 2)), "already_crossed",
+   "reversing over the start line does not finish a lap and cut four gates")
+eq(RM.race.state(0), "running", "the run is still going")
+
 print("")
 print(("%d passed, %d failed"):format(pass, fail))
 if fail > 0 then
