@@ -99,7 +99,11 @@ local function summarise(entry)
     local lap = entry.laps[i]
     lap.sectors = sectorsFor(lap, gates)
 
-    if type(lap.time) == "number" and lap.time > 0 then
+    -- a lap that cut a gate is a shorter lap, so it would win best lap almost
+    -- every time. it is still timed and still shown, it just cannot hold the
+    -- record. phase 5 reads best lap straight out of here.
+    local cut = lap.missed and #lap.missed > 0
+    if type(lap.time) == "number" and lap.time > 0 and not cut then
       if not bestLap or lap.time < bestLap then bestLap, bestLapNo = lap.time, lap.lap end
     end
 

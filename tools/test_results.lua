@@ -173,8 +173,10 @@ near(res.finished[3].toAhead, 11, 0.5, "but only eleven off the car ahead")
 
 section("best lap, overall and personal")
 ok(res.bestLap ~= nil, "there is an overall best lap")
-eq(res.bestLap.name, "Charlie", "and it belongs to the quickest car, penalties or not")
-near(res.bestLap.time, 36, 0.3, "at 36")
+eq(res.bestLap.name, "Alfa", "and it is the quickest clean lap, not the quickest lap")
+near(res.bestLap.time, 46, 0.3, "at 46")
+eq(byName.Charlie.bestLap, nil, "Charlie's 36 cut a gate, so it holds no record")
+ok(byName.Charlie.laps[1].time > 0, "it is still timed and still shown")
 near(byName.Alfa.bestLap.time, 46, 0.3, "Alfa's own best is their only lap")
 eq(byName.Alfa.bestLap.lap, 1, "on lap one")
 

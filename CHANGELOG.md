@@ -38,6 +38,9 @@ this checked line by line against what was promised.
 - Corrected time decides the order. Raw time is shown and decides nothing.
   Gaps to the leader and to the car ahead, overall best lap, personal best lap
   and personal best sector.
+- A lap that cut a gate cannot hold the best lap, personal or overall. It is a
+  shorter lap, so it would have taken the record almost every time. It is
+  still timed and still shown; it just sets nothing.
 - A row opens into every penalty with the gate it was for, and a lap opens
   into every sector, including the run from the last gate back to the line.
 - Four ways a heat could have hung are closed: a disconnect, End Race, a run

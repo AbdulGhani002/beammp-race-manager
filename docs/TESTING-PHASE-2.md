@@ -109,7 +109,10 @@ On the results screen check:
 - the order is by the time **with** penalties, so a cut lap can lose to a
   slower clean one
 - **Leader** and **Ahead** are both there, and the leader's are dashes
-- the best lap at the top names whose it was
+- the best lap at the top names whose it was, and it is **never** a lap that
+  cut a gate. Cut two checkpoints on a quick lap and it must not take the best
+  lap off a slower clean one: a short lap is not a fast lap, and phase 5 reads
+  records straight out of this
 - click your own row: raw time, best split, every penalty with the gate it was
   for, and the laps
 - click a lap: every sector, including the last one back to the line, with the

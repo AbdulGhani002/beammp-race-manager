@@ -24,7 +24,7 @@ it is.
 | Corrected time | the headline time in the table, and what the order is by |
 | Click a name for that player's penalties, each with its reason | a row expands into them, each naming the gate it belongs to |
 | Dirty time, information only | shown as **Raw time** in the expanded row, with a line saying it decides nothing |
-| Overall best lap | above the table, with whose it was |
+| Overall best lap | above the table, with whose it was, and never a lap that cut a gate |
 | Personal best lap, click to expand every lap | in the expanded row, best lap highlighted |
 | Diff to the car ahead | the **Ahead** column |
 | Diff to the leader | the **Leader** column |
