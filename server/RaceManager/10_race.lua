@@ -164,6 +164,32 @@ local function finish(pid, r, t)
     r.suspect and " (marked)" or ""))
 end
 
+-- The offset between the two clocks is re-estimated every few seconds, and
+-- the estimate moves: the best of the last eight samples changes as the window
+-- slides. Converting the start of a run with one estimate and the end of it
+-- with another measures the drift as much as the driving. A seven second run
+-- came back as a 213 second lap that way, and a lap boundary made the clock on
+-- screen count backwards.
+--
+-- So a run takes its own copy of the offset the first time it needs one and
+-- keeps it. Every stamp in the run is then read in the same frame, and the
+-- difference between two of them is the time that actually passed.
+function RM.race.stamp(r, pid, clientTime)
+  if r.offset == nil then
+    local s = RM.identity.session(pid)
+    local o = s and s.clockOffset
+    r.offset = o or false
+    r.slack  = (s and s.clockDelay or 0) + (RM.config.clockTrustMs / 1000)
+  end
+
+  local now = RM.now()
+  if r.offset == false or not RM.util.isNum(clientTime) then return now, false end
+
+  local t = clientTime - r.offset
+  if t > now or t < (now - (r.slack or 2)) then return now, false end
+  return t, true
+end
+
 -- a gate crossing, stamped by the client and decided here
 function RM.race.gate(pid, index, clientTime)
   local r = runs[pid]
@@ -172,7 +198,7 @@ function RM.race.gate(pid, index, clientTime)
   index = math.floor(tonumber(index) or 0)
   if index < 1 or index > r.gates then return false, "no_such_gate" end
 
-  local t, trusted = RM.clock.toServer(pid, clientTime)
+  local t, trusted = RM.race.stamp(r, pid, clientTime)
   if not trusted then r.suspect = true end
 
   -- the run has not begun: only the start line begins it
@@ -240,7 +266,8 @@ function RM.race.gate(pid, index, clientTime)
       finish(pid, r, t)
       return true, { lap = r.currentLap, gate = 1, split = elapsed,
                      lapTime = r.lapTime[r.currentLap], lapTimeLap = r.currentLap,
-                     finished = true, next = 0, penalties = #r.penalties }
+                     finished = true, next = 0, penalties = #r.penalties,
+                     penaltyTime = RM.race.penaltyTotal(r) }
     end
 
     local doneLap = r.currentLap
@@ -250,14 +277,49 @@ function RM.race.gate(pid, index, clientTime)
     r.nextGate = 2
     return true, { lap = r.currentLap, gate = 1, split = elapsed,
                    lapTime = r.lapTime[doneLap], lapTimeLap = doneLap,
-                   lapDone = true, next = 2, penalties = #r.penalties }
+                   lapDone = true, next = 2, penalties = #r.penalties,
+                     penaltyTime = RM.race.penaltyTotal(r) }
   end
 
   local expected = r.nextGate
 
   if index < expected then
+    -- A gate already charged as missed, turning up late. Two volumes on this
+    -- course sit fourteen metres apart and are twenty metres wide, so they can
+    -- fire in either order, and the one that lands first charges the other as
+    -- a cut. Driving through it afterwards proves it was not cut, so the charge
+    -- comes back off.
+    local missed = r.missed[r.currentLap]
+    for k = 1, (missed and #missed or 0) do
+      if missed[k] == index then
+        table.remove(missed, k)
+        for j = #r.penalties, 1, -1 do
+          local pen = r.penalties[j]
+          if pen.reason == "missed_gate" and pen.gate == index and pen.lap == r.currentLap then
+            table.remove(r.penalties, j)
+            break
+          end
+        end
+        r.splits[r.currentLap][index] = elapsed
+        RM.info(("%s reached gate %d after all, penalty refunded"):format(
+          RM.identity.displayName(pid), index))
+        return true, { lap = r.currentLap, gate = index, split = elapsed,
+                       refunded = true, next = r.nextGate,
+                       penalties = #r.penalties,
+                       penaltyTime = RM.race.penaltyTotal(r) }
+      end
+    end
+
     -- already have this one for this lap
     return false, "already_crossed"
+  end
+
+  -- A gate far up the course is not one you drove through, it is one whose
+  -- volume happens to sit on the road you are on: this course puts gate 30
+  -- between gates 3 and 4, and accepting it charged 26 cuts for gates that
+  -- were still ahead. Brushing it is not a crossing, so it is ignored.
+  if index - expected > (RM.config.maxGateSkip or 4) then
+    return false, "not_this_gate"
   end
 
   -- a later gate firing while an earlier one has no split means the earlier
@@ -286,13 +348,15 @@ function RM.race.gate(pid, index, clientTime)
     finish(pid, r, t)
     return true, { lap = r.currentLap, gate = index, split = elapsed,
                    lapTime = r.lapTime[r.currentLap], lapTimeLap = r.currentLap,
-                   finished = true, next = 0, penalties = #r.penalties }
+                   finished = true, next = 0, penalties = #r.penalties,
+                     penaltyTime = RM.race.penaltyTotal(r) }
   end
 
   return true, {
     lap = r.currentLap, gate = index, split = elapsed,
     next = r.nextGate > r.gates and 1 or r.nextGate,
     penalties = #r.penalties,
+    penaltyTime = RM.race.penaltyTotal(r),
     missed = index > expected and (index - expected) or nil,
   }
 end

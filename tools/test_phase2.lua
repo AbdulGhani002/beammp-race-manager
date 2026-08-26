@@ -349,6 +349,78 @@ eq(select(2, cross(1, 2)), "already_crossed",
    "reversing over the start line does not finish a lap and cut four gates")
 eq(RM.race.state(0), "running", "the run is still going")
 
+section("the seconds reach the screen, not just the count")
+-- The clock carried the count and never the seconds, so 36 cuts sat on screen
+-- next to a time that had not moved. The server had it right the whole way:
+-- clean 188.962, corrected 1268.962. Only the driver could not see it.
+RM.race.clear(0)
+RM.race.arm(0, { id = "loop", mode = "controller", laps = 1 })
+cross(1, 5)
+local afterCut = select(2, cross(3, 10))
+eq(afterCut.penalties, 1, "the split says one gate was cut")
+near(afterCut.penaltyTime, RM.config.penalties.missedGate, 0.001,
+     "and says what it cost, in the same message")
+near(RM.race.wire(0).penaltyTime, RM.config.penalties.missedGate, 0.001,
+     "the run state agrees")
+
+section("a run keeps its own copy of the clock offset")
+-- The offset between the two clocks is re-estimated every few seconds and the
+-- estimate moves. Reading the start of a run in one frame and the end of it in
+-- another measures the drift as much as the driving: the log has a seven
+-- second run coming back as a 213 second lap, and a lap boundary that made the
+-- clock on screen count backwards.
+RM.race.clear(0)
+RM.race.arm(0, { id = "loop", mode = "controller", laps = 1 })
+cross(1, 5)
+local frozen = RM.race.get(0).offset
+near(frozen, 30, 0.2, "the run took the offset that was current when it began")
+
+-- the estimate slides two seconds part way round, as it did in the log
+RM.identity.session(0).clockOffset = 32
+cross(2, 10)
+near(RM.race.get(0).splits[1][2], 10, 0.2,
+     "the split is still the ten seconds that passed, not the drift")
+near(RM.race.get(0).offset, 30, 0.2, "because the run kept its own copy")
+
+cross(3, 10)
+near(RM.race.get(0).splits[1][3], 20, 0.2, "and it holds for the rest of the run")
+
+section("a gate too far up the course was brushed, not driven through")
+-- baja-1000 puts gate 30 between gates 3 and 4. Driving that stretch clipped
+-- it and charged 26 cuts for gates that were still in front of the car. Five
+-- gates is not enough course to skip 26 of anything, so the cap is tightened
+-- for this section rather than the course being made thirty gates long.
+local realCap = RM.config.maxGateSkip
+RM.config.maxGateSkip = 1
+
+RM.race.clear(0)
+RM.race.arm(0, { id = "loop", mode = "controller", laps = 1 })
+cross(1, 5)
+cross(2, 10)
+eq(select(2, cross(5, 10)), "not_this_gate",
+   "a gate well past the one expected is a volume brushed in passing")
+eq(#RM.race.get(0).penalties, 0, "so nothing is charged for it")
+eq(RM.race.get(0).nextGate, 3, "and the run stays where it was")
+ok(RM.race.gate(0, 3, RM.now() + 30), "the gate actually in front still counts")
+
+RM.config.maxGateSkip = realCap
+ok(realCap >= 2, "and the real cap still leaves room for a cut corner")
+
+section("a cut gate reached late gets its penalty back")
+-- two of these gates are fourteen metres apart and twenty wide, so they can
+-- fire in either order
+RM.race.clear(0)
+RM.race.arm(0, { id = "loop", mode = "controller", laps = 1 })
+cross(1, 5)
+cross(2, 10)
+cross(4, 10)
+eq(#RM.race.get(0).penalties, 1, "gate three is charged as cut")
+local back = select(2, cross(3, 1))
+ok(back and back.refunded, "then gate three fires late")
+eq(#RM.race.get(0).penalties, 0, "and the charge comes off")
+near(RM.race.get(0).splits[1][3] or -1, 21, 2, "its split is recorded")
+eq(select(2, cross(3, 1)), "already_crossed", "but only once")
+
 print("")
 print(("%d passed, %d failed"):format(pass, fail))
 if fail > 0 then

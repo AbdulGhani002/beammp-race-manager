@@ -49,6 +49,24 @@ this checked line by line against what was promised.
   is meant to be in front of.
 - Courses already on disk are put through the same pass when they load.
 
+**Found by racing a thirty gate course**
+
+- The clock showed the count of cuts and never the seconds, so 36 cuts sat on
+  screen beside a time that had not moved. The server had it right the whole
+  way (clean 188.962, corrected 1268.962); only the driver could not see it.
+  Every split message carries the seconds now, not just the count.
+- A run keeps its own copy of the clock offset. The estimate is redone every
+  few seconds and it moves, so reading the start of a run in one frame and the
+  end in another measured the drift as much as the driving. A seven second run
+  came back as a 213 second lap, splits read ahead of the clock, and a lap
+  boundary made the clock count backwards.
+- A gate far up the course is ignored rather than priced. baja-1000 folds back
+  on itself and puts gate 30 between gates 3 and 4, so driving that stretch
+  clipped it and charged 26 cuts for gates that were still in front of the car.
+- A cut gate reached late gets its penalty back. Two gates on that course are
+  fourteen metres apart and twenty metres wide, so they can fire in either
+  order, and the one that lands first charged the other as a cut.
+
 **Found by racing it**
 
 - Cutting the gates at the end of a lap left the run unfinishable. The line was

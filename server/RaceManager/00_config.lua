@@ -50,6 +50,14 @@ RM.config = {
   -- a run is thrown away if nobody crosses anything for this long
   raceIdleTimeoutMs = 900000,
 
+  -- A course that folds back on itself puts the volume for one gate a few
+  -- metres from another twenty six gates away, and driving the road near the
+  -- start clips the one belonging to the end of the lap. Cutting a corner
+  -- skips a gate or two; it does not skip twenty six. Anything past this is a
+  -- volume that was brushed rather than a gate that was driven through, so it
+  -- is ignored rather than priced.
+  maxGateSkip = 4,
+
   -- nothing on wheels does this, so a split implying it is a lie
   maxPlausibleMph = 300,
 
