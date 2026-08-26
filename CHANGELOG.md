@@ -61,6 +61,21 @@ this checked line by line against what was promised.
   only, with the penalties as a count, so a cut looked free until the results
   came up and there was nothing left to do about it.
 
+**Interface**
+
+- Baja Sim's own Discord invite, given to us on 2026-08-25, replaces the
+  placeholder. The panel shows the code big enough to read off a screen and
+  copies it to the clipboard, which is the one route out of here that does not
+  depend on a browser hook the build may not have.
+- The Open in browser button says what it did. It was silent, so on a build
+  without the binding it read as broken rather than unsupported, and on a build
+  with it the browser opened behind a fullscreen game and looked the same.
+- The clock shows what it is carrying: the road time with a red +30 beside it
+  rather than a penalty count that explains nothing.
+- Gate 14 of 30 rather than gate 14, with a bar under the clock, because a gate
+  number on its own says nothing about how far round you are.
+- A panel opened during a run starts below the clock instead of underneath it.
+
 **Results**
 - Everyone racing a course is a heat. The payload is built once, when the last
   of them is off track, and sent once. There is no live leaderboard and

@@ -241,6 +241,12 @@
   overflow-y: auto;
 }
 
+/* the clock lives at the top of the screen too, so a panel opened mid run has
+   to start below it rather than underneath it. A panel that has been dragged
+   somewhere keeps its inline position and ignores this, which is right: that
+   was a choice. */
+.rm-root.racing .rm-panel { top: 208px; }
+
 .rm-capture { width: 520px; }
 
 .rm-x {
@@ -250,6 +256,54 @@
   font-size: 10px !important;
   padding: 4px 9px !important;
   color: var(--rm-dim) !important;
+}
+
+/* the discord invite, sized to be read off a screen from a driving seat */
+.rm-invite {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 2px;
+  margin: 14px 0 12px;
+  padding: 14px 10px;
+  background: rgba(0, 0, 0, 0.45);
+  border: 1px solid var(--rm-line);
+  border-left: 3px solid var(--rm-red);
+  border-radius: 3px;
+  user-select: text;
+}
+
+.rm-invite-host { font-size: 15px; color: var(--rm-dim); }
+
+.rm-invite-code {
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--rm-text);
+  letter-spacing: 0.04em;
+}
+
+/* what the clock is carrying on top of the road time */
+.rm-hud-added {
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--rm-bad);
+  margin-left: 8px;
+  vertical-align: 22%;
+}
+
+/* how far round the lap. a gate number alone means nothing on a 30 gate course */
+.rm-hud-bar {
+  height: 3px;
+  margin: 7px 10px 0;
+  background: rgba(255, 255, 255, 0.10);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.rm-hud-bar-fill {
+  height: 100%;
+  background: var(--rm-red-lit);
+  transition: width 0.25s linear;
 }
 
 /* pickers. a native select does not open in the game, so these are buttons */

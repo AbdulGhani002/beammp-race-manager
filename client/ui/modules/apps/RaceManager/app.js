@@ -94,7 +94,7 @@ angular.module("beamng.apps")
     restrict: "EA",
     scope: true,
 
-    controller: ["$scope", function ($scope) {
+    controller: ["$scope", "$timeout", function ($scope, $timeout) {
 
       // everything drawn comes from here. the server owns it, this only mirrors.
       $scope.s = { ready: false, needsName: false, me: {}, roster: [], tracks: [],
@@ -219,6 +219,61 @@ angular.module("beamng.apps")
       // lands behind it. the panel shows the link so the button is never a
       // dead end.
       $scope.launchDiscord = function () { ui("openDiscord"); };
+
+      // the host is always discord.gg, so only the code is worth reading out
+      $scope.inviteCode = function () {
+        var url = ($scope.s.config && $scope.s.config.discordUrl) || "";
+        var m = url.match(/discord\.gg\/([^\/?#\s]+)/i);
+        return m ? "/" + m[1] : url;
+      };
+
+      // clipboard is the one route out of here that does not depend on a
+      // browser hook the build may not have
+      // the clipboard call answers outside angular's own cycle, so the label
+      // has to ask for a redraw or it sits there saying copy link
+      var copied = 0;
+      $scope.copyLabel = function () { return copied > 0 ? "Copied" : "Copy link"; };
+      function saidCopied() {
+        copied = 1;
+        $scope.$applyAsync();
+        $timeout(function () { copied = 0; }, 2500);
+      }
+      $scope.copyInvite = function () {
+        var url = ($scope.s.config && $scope.s.config.discordUrl) || "";
+        if (!url) return;
+        try {
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(url).then(saidCopied, function () {
+              fallback(url, saidCopied);
+            });
+            return;
+          }
+        } catch (e) { }
+        fallback(url, saidCopied);
+      };
+
+      function fallback(text, done) {
+        try {
+          var box = document.createElement("textarea");
+          box.value = text;
+          box.style.position = "fixed";
+          box.style.opacity = "0";
+          document.body.appendChild(box);
+          box.select();
+          document.execCommand("copy");
+          document.body.removeChild(box);
+          done();
+        } catch (e) { }
+      }
+
+      // how far round the lap, so a thirty gate course is not just a number
+      $scope.lapProgress = function () {
+        var r = $scope.s.race || {};
+        if (!r.gates) return 0;
+        var done = (r.next || 1) - 1;
+        var pct = (done / r.gates) * 100;
+        return pct < 0 ? 0 : (pct > 100 ? 100 : Math.round(pct));
+      };
 
       $scope.close = function () { $scope.panel = null; };
 

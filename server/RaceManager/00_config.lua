@@ -64,9 +64,11 @@ RM.config = {
   maxTracks      = 64,
   maxPerfRuns    = 200,
 
-  -- The button opens this in the default browser. On a fullscreen game the
-  -- browser lands behind the window, so it looks like nothing happened.
-  discordUrl = "https://discord.gg/beammp",
+  -- Baja Sim's own server, given to us on 2026-08-25. The button tries the
+  -- browser, but that binding is a no-op in some builds and a fullscreen game
+  -- swallows the window anyway, so the panel shows the invite to copy. That is
+  -- the part that always works.
+  discordUrl = "https://discord.gg/7JHKJbHNt",
 }
 
 -- what the client is allowed to see

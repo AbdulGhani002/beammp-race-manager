@@ -1,4 +1,4 @@
-<div class="rm-root">
+<div class="rm-root" ng-class="{racing: raceActive()}">
   <link rel="stylesheet" type="text/css" href="/ui/modules/apps/RaceManager/app.css" />
 
   <!-- first join. no password, no signup: pick a name once. -->
@@ -75,10 +75,21 @@
     <div class="rm-card rm-panel" rm-drag="discord" ng-if="panel === 'discord'">
       <button class="rm-x" ng-click="close()">close</button>
       <h2>Discord</h2>
-      <p class="rm-hint">The game holds focus, so the browser opens behind it.
-        Alt-Tab after clicking, or copy the link.</p>
-      <div class="rm-link">{{ s.config.discordUrl }}</div>
-      <button class="rm-primary" ng-click="launchDiscord()">Open in browser</button>
+      <p class="rm-hint">Race nights, class rules and whatever everyone is
+        arguing about this week. Bobby Slim is in there too: @ him, or just ask
+        the room something like what is on the agenda.</p>
+
+      <div class="rm-invite">
+        <span class="rm-invite-host">discord.gg</span><span
+              class="rm-invite-code">{{ inviteCode() }}</span>
+      </div>
+
+      <div class="rm-pickrow">
+        <button class="rm-primary" ng-click="copyInvite()">{{ copyLabel() }}</button>
+        <button ng-click="launchDiscord()">Open in browser</button>
+      </div>
+      <p class="rm-hint">The game keeps focus, so the browser lands behind it.
+        Alt-Tab after opening, or copy the link and paste it anywhere.</p>
     </div>
 
     <!-- race. time trial: grid, start line, a split at every gate, results. -->
@@ -319,13 +330,19 @@
       </div>
 
       <div ng-if="s.race.state === 'running'">
-        <div class="rm-hud-clock">{{ bigClock(s.race.elapsed) }}</div>
+        <div class="rm-hud-clock">
+          {{ bigClock(s.race.elapsed) }}<span class="rm-hud-added"
+            ng-if="s.race.penaltyTime">+{{ s.race.penaltyTime }}</span>
+        </div>
         <div class="rm-hud-row">
           <span ng-if="s.race.laps > 1">Lap {{ s.race.lap }} / {{ s.race.laps }}</span>
-          <span ng-if="s.race.next">Next gate {{ s.race.next }}</span>
+          <span ng-if="s.race.next">Gate {{ s.race.next }} / {{ s.race.gates }}</span>
           <span class="rm-hud-pen" ng-if="s.race.penalties">
-            {{ s.race.penalties }} penalt{{ s.race.penalties === 1 ? "y" : "ies" }}
+            {{ s.race.penalties }} cut
           </span>
+        </div>
+        <div class="rm-hud-bar" ng-if="s.race.gates">
+          <div class="rm-hud-bar-fill" style="width: {{ lapProgress() }}%"></div>
         </div>
       </div>
 

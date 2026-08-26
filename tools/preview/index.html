@@ -62,7 +62,7 @@ function base() {
     tracks: TRACKS,
     capture: { active: false, gate: { w: 20, h: 8, d: 3 } },
     perf: {},
-    config: { discordUrl: "https://discord.gg/beammp", nameMinLen: 3, nameMaxLen: 20,
+    config: { discordUrl: "https://discord.gg/7JHKJbHNt", nameMinLen: 3, nameMaxLen: 20,
               penalties: { recovery: 60, flatTire: 30, repair: 30, missedGate: 30 } },
     race: { state: "idle" }
   };
@@ -127,7 +127,7 @@ var SCENES = {
     var s = base();
     s.race = { state: "running", track: "baja-1000", trackName: "Baja 1000",
                mode: "wheel", laps: 2, lap: 1, gates: 30, next: 14, circuit: true,
-               penalties: 1, elapsed: 447.3,
+               penalties: 1, penaltyTime: 30, elapsed: 477.3,
                lastSplit: { gate: 13, lap: 1, split: 421.882 } };
     return s;
   },

@@ -120,22 +120,31 @@ function M.demoteSelf()
   extensions.raceManager_net.send("options.demoteSelf", {})
 end
 
+-- The game is the only thing that knows whether this worked, and it used to
+-- keep that to itself: press the button on a build without the binding and
+-- nothing happens at all, which reads as broken rather than unsupported. So
+-- every route says what it did, and the one that always works is the link
+-- sitting on the panel above the button.
 function M.openDiscord()
+  local notice = extensions.raceManager_state.notice
   local url = extensions.raceManager_state.get().config.discordUrl
+
   if type(url) ~= "string" or url == "" then
     log("W", "raceManager", "no discord url is set on the server")
+    notice("No Discord link is set on the server")
     return
   end
 
   if type(openWebBrowser) ~= "function" then
     log("W", "raceManager", "no browser hook in this build. the link is " .. url)
+    notice("This build cannot open a browser. Use Copy link instead")
     return
   end
 
-  -- openWebBrowser is an engine binding and is a no-op in some builds, so
-  -- fall through to the shell, which handles an http url on windows. the
-  -- panel shows the link regardless, which is the part that always works.
   local browserOk = pcall(openWebBrowser, url)
+
+  -- the shell handles an http url on windows and is worth a try when the
+  -- engine binding is present but refuses
   local shellOk = false
   if not browserOk then
     shellOk = pcall(function() Engine.Platform.exploreFolder(url) end)
@@ -143,6 +152,12 @@ function M.openDiscord()
 
   log("I", "raceManager", ("discord: browser=%s shell=%s url=%s")
     :format(tostring(browserOk), tostring(shellOk), url))
+
+  if browserOk or shellOk then
+    notice("Opened it. The game keeps focus, so Alt-Tab to your browser")
+  else
+    notice("Could not open a browser. Use Copy link instead")
+  end
 end
 
 function M.exitServer()
