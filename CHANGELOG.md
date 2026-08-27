@@ -49,6 +49,24 @@ this checked line by line against what was promised.
   is meant to be in front of.
 - Courses already on disk are put through the same pass when they load.
 
+**Checkpoints that actually catch you**
+
+- The trigger volumes were set up with a `triggerTestType` of "Race Corners",
+  which is not a value: it appears in none of the game's lua and in none of its
+  levels, and I invented it. All 152 triggers shipped with the game use
+  "Bounding box". An unknown value leaves the test doing whatever the engine
+  falls back to, which is why driving through a checkpoint so often did nothing.
+- They also never set `luaFunction`, which is the field that says to call us at
+  all. 167 of the 170 triggers in the game set it.
+- Gate width is measured off the road rather than fixed at 20 metres. The
+  navigation graph knows how wide a road is at any point and the game sizes its
+  own race waypoints from it. A fixed width was wrong in both directions: posts
+  planted through the barrier on a narrow stretch, and room to drive round the
+  end on a wide one.
+- Courses captured before that can be refitted in place, from the course tools,
+  without driving them again.
+- check_ui.py refuses a trigger field value the game never uses.
+
 **Gate 1 is the gate you dropped first**
 
 - The numbering is never rolled. It used to be rolled so gate 1 became whichever

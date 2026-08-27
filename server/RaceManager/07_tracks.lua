@@ -284,6 +284,41 @@ function RM.tracks.setGate(pid, d)
   return true, draft.checkpoints[i]
 end
 
+-- Every gate on a saved course, resized to the road it stands on. The widths
+-- are worked out in the game, because the navigation graph that knows how wide
+-- a road is lives there and not here.
+--
+-- This exists so the courses captured before gates were fitted do not have to
+-- be driven again. A 20 metre gate on a narrow stretch stands with its posts
+-- through the barrier, and on a wide one you can drive round the end of it.
+function RM.tracks.refit(pid, d)
+  if not RM.roles.atLeast(pid, "admin") then return false, "not_allowed" end
+  if type(d) ~= "table" or type(d.widths) ~= "table" then return false, "bad_request" end
+
+  local track = tracks[type(d.id) == "string" and d.id or ""]
+  if not track then return false, "no_such_track" end
+
+  local changed = 0
+  for i = 1, #track.checkpoints do
+    local w = tonumber(d.widths[i]) or tonumber(d.widths[tostring(i)])
+    if w then
+      local cp = track.checkpoints[i]
+      local was = cp.size and cp.size.w
+      cp.size = gateFrom({ w = w, h = cp.size and cp.size.h, d = cp.size and cp.size.d })
+      if math.abs((was or 0) - cp.size.w) > 0.05 then changed = changed + 1 end
+    end
+  end
+
+  if changed == 0 then return true, { id = track.id, changed = 0 } end
+
+  RM.store.markDirty(STORE)
+  RM.store.flushNow(STORE)
+  RM.info(("%s refitted %d gate%s on %s to the road"):format(
+    RM.identity.displayName(pid), changed, changed == 1 and "" or "s", track.id))
+  RM.tracks.broadcastList()
+  return true, { id = track.id, changed = changed }
+end
+
 function RM.tracks.setStart(pid, d)
   local key = keyOf(pid)
   local draft = key and drafts[key]

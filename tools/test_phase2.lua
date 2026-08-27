@@ -421,6 +421,34 @@ eq(#RM.race.get(0).penalties, 0, "and the charge comes off")
 near(RM.race.get(0).splits[1][3] or -1, 21, 2, "its split is recorded")
 eq(select(2, cross(3, 1)), "already_crossed", "but only once")
 
+section("gates can be refitted to the road without driving the course again")
+-- The width is worked out in the game, because the navigation graph that knows
+-- how wide a road is lives there. The server only stores what comes back.
+do
+  local before = RM.tracks.get("loop").checkpoints[1].size.w
+  eq(before, 20, "captured at the old fixed width")
+
+  local okFit, res = RM.tracks.refit(0, { id = "loop", widths = { 12.5, 31, 9, 44, 18 } })
+  ok(okFit, "an owner may refit a saved course")
+  eq(res.changed, 5, "every gate moved")
+
+  local cps = RM.tracks.get("loop").checkpoints
+  near(cps[1].size.w, 12.5, 0.01, "a narrow stretch gets a narrow gate")
+  near(cps[4].size.w, 44, 0.01, "and a wide one gets a wide gate")
+  near(cps[1].size.h, 8, 0.01, "height is left alone")
+  near(cps[1].size.d, 3, 0.01, "and so is depth")
+
+  eq(select(2, RM.tracks.refit(0, { id = "nope", widths = { 10 } })), "no_such_track",
+     "a course that does not exist is refused")
+  eq(select(2, RM.tracks.refit(0, { id = "loop" })), "bad_request",
+     "and so is a refit with no widths in it")
+
+  -- a width outside what a gate can be is clamped rather than stored
+  RM.tracks.refit(0, { id = "loop", widths = { 9999 } })
+  ok(RM.tracks.get("loop").checkpoints[1].size.w <= 200,
+     "an absurd width is clamped, not written straight through")
+end
+
 print("")
 print(("%d passed, %d failed"):format(pass, fail))
 if fail > 0 then

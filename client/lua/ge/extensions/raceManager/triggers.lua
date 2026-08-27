@@ -63,8 +63,24 @@ local function spawnGate(cp, index)
   local built, err = pcall(function()
     obj.loadMode = 1
     obj:setField("triggerType", 0, "Box")
+
+    -- Overlaps, not Contains. Contains is what the 150 bus stops in the game
+    -- use and it wants the whole vehicle inside the volume, which a car five
+    -- metres long can never be inside a gate three metres deep. It would never
+    -- fire once.
     obj:setField("triggerMode", 0, "Overlaps")
-    obj:setField("triggerTestType", 0, "Race Corners")
+
+    -- "Bounding box" is what all 152 triggers shipped with the game use. What
+    -- was here before was "Race Corners", which appears nowhere in the game's
+    -- lua and nowhere in any level: I made it up. An unknown value leaves the
+    -- test doing whatever the engine falls back to, which is why driving
+    -- through a gate so often did nothing.
+    obj:setField("triggerTestType", 0, "Bounding box")
+
+    -- and this is the field that says to call us at all. 167 of the 170
+    -- triggers in the game set it and we set none of them.
+    obj:setField("luaFunction", 0, "onBeamNGTrigger")
+
     obj:registerObject(name)
 
     -- the engine draws the box itself, which is a truer preview than a marker

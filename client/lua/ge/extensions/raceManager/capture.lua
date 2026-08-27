@@ -12,6 +12,7 @@ local st = {
   circuit    = false,
   count      = 0,
   gate       = { w = 20, h = 8, d = 3 },
+  fitWidth   = true,
   lastError  = nil,
   lastGateAt = nil,
   distance   = 0,
@@ -32,6 +33,42 @@ local function atan2(y, x)
   if math.atan2 then return math.atan2(y, x) end
   return math.atan(y, x)
 end
+
+-- A gate has to span the road it is standing on. One fixed width is wrong in
+-- both directions: on a wide stretch you can drive round the end of it, and on
+-- a narrow one the posts end up planted through the barrier, which is what the
+-- boundary complaint was about.
+--
+-- The navigation graph already carries how wide the road is at every point,
+-- and the game sizes its own race waypoints from exactly this, so the gate is
+-- sized from it too. A margin is added because the drivable dirt is usually a
+-- little wider than the line the ai would take.
+local FIT_MIN, FIT_MAX, FIT_MARGIN = 8.0, 60.0, 5.0
+
+local function roadWidthAt(pos)
+  if type(map) ~= "table" or type(map.findClosestRoad) ~= "function" then return nil end
+
+  local ok, n1, n2 = pcall(map.findClosestRoad, pos, 80)
+  if not ok or not n1 then return nil end
+
+  local okNodes, nodes = pcall(function() return map.getMap().nodes end)
+  if not okNodes or type(nodes) ~= "table" then return nil end
+
+  local widest = 0
+  for _, id in ipairs({ n1, n2 }) do
+    local node = nodes[id]
+    local r = node and tonumber(node.radius)
+    if r and r > widest then widest = r end
+  end
+  if widest <= 0 then return nil end
+
+  local w = widest * 2 + FIT_MARGIN
+  if w < FIT_MIN then w = FIT_MIN end
+  if w > FIT_MAX then w = FIT_MAX end
+  return math.floor(w * 10 + 0.5) / 10
+end
+
+M.roadWidthAt = roadWidthAt
 
 local function playerVehicle()
   local ok, veh = pcall(function() return be:getPlayerVehicle(0) end)
@@ -83,10 +120,42 @@ function M.mark()
     extensions.raceManager_ui.push()
     return
   end
+  local w = st.gate.w
+  if st.fitWidth then w = roadWidthAt(vec3(pos.x, pos.y, pos.z)) or st.gate.w end
+
   extensions.raceManager_net.send("track.mark", {
     pos = pos, yaw = yaw,
-    w = st.gate.w, h = st.gate.h, d = st.gate.d,
+    w = w, h = st.gate.h, d = st.gate.d,
   })
+end
+
+-- Resize every gate on a course you are looking at to the road under it, so a
+-- course captured before gates were fitted does not have to be driven again.
+-- The widths are worked out here because the navigation graph lives in the
+-- game; the server only stores what comes back.
+function M.refitSaved()
+  local S = extensions.raceManager_state.get()
+  local track = S and S.track
+  if type(track) ~= "table" or type(track.checkpoints) ~= "table" then
+    extensions.raceManager_state.notice("Open a course first")
+    return
+  end
+
+  local widths, fitted = {}, 0
+  for i = 1, #track.checkpoints do
+    local cp = track.checkpoints[i]
+    local w = cp.pos and roadWidthAt(vec3(cp.pos.x, cp.pos.y, cp.pos.z))
+    if w then widths[i] = w; fitted = fitted + 1 end
+  end
+
+  if fitted == 0 then
+    extensions.raceManager_state.notice("No road found under this course to measure")
+    return
+  end
+
+  extensions.raceManager_net.send("track.refit", { id = track.id, widths = widths })
+  extensions.raceManager_state.notice(("Fitting %d of %d gates to the road")
+    :format(fitted, #track.checkpoints))
 end
 
 function M.undo()
@@ -95,6 +164,7 @@ function M.undo()
 end
 
 function M.setGate(w, h, d)
+  if tonumber(w) and tonumber(w) ~= st.gate.w then st.fitWidth = false end
   st.gate.w = tonumber(w) or st.gate.w
   st.gate.h = tonumber(h) or st.gate.h
   st.gate.d = tonumber(d) or st.gate.d

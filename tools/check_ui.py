@@ -161,6 +161,27 @@ def main():
     for src in sorted(set(re.findall(r'src="/ui/modules/apps/RaceManager/([^"]+)"', html))):
         check(os.path.exists(os.path.join(APP, src)), "app.html asks for %s which is not there" % src)
 
+    # 8. the trigger fields. A value the engine does not know leaves the test
+    #    doing whatever it falls back to, and a checkpoint you drive through
+    #    quietly does nothing. "Race Corners" sat here for weeks and appears in
+    #    no lua and no level in the game. These are the values the 170 triggers
+    #    shipped with the game actually use.
+    triggers = read(os.path.join(LUA, "triggers.lua"))
+    allowed = {
+        "triggerType": {"Box", "Sphere"},
+        "triggerMode": {"Overlaps", "Contains"},
+        # every trigger in the game uses "Bounding box". "Race Corners" is not
+        # a value, it is one I invented, which is the whole reason for this.
+        "triggerTestType": {"Bounding box"},
+        "luaFunction": {"onBeamNGTrigger"},
+    }
+    for field, value in re.findall(r'setField\("(\w+)",\s*0,\s*"([^"]+)"\)', triggers):
+        if field in allowed:
+            check(value in allowed[field],
+                  'triggers.lua sets %s to "%s", which the game never uses' % (field, value))
+    check('"luaFunction"' in triggers,
+          "triggers.lua never sets luaFunction, so the engine calls nothing")
+
     print("%d checks" % checks[0])
     if problems:
         for p in problems:

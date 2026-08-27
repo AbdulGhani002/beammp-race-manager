@@ -276,6 +276,8 @@
           <button ng-if="s.capture.showing !== t.id" ng-click="cap('openTrack', t.id)">Show gates</button>
           <button ng-if="s.capture.showing === t.id" class="on"
                   ng-click="cap('stopPreview')">Hide gates</button>
+          <button ng-if="s.capture.showing === t.id" ng-click="cap('refitSaved')"
+                  title="Resize every gate to the width of the road under it">Fit to road</button>
           <button class="rm-danger" ng-click="cap('deleteTrack', t.id)">Delete</button>
         </div>
       </div>
