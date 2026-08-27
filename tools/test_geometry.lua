@@ -96,23 +96,14 @@ do
   near(squareness(before, 4), 0, 0.05, "and gate 4 is edge on to the way you arrive")
 end
 
-section("squared up")
+section("squared up, and gate 1 is left alone")
 local t = tester()
 RM.tracks.squareUp(t)
 
 eq(#t.checkpoints, 5, "no gate is lost")
-do
-  local s = t.start
-  local fx, fy = math.cos(s.yaw), math.sin(s.yaw)
-  local g1 = t.checkpoints[1]
-  local dx, dy = g1.pos.x - s.pos.x, g1.pos.y - s.pos.y
-  local m = math.sqrt(dx * dx + dy * dy)
-  ok(((dx / m) * fx + (dy / m) * fy) > 0.9, "gate 1 is now the gate the grid points at")
-  near(m, 29.3, 1.0, "the one 29 metres up the road")
-end
-
-near(t.checkpoints[1].pos.x, -231.20, 0.1, "which is the gate that was numbered 2")
-near(t.checkpoints[5].pos.x, -292.04, 0.1, "and the old gate 1 is now the last one before the line")
+near(t.checkpoints[1].pos.x, -292.04, 0.1,
+     "gate 1 is still the gate that was dropped first")
+near(t.checkpoints[5].pos.x, -232.05, 0.1, "and the order behind it is untouched")
 
 section("every gate faces the way you drive through it")
 for i = 1, 5 do
@@ -122,10 +113,9 @@ end
 
 section("the hairpin gate specifically")
 do
-  -- old gate 4 is old index 4 -> new index 3 after the roll
-  local hair = t.checkpoints[3]
+  local hair = t.checkpoints[4]
   near(hair.pos.x, -184.30, 0.1, "the hairpin gate is where it always was")
-  ok(squareness(t, 3) > 0.55, "but it now lies across the road rather than along it")
+  ok(squareness(t, 4) > 0.55, "but it now lies across the road rather than along it")
   local was = -2.851715386035
   ok(math.abs(gap(hair.yaw, was)) > 0.5,
      "having been turned more than 30 degrees off the heading that was captured")
@@ -171,8 +161,7 @@ do
   }
   local wasFirst = baja.checkpoints[1].pos.x
   RM.tracks.squareUp(baja)
-  near(baja.checkpoints[1].pos.x, wasFirst, 0.01,
-       "its gate 1 really is the first one, so the numbering is left alone")
+  near(baja.checkpoints[1].pos.x, wasFirst, 0.01, "gate 1 is where it was dropped")
 
   local g = RM.tracks.gridFor(baja)
   local one = baja.checkpoints[1]
@@ -183,13 +172,12 @@ do
   near(m, 8.0, 0.01, "rather than a metre past it facing away")
 end
 
-section("a point to point course is not renumbered")
+section("a point to point course keeps its order too")
 local ptp = tester()
 ptp.circuit = false
 local firstBefore = ptp.checkpoints[1].pos.x
 RM.tracks.squareUp(ptp)
-near(ptp.checkpoints[1].pos.x, firstBefore, 0.01,
-     "its gate 1 is a real first gate, so the order is left alone")
+near(ptp.checkpoints[1].pos.x, firstBefore, 0.01, "gate 1 is the gate dropped first")
 
 print("")
 if fail > 0 then

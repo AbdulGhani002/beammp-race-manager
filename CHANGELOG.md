@@ -49,6 +49,17 @@ this checked line by line against what was promised.
   is meant to be in front of.
 - Courses already on disk are put through the same pass when they load.
 
+**Gate 1 is the gate you dropped first**
+
+- The numbering is never rolled. It used to be rolled so gate 1 became whichever
+  gate the grid pointed at, which moved a 16 gate course's start line eleven
+  gates into itself and began the race from the middle of it.
+- That was the wrong half of an earlier fix. Cars are lined up from gate 1
+  rather than from the saved grid, which solves a grid left facing the wrong way
+  on its own; rolling on top of it only moved the start line. A grid facing away
+  from gate 1 is now noted in the log and otherwise ignored.
+- The two courses that had been rolled were put back the way they were captured.
+
 **Found by racing a thirty gate course**
 
 - The clock showed the count of cuts and never the seconds, so 36 cuts sat on

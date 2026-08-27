@@ -111,59 +111,41 @@ local function faceAlongTheLine(cps, circuit)
   return moved
 end
 
--- The clock starts on gate 1, so gate 1 has to be the gate the grid points at.
--- Leave the grid half way round a loop and gate 1 ends up behind the car: the
--- first test course put it 176 degrees behind, and the only way to start a run
--- was to reverse through it.
+-- Gate 1 is the gate that was dropped first, and the start line is gate 1.
+-- That is what the person capturing the course meant by pressing the button
+-- there, and it is what they expect to see when they race it.
 --
--- A loop has no natural first gate, so the numbering is rolled round to match
--- where the grid was actually left. A point to point course does have one, so
--- that is left alone and the problem is reported instead.
-local function startWhereTheGridPoints(track)
+-- This used to roll the numbering so gate 1 became whichever gate the grid was
+-- pointing at, to fix a course whose grid had been left half way round the
+-- loop with gate 1 behind the car. That was the wrong half of the fix: the
+-- cars are lined up from gate 1 now rather than from the saved grid, which
+-- solves it on its own. Rolling on top of that moved somebody's start line
+-- eleven gates into their own course.
+--
+-- The grid is still worth checking, because it says whether the two agree.
+local function gridFacesGateOne(track)
   local cps = track.checkpoints
-  local n = #cps
-  if n < 2 or type(track.start) ~= "table" then return 0, nil end
+  if #cps < 2 or type(track.start) ~= "table" then return nil end
 
   local yaw = tonumber(track.start.yaw) or 0
-  local fx, fy = math.cos(yaw), math.sin(yaw)
-  local sx, sy = track.start.pos.x, track.start.pos.y
+  local dx = cps[1].pos.x - track.start.pos.x
+  local dy = cps[1].pos.y - track.start.pos.y
+  local m = math.sqrt(dx * dx + dy * dy)
+  if m < 0.5 then return nil end
 
-  -- how far down the road each gate sits. the grid is meant to sit just short
-  -- of the first one, so a small negative reading still counts as in front.
-  local best, bestAt
-  for i = 1, n do
-    local along = (cps[i].pos.x - sx) * fx + (cps[i].pos.y - sy) * fy
-    if along > -2.0 and (not best or along < best) then best, bestAt = along, i end
-  end
-
-  if not bestAt then return 0, "no gate sits in front of the grid" end
-  if bestAt == 1 then return 0, nil end
-  if not track.circuit then
-    return 0, ("gate 1 is behind the grid; gate %d is the one in front"):format(bestAt)
-  end
-
-  local rolled = {}
-  for i = 1, n do
-    local cp = cps[((bestAt - 2 + i) % n) + 1]
-    cp.i = i
-    rolled[i] = cp
-  end
-  track.checkpoints = rolled
-  return bestAt - 1, nil
+  if ((dx / m) * math.cos(yaw) + (dy / m) * math.sin(yaw)) > 0 then return nil end
+  return ("the grid was left facing away from gate 1, %.0fm from it. "):format(m)
+      .. "cars are lined up in front of gate 1 regardless"
 end
 
--- Everything above, run over one course. Idempotent: the gate the grid points
--- at is gate 1 once it has been rolled, and an angle read off the line does not
--- move when it is read again.
+-- Everything above, run over one course. Idempotent: an angle read off the
+-- racing line does not move when it is read again, and nothing here renumbers
+-- anything.
 function RM.tracks.squareUp(track)
   if type(track) ~= "table" or type(track.checkpoints) ~= "table" then return end
-  local rolled, problem = startWhereTheGridPoints(track)
+  local problem = gridFacesGateOne(track)
   local turned = faceAlongTheLine(track.checkpoints, track.circuit and true or false)
 
-  if rolled > 0 then
-    RM.info(("%s: rolled the numbering by %d so gate 1 is the one the grid points at")
-      :format(tostring(track.id), rolled))
-  end
   if turned > 0 then
     RM.info(("%s: squared %d gate%s to the racing line")
       :format(tostring(track.id), turned, turned == 1 and "" or "s"))
