@@ -438,6 +438,14 @@ do
   near(cps[1].size.h, 8, 0.01, "height is left alone")
   near(cps[1].size.d, 3, 0.01, "and so is depth")
 
+  -- when a gate finds no road the table arrives with holes in it, and json
+  -- turns a table with holes into one with string keys
+  local okSparse = RM.tracks.refit(0, { id = "loop", widths = { ["1"] = 14, ["4"] = 26 } })
+  ok(okSparse, "a refit that only found some of the gates still works")
+  near(RM.tracks.get("loop").checkpoints[1].size.w, 14, 0.01, "the ones it found are set")
+  near(RM.tracks.get("loop").checkpoints[4].size.w, 26, 0.01, "including out of order")
+  near(RM.tracks.get("loop").checkpoints[2].size.w, 31, 0.01, "and the rest are left alone")
+
   eq(select(2, RM.tracks.refit(0, { id = "nope", widths = { 10 } })), "no_such_track",
      "a course that does not exist is refused")
   eq(select(2, RM.tracks.refit(0, { id = "loop" })), "bad_request",

@@ -142,6 +142,25 @@ def main():
             check(fn in lua_functions(path),
                   "app.js calls raceManager_%s.%s which is not defined there" % (module, fn))
 
+    # a helper that forwards its first argument as the lua function name hides
+    # that name from the check above, because the name lives in the html.
+    # cap('openTrack') is exactly the kind of button that reads fine and does
+    # nothing.
+    bridges = re.findall(
+        r'[$]scope[.](\w+)\s*=\s*function\s*[(](\w+)[^)]*[)]\s*[{]\s*'
+        r'call[(]\s*"raceManager_(\w+)"\s*,\s*\2\b',
+        js)
+    for helper, _param, module in bridges:
+        path = os.path.join(LUA, module + ".lua")
+        known = lua_functions(path) if os.path.exists(path) else set()
+        names = set(re.findall(helper + r"[(]\s*['\"](\w+)['\"]", html))
+        check(len(names) > 0,
+              "app.js defines %s() but the html never calls it" % helper)
+        for fn in sorted(names):
+            check(fn in known,
+                  "app.html calls %s('%s'), which raceManager_%s does not define"
+                  % (helper, fn, module))
+
     for fn in sorted(set(re.findall(r'\bui\(\s*"(\w+)"', js))):
         check(fn in lua_functions(os.path.join(LUA, "ui.lua")),
               "app.js calls ui.%s which is not defined in ui.lua" % fn)
