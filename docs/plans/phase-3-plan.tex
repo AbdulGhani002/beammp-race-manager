@@ -2,12 +2,13 @@
 
 \usepackage[T1]{fontenc}
 \usepackage[utf8]{inputenc}
-\usepackage[margin=24mm]{geometry}
+\usepackage[margin=22mm]{geometry}
 \usepackage{booktabs}
 \usepackage{longtable}
 \usepackage{enumitem}
 \usepackage{titlesec}
 \usepackage{fancyhdr}
+\usepackage{listings}
 \usepackage[hidelinks]{hyperref}
 
 \pagestyle{fancy}
@@ -25,6 +26,19 @@
 \setlength{\parskip}{6pt}
 \setlength{\parindent}{0pt}
 
+\lstset{
+  basicstyle=\ttfamily\scriptsize,
+  frame=single,
+  framesep=5pt,
+  columns=fullflexible,
+  keepspaces=true,
+  breaklines=true,
+  showstringspaces=false,
+  xleftmargin=0pt,
+  aboveskip=8pt,
+  belowskip=8pt,
+}
+
 \newcommand{\code}[1]{\texttt{\small #1}}
 
 \begin{document}
@@ -39,22 +53,22 @@
 \vspace{8pt}
 
 Five buttons on the bottom bar: Reposition, Spare tire, Repair, Fuel and
-Lights. Right now they say what they will cost and then do nothing. Phase 3
-makes them work.
+Lights. Right now they tell you what they would cost and then do nothing.
+Phase 3 makes them work.
 
-This is a small phase next to phase 2. Most of the hard parts are already
-built.
+This is a small phase next to phase 2, because most of the hard parts are
+already built.
 
 \section{What already exists}
 
 Shipped in phase 1 and 2, so it is not work in this phase:
 
 \begin{itemize}
-  \item The five buttons, with keys bound to each one.
+  \item The five buttons, with a key bound to each one.
   \item The rule that the car must be stopped.
   \item The penalty system. Adding seconds to a run already works.
-  \item The results screen already names each penalty by its reason:
-        Recovery, Spare tire, Repair.
+  \item The results screen already names each penalty by reason: Recovery,
+        Spare tire, Repair.
   \item Penalties only exist inside a run. Free driving costs nothing.
 \end{itemize}
 
@@ -62,54 +76,187 @@ What is missing is the action itself and the wait that goes with it.
 
 \section{The five buttons}
 
-\begin{longtable}{@{}p{28mm}p{16mm}p{18mm}p{62mm}@{}}
+\begin{longtable}{@{}p{26mm}p{14mm}p{16mm}p{68mm}@{}}
 \toprule
 \textbf{Button} & \textbf{Hold} & \textbf{Penalty} & \textbf{What it does} \\
 \midrule
 \endhead
 Reposition & 5s & 60s  & Puts the car back upright and on the road. \\
-Spare tire & 30s & 30s & Fixes flat tires only. \\
+Spare tire & 30s & 30s & Fixes flat tires. See section 9. \\
 Repair     & 60s & 30s & Fixes the whole car. \\
 Fuel +25\% & 20s & none & Adds a quarter of a tank. \\
 Lights     & none & none & Head lights. Works already. \\
 \bottomrule
 \end{longtable}
 
-The holds and penalties come from the server config, so you can change any
-number without anyone reinstalling the mod.
-
 \textbf{Hold} means the car is locked in place for that long while the job is
 done. \textbf{Penalty} means seconds added to your race time at the end.
 
-The race clock keeps running during a hold. So a spare tire in a race costs
-you 30 seconds of waiting and 30 seconds on the clock. One minute in total.
+The race clock keeps running during a hold. So a spare tire in a race costs 30
+seconds of waiting and 30 seconds on the clock. One minute in total.
+
+\section{Settings you can change}
+
+These live on the server, so any number can change without anyone
+reinstalling the mod.
+
+\begin{lstlisting}
+holds = { reposition = 5.0, spareTire = 30.0, repair = 60.0, fuel = 20.0 }
+
+penalties = { recovery = 60.0, flatTire = 30.0, repair = 30.0, missedGate = 30.0 }
+
+fuelStep = 0.25
+\end{lstlisting}
 
 \section{What happens when you press one}
 
 \begin{enumerate}
-  \item The client checks you are in a car and stopped. If not, it says so and
+  \item The client checks you are in a car and stopped. If not it says so and
         nothing happens.
   \item The client asks the server.
   \item The server decides. It checks you are in a run, that you are not
-        already holding, and that the button is one it knows.
+        already working, and that the button is one it knows.
   \item If yes, the server starts the hold and adds the penalty straight away.
   \item The client freezes the car and shows a countdown.
-  \item When the hold ends, the client does the actual job in the game and
-        unfreezes the car.
+  \item When the hold ends the server tells the client to do the job. The car
+        is fixed and unfrozen.
 \end{enumerate}
 
-The penalty is added at the start, not the end. If it were added at the end,
+The penalty is added at the start, not the end. If it were added at the end
 you could quit the hold and get the repair for free.
 
-\section{Who decides what}
+\section{The messages}
 
-The server owns the decision, the hold clock and the penalty. It is the same
-rule as the rest of the project: anything a player could gain by lying lives
-on the server.
+Four messages, in the same envelope everything else already uses.
 
-The client only does what the game needs done, after the server says yes. It
-never tells the server that a job finished, because the server already knows
-when the hold ends.
+\begin{lstlisting}
+client to server    service.use      { which = "repair" }
+server to client    service.hold     { which = "repair", hold = 60, penalty = 30 }
+server to client    service.run      { which = "repair" }
+server to client    service.failed   { which = "fuel", why = "no_tank" }
+\end{lstlisting}
+
+\section{Server side}
+
+The server owns the decision, the hold clock and the penalty. This is the
+whole of it.
+
+\begin{lstlisting}
+local jobs = {}
+
+local ACTIONS = {
+  reposition = { hold = "reposition", penalty = "recovery" },
+  spare      = { hold = "spareTire",  penalty = "flatTire" },
+  repair     = { hold = "repair",     penalty = "repair" },
+  fuel       = { hold = "fuel",       penalty = nil },
+}
+
+function RM.service.use(pid, d)
+  local which = type(d) == "table" and tostring(d.which) or ""
+  local action = ACTIONS[which]
+  if not action then return false, "no_such_action" end
+  if jobs[pid] then return false, "already_working" end
+
+  local r = RM.race.get(pid)
+  local racing = r ~= nil and r.state == "running"
+
+  local hold = racing and (RM.config.holds[action.hold] or 0) or 0
+  local cost = nil
+  if racing and action.penalty then cost = RM.config.penalties[action.penalty] end
+  if cost and cost > 0 then RM.race.penalty(pid, cost, action.penalty) end
+
+  jobs[pid] = {
+    which  = which,
+    endsAt = RM.now() + hold,
+    cost   = cost,
+    reason = action.penalty,
+  }
+
+  RM.bus.queue(pid, "service.hold", { which = which, hold = hold, penalty = cost })
+  return true, jobs[pid]
+end
+
+function RM.service.tick(now)
+  for pid, job in pairs(jobs) do
+    if now >= job.endsAt then
+      jobs[pid] = nil
+      RM.bus.queue(pid, "service.run", { which = job.which })
+    end
+  end
+end
+
+function RM.service.forget(pid)
+  jobs[pid] = nil
+end
+\end{lstlisting}
+
+\code{RM.service.tick} runs on the 100ms tick that already exists, so this
+adds no new timer and no per frame work.
+
+\section{In the game}
+
+Every call below is one the game already uses itself. None of it is invented.
+
+\begin{lstlisting}
+local function freeze(veh, on)
+  core_vehicleBridge.executeAction(veh, "setFreeze", on)
+end
+
+local function repairAll(veh)
+  veh:queueLuaCommand("beamstate.reset()")
+end
+
+local function addFuel(veh, share)
+  core_vehicleBridge.requestValue(veh, function(tanks)
+    for _, tank in pairs(tanks or {}) do
+      if tank.energyType ~= "electricEnergy" then
+        local room = tank.maxEnergy - tank.currentEnergy
+        local add  = math.min(room, tank.maxEnergy * share)
+        core_vehicleBridge.executeAction(veh, "setEnergyStorageEnergy",
+                                         tank.name, tank.currentEnergy + add)
+      end
+    end
+  end, "energyStorage")
+end
+
+local function putBack(veh, gate)
+  local dir = vec3(math.cos(gate.yaw), math.sin(gate.yaw), 0)
+  spawn.safeTeleport(veh, vec3(gate.pos.x, gate.pos.y, gate.pos.z),
+                     quatFromDir(dir, vec3(0, 0, 1)))
+end
+\end{lstlisting}
+
+\code{spawn.safeTeleport} is the same call that already puts you on the grid,
+so Reposition behaves exactly like the start of a race.
+
+\section{The spare tire problem}
+
+I checked this in the game files before writing it down, and it is worth
+saying plainly.
+
+BeamNG can burst a tire on command. It cannot mend one. There is a
+\code{deflateTire} and there is no matching call to put a tire back. The only
+repair the game offers is \code{beamstate.reset}, which fixes the whole car.
+
+So Spare tire cannot be cheaper and smaller than Repair by itself. Left alone
+it would be the same job for half the wait, and nobody would ever press
+Repair.
+
+The game does record which tire is flat, so this is checkable:
+
+\begin{lstlisting}
+wheels.wheels[id].isTireDeflated
+\end{lstlisting}
+
+Three ways to handle it. My default is the third.
+
+\begin{enumerate}
+  \item Drop Spare tire and keep Repair only.
+  \item Keep both, and accept Spare tire is the cheaper full repair.
+  \item Keep both, and only let Spare tire be pressed when a tire is actually
+        flat. It still fixes the whole car, but you cannot use it as a cheap
+        repair because you need a flat first.
+\end{enumerate}
 
 \section{Rules and edge cases}
 
@@ -118,55 +265,66 @@ when the hold ends.
   \item You cannot cancel a hold. The penalty is already counted.
   \item Leaving the server during a hold ends the run the normal way, as a did
         not finish.
-  \item If the game cannot do the job, for example a car with no fuel tank,
+  \item If the game cannot do the job, for example fuel on an electric car,
         the player is told plainly and the penalty is given back.
   \item Outside a run there is no penalty and no hold. The buttons just work.
   \item Lights need no hold and no stop, so they stay instant.
-  \item Nothing here adds work to the per frame loop. The hold is one number
-        compared on the tick that already runs.
 \end{itemize}
 
 \section{On screen}
 
 \begin{itemize}
-  \item A countdown while the hold runs, in the same place as the race clock.
+  \item A countdown while the hold runs, under the race clock.
   \item The clock keeps counting during the hold, because it is still costing
         you time.
-  \item The penalty shows in the count next to the clock the moment it lands,
-        the same as a missed checkpoint does now.
-  \item Buttons grey out while a hold is running.
+  \item The penalty shows next to the clock the moment it lands, the same as a
+        missed checkpoint does now.
+  \item The buttons grey out while a hold is running.
 \end{itemize}
 
-\section{Questions, with a default if you do not mind}
+\section{Questions, and what I will do if you say nothing}
 
-Each of these has a default. Skip any you are happy with.
+Answer with numbers only if you like. Anything you skip gets the default.
 
-\begin{enumerate}
-  \item \textbf{Does the hold count on top of the penalty?}
-        Default: yes. The hold is the wait, the penalty is the punishment.
-        The other option is that the hold replaces the penalty.
-  \item \textbf{Where does Reposition put the car?}
-        Default: back at the last checkpoint you passed, upright and facing
-        the right way. The other option is upright where it stands.
-  \item \textbf{Should there be a limit per run?}
-        Default: no limit. The penalties are the limit.
-  \item \textbf{Should Repair be allowed during a race at all?}
-        Default: yes, at 60 seconds of waiting and 30 on the clock.
-  \item \textbf{Holds outside a race?}
-        Default: no. Free driving costs nothing and waits for nothing.
-\end{enumerate}
-
-There is also a speed limit setting sitting in the config, 37 mph, that
-nothing uses yet. If that was meant to be a pit lane or service area limit,
-tell me and I will say whether it belongs in this phase or a later one.
+\begin{longtable}{@{}p{6mm}p{74mm}p{72mm}@{}}
+\toprule
+& \textbf{Question} & \textbf{Default if you say nothing} \\
+\midrule
+\endhead
+1 & Does the hold count on top of the penalty, or instead of it?
+  & On top. The hold is the wait, the penalty is the punishment. \\
+\addlinespace
+2 & Where does Reposition put the car?
+  & Back at the last checkpoint you passed, upright and facing the right way. \\
+\addlinespace
+3 & How should Spare tire work, given the game cannot mend one tire?
+  & Option 3 in section 9. Only usable when a tire is actually flat. \\
+\addlinespace
+4 & Is there a limit on how many times per run?
+  & No limit. The penalties are the limit. \\
+\addlinespace
+5 & Should Repair be allowed during a race at all?
+  & Yes, at 60 seconds of waiting and 30 on the clock. \\
+\addlinespace
+6 & Do holds apply outside a race?
+  & No. Free driving costs nothing and waits for nothing. \\
+\addlinespace
+7 & Are the numbers in section 3 right?
+  & Yes, and any of them can change later in one line. \\
+\addlinespace
+8 & There is a 37 mph speed limit sitting in the settings that nothing uses.
+    Was that meant to be a pit lane or service area limit?
+  & Leave it alone and ask again in a later phase. \\
+\bottomrule
+\end{longtable}
 
 \section{Order of work}
 
 \begin{enumerate}
-  \item Server side first: the hold state, the checks, the penalty. All of it
+  \item Server side first: the hold, the checks, the penalty. All of it
         testable without the game.
-  \item The four actions in the game, one at a time, easiest first: fuel,
-        tires, repair, reposition.
+  \item The four actions in the game, easiest first: fuel, repair, spare tire,
+        reposition.
   \item The countdown and the greyed out buttons.
   \item Testing in game, one button at a time, in a race and out of one.
 \end{enumerate}
@@ -177,25 +335,26 @@ That is what worked in phase 2.
 \section{Testing}
 
 \begin{itemize}
-  \item Mock tests for the hold: start, block a second press, end on time,
-        penalty added once and not twice.
-  \item A test that a hold survives the run ending badly, so nothing is left
-        stuck.
+  \item Mock tests for the hold: it starts, it blocks a second press, it ends
+        on time, and the penalty is added once and not twice.
+  \item A test that a run ending badly leaves no hold stuck behind.
   \item In game, each button twice: once in a race and once in free driving.
-  \item One run using every button, then read the results screen and check
-        every penalty is listed with the right reason.
+  \item One run using every button, then read the results and check every
+        penalty is listed with the right reason.
 \end{itemize}
 
 \section{What could go wrong}
 
 \begin{itemize}
-  \item \textbf{The game may not repair tires on their own.} If there is no
-        clean way to fix only the tires, Spare tire becomes a full repair with
-        the lower cost, and I will say so rather than pretend.
-  \item \textbf{Fuel differs by vehicle.} Electric cars have no tank. Those
-        get told plainly instead of failing in silence.
-  \item \textbf{Freezing a car in multiplayer.} Other players will see the car
-        stopped, which is correct, but it needs checking with two drivers.
+  \item \textbf{Fuel differs by vehicle.} Electric cars have no fuel tank.
+        Those get told plainly instead of failing in silence.
+  \item \textbf{Freezing a car in multiplayer.} Other players should see the
+        car stopped, which is correct, but it needs checking with two drivers
+        rather than assuming.
+  \item \textbf{Reposition on a course that folds back on itself.} The car
+        goes back to the last checkpoint passed, which on a tight loop can be
+        close to a different part of the track. Worth watching on the Baja
+        1000.
 \end{itemize}
 
 \section{Not in this phase}
@@ -208,7 +367,7 @@ are phase 5. CoPilot and Challenges are phase 6.
 \vspace{6pt}
 
 {\small Phase 2 is delivered and running on the server. Phase 3 starts on your
-word, and the five questions above are the only thing that would change the
+word, and the eight questions above are the only thing that would change the
 shape of it.}
 
 \end{document}
