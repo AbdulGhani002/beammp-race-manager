@@ -346,6 +346,20 @@ angular.module("beamng.apps")
       // decimals flickering at that rate is unreadable and looks broken.
       $scope.bigClock = function (sec) { return fmt(sec, 1); };
 
+      // What the penalties added, as one number in the results table. It was
+      // only visible by opening a driver's row before, and he asked for it on
+      // the table itself: it is the difference between the time you drove and
+      // the time you are scored on, so it belongs next to both.
+      $scope.penaltySeconds = function (e) {
+        var list = (e && e.penalties) || [];
+        var total = 0;
+        for (var i = 0; i < list.length; i++) total += list[i].seconds || 0;
+        return total;
+      };
+
+      // penalties land in whole seconds, so there are no decimals worth reading
+      $scope.penaltyClock = function (sec) { return fmt(sec, 0); };
+
       $scope.raceIdle = function () {
         var st = ($scope.s.race || {}).state;
         return !st || st === "idle";

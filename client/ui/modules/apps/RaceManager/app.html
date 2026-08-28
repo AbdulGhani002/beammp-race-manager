@@ -395,7 +395,7 @@
 
         <div class="rm-results-head">
           <span>#</span><span>Driver</span><span>Time</span>
-          <span>Leader</span><span>Ahead</span>
+          <span>Penalties</span><span>Leader</span><span>Ahead</span>
         </div>
 
         <div class="rm-entry" ng-repeat="e in s.race.results.finished">
@@ -405,8 +405,11 @@
             <span class="rm-rname">{{ e.name }}<em ng-if="e.suspect"
               title="The clock could not vouch for part of this run">marked</em></span>
             <span class="rm-time">{{ clock(e.corrected) }}</span>
-            <span class="rm-gap">{{ e.pos === 1 ? "&mdash;" : "+" + clock(e.toLeader) }}</span>
-            <span class="rm-gap">{{ e.pos === 1 ? "&mdash;" : "+" + clock(e.toAhead) }}</span>
+            <span class="rm-pen-col" ng-class="{clean: !penaltySeconds(e)}"
+                  title="{{ e.penalties.length }} penalt{{ e.penalties.length === 1 ? 'y' : 'ies' }}">{{
+              penaltySeconds(e) ? "+" + penaltyClock(penaltySeconds(e)) : "—" }}</span>
+            <span class="rm-gap">{{ e.pos === 1 ? "—" : "+" + clock(e.toLeader) }}</span>
+            <span class="rm-gap">{{ e.pos === 1 ? "—" : "+" + clock(e.toAhead) }}</span>
           </div>
 
           <div class="rm-detail" ng-if="opened === e.name">

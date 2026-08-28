@@ -49,6 +49,13 @@ this checked line by line against what was promised.
   is meant to be in front of.
 - Courses already on disk are put through the same pass when they load.
 
+**Asked for after they raced it**
+
+- Penalties have their own column in the finish results. They were only
+  visible by opening a driver's row, and they are the difference between the
+  time you drove and the time you are scored on, so they belong beside both.
+  A clean run shows a dash rather than a zero.
+
 **Checkpoints that actually catch you**
 
 - The trigger volumes were set up with a `triggerTestType` of "Race Corners",
