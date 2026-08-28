@@ -674,7 +674,6 @@
 .rm-result-row.open { background: rgba(48, 30, 32, 0.8); }
 .rm-result-row.me { border-left: 3px solid var(--rm-red); padding-left: 5px; }
 
-/* what the cuts cost, on the table rather than only inside a row */
 .rm-pen-col {
   text-align: right;
   font-variant-numeric: tabular-nums;

@@ -182,6 +182,9 @@ local function close(trackId)
   local sent = send(h, payload)
   heats[trackId] = nil
 
+  -- one line on disk for their discord bot
+  if RM.racelog then RM.racelog.record(payload) end
+
   RM.info(("results for %s: %d finished, %d out, sent to %d"):format(
     trackId, #payload.finished, #payload.dnf, sent))
 end

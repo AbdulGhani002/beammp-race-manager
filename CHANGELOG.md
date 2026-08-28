@@ -51,6 +51,11 @@ this checked line by line against what was promised.
 
 **Asked for after they raced it**
 
+- Every finished race appends one line of JSON to `data/results.jsonl` for
+  their Discord bot, which runs on the same box and reads it off disk. No
+  database, no credentials, nothing extra to keep alive. Carries a schema
+  version so it can be extended without breaking the bot.
+
 - Penalties have their own column in the finish results. They were only
   visible by opening a driver's row, and they are the difference between the
   time you drove and the time you are scored on, so they belong beside both.

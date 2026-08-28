@@ -31,7 +31,7 @@ local function section(t) print("") print("== " .. t) end
 
 local FILES = {
   "00_config", "01_util", "02_store", "03_bus", "04_identity", "05_roles",
-  "06_players", "07_tracks", "08_console", "09_clock", "10_race", "11_results",
+  "06_players", "07_tracks", "08_console", "09_clock", "10_race", "11_results", "12_racelog",
   "99_main",
 }
 
@@ -335,6 +335,47 @@ local solo = M.lastMessage(0, "race.results")
 ok(solo ~= nil, "results arrive with nobody else on the course")
 eq(#solo.finished, 1, "one finisher")
 eq(solo.finished[1].toLeader, 0, "who is their own leader")
+
+section("every finished race leaves one line on disk for their bot")
+-- read the file back rather than trust the writer: the shape is a promise to
+-- something outside this project
+do
+  local f = io.open("Resources/Server/RaceManager/data/results.jsonl", "rb")
+  ok(f ~= nil, "the log exists once a race has finished")
+
+  local lines = {}
+  if f then
+    for l in f:lines() do if l ~= "" then lines[#lines + 1] = l end end
+    f:close()
+  end
+  ok(#lines >= 1, "with a line in it")
+
+  local rec = lines[1] and Util.JsonDecode(lines[1])
+  ok(type(rec) == "table", "and the line is json a bot can read")
+  eq(rec.v, 1, "carrying a schema version, so it can be changed later safely")
+  eq(rec.track, "loop", "the course it was run on")
+  ok(type(rec.at) == "number" and rec.at > 0, "and when")
+  eq(#rec.finished, 3, "everybody who finished")
+
+  local first = rec.finished[1]
+  eq(first.pos, 1, "in finishing order")
+  eq(first.name, "Alfa", "by name")
+  near(first.correctedTotal, 46, 0.3, "with the total corrected time he asked for")
+  near(first.rawTotal, 46, 0.3, "the time on the road as well")
+  eq(first.penaltySeconds, 0, "a clean run carries no seconds")
+  eq(first.penaltyCount, 0, "and no count")
+
+  local cut
+  for _, d in ipairs(rec.finished) do if d.name == "Charlie" then cut = d end end
+  ok(cut ~= nil, "and the driver who cut a gate is in there")
+  near(cut.correctedTotal, 66, 0.3, "with the penalty already inside the total")
+  near(cut.rawTotal, 36, 0.3, "and the raw time kept separate")
+  eq(cut.penaltySeconds, 30, "the seconds the cut cost")
+  eq(cut.penaltyCount, 1, "from one penalty")
+  eq(cut.bestLap, nil, "a cut lap still holds no record here either")
+
+  ok(RM.racelog.stats().written >= 1, "and the plugin counts what it wrote")
+end
 
 print("")
 if fail == 0 then

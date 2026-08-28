@@ -158,3 +158,40 @@ treats every message as hostile until it has been checked:
 The test suite sends junk that is not JSON, wrong types in every field,
 unknown channels, a five hundred message batch and a flood, and asserts that
 no handler raised.
+
+## The race log
+
+Every finished race appends one line of JSON to
+`Resources/Server/RaceManager/data/results.jsonl`. It is for their Discord bot,
+which runs on the same box and reads the file directly. Append only, never read
+back by the plugin.
+
+```json
+{
+  "v": 1,
+  "at": 1787376096,
+  "track": "baja-1000",
+  "trackName": "Baja 1000",
+  "circuit": true,
+  "gates": 30,
+  "bestLap": { "time": 618.441, "lap": 1, "name": "Dard" },
+  "finished": [
+    {
+      "pos": 1, "name": "Dard",
+      "correctedTotal": 642.118, "rawTotal": 642.118,
+      "penaltySeconds": 0, "penaltyCount": 0,
+      "bestLap": 642.118, "bestLapNumber": 1,
+      "toLeader": 0, "toAhead": 0,
+      "laps": 1, "mode": "wheel", "marked": false
+    }
+  ],
+  "dnf": [ { "name": "Vince", "why": "ended by the driver", "lap": 1 } ]
+}
+```
+
+`correctedTotal` is the whole race with penalties already in it, and is what
+the finishing order is by. `rawTotal` is the time on the road and decides
+nothing. `marked` means the clock could not vouch for part of the run.
+
+`v` is the schema version. Fields may be added; nothing already there changes
+meaning. If that ever has to break, `v` goes up and the bot can tell.

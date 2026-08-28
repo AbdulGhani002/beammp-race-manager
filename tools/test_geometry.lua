@@ -36,7 +36,7 @@ local function section(t) print("") print("== " .. t) end
 
 local FILES = {
   "00_config", "01_util", "02_store", "03_bus", "04_identity", "05_roles",
-  "06_players", "07_tracks", "08_console", "09_clock", "10_race", "11_results",
+  "06_players", "07_tracks", "08_console", "09_clock", "10_race", "11_results", "12_racelog",
   "99_main",
 }
 
