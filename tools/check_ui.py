@@ -209,6 +209,13 @@ def main():
     # from there, so this checks it stayed that way.
     check(re.search(r"obj:setScale\(vec3\(along,\s*across,", triggers) is not None,
           "triggers.lua scales the gate volume with the width along the road")
+    # a gate met off square is a narrower hole than its width says, so corners
+    # are widened to put the gap back. drop this call and every corner quietly
+    # goes back to being scored from the middle only.
+    build = re.search(r"function M\.build\(.*?\nend\n", triggers, re.S)
+    check(build is not None and "fitTurns(" in build.group(0),
+          "M.build does not fit the gates to the turns, so corner gates narrow again")
+
     for fn in ("spawnGate", "drawGate"):
         body = re.search(r"local function %s\(.*?\n(.*?)\nend\n" % fn, triggers, re.S)
         check(body is not None and "gateBox(cp)" in body.group(1),

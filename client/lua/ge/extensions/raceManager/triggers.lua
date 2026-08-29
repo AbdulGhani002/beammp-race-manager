@@ -57,9 +57,49 @@ end
 -- position sits above the dirt, so a gate drawn from that point floats.
 local BASE_SINK = 1.5
 
+-- A gate you meet off square is a narrower hole than its width says. Cross a
+-- twenty metre gate at forty nine degrees off its normal and the gap across
+-- your path is only twenty times cos, about thirteen metres. That is why the
+-- gates down a straight all scored and the one on the corner only counted from
+-- the middle. Widening by one over cos puts the gap back to what it should be.
+local TURN_STRETCH_MAX = 2.0
+
+function M.angleGap(a, b)
+  local d = (a - b) % (2 * math.pi)
+  if d > math.pi then d = 2 * math.pi - d end
+  return d
+end
+local angleGap = M.angleGap
+
+function M.turnStretch(turn)
+  local c = math.cos(turn)
+  local floor = 1 / TURN_STRETCH_MAX
+  if not (c == c) or c < floor then c = floor end   -- nan guard, then the cap
+  return 1 / c
+end
+
+-- worked out once when a course goes up, not per frame per gate
+local function fitTurns(cps, circuit)
+  local n = #cps
+  for i = 1, n do
+    local cp = cps[i]
+    if type(cp) == "table" then
+      local prev
+      if i > 1 then prev = cps[i - 1]
+      elseif circuit and n > 1 then prev = cps[n] end
+
+      if prev then
+        cp.rmStretch = M.turnStretch(angleGap(tonumber(cp.yaw) or 0, tonumber(prev.yaw) or 0))
+      else
+        cp.rmStretch = 1
+      end
+    end
+  end
+end
+
 local function gateBox(cp)
   local w, h, d = gateOf(cp)
-  return w, d, cp.pos.z - BASE_SINK, cp.pos.z + h
+  return w * (tonumber(cp.rmStretch) or 1), d, cp.pos.z - BASE_SINK, cp.pos.z + h
 end
 
 local function spawnGate(cp, index)
@@ -141,6 +181,7 @@ function M.build(track, showBoxes)
   M.clear()
   course = track
   visible = showBoxes and true or false
+  fitTurns(track.checkpoints, track.circuit)
 
   local made = 0
   for i = 1, #track.checkpoints do
@@ -297,6 +338,7 @@ local draft = nil
 -- to collide with until the course is saved.
 function M.setDraft(checkpoints)
   draft = checkpoints
+  if type(draft) == "table" then fitTurns(draft, false) end
 end
 
 function M.clearDraft()

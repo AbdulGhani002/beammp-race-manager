@@ -32,7 +32,7 @@ line, not across it.
 | **Mark here** | drop a gate where the car is standing |
 | **Undo last** | remove the gate you just placed |
 | **Set start line** | put the grid where the car is standing |
-| **Gate size** | width, height and depth in metres |
+| **Gate size** | width, height and depth in metres. A gate on a corner is drawn and scored wider than this: crossed off square it would otherwise be a narrower hole than its width says, so it is divided by the cosine of the turn, up to twice. Straights are left alone. |
 | **Save course** | finish and write it |
 | **Throw it away** | discard the whole draft |
 
