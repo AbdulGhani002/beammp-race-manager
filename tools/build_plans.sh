@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Compile every plan in docs/plans and drop a copy in Downloads.
+# Compile every plan and report and drop a copy in Downloads.
 #
 #   bash tools/build_plans.sh
 #
@@ -12,11 +12,12 @@ OUT="${OUT_DIR:-$HOME/Downloads}"
 
 [ -x "$TEC" ] || { echo "tectonic not found at $TEC"; exit 1; }
 
-for tex in docs/plans/*.tex; do
+for tex in docs/plans/*.tex docs/reports/*.tex; do
   [ -e "$tex" ] || continue
   name=$(basename "$tex" .tex)
   echo "building $name"
   "$TEC" -X compile "$tex" >/dev/null 2>&1 || { echo "  FAILED"; exit 1; }
-  cp "docs/plans/$name.pdf" "$OUT/BeamMP-${name}.pdf"
-  echo "  -> docs/plans/$name.pdf  and  $OUT/BeamMP-${name}.pdf"
+  dir=$(dirname "$tex")
+  cp "$dir/$name.pdf" "$OUT/BeamMP-${name}.pdf"
+  echo "  -> $dir/$name.pdf  and  $OUT/BeamMP-${name}.pdf"
 done
