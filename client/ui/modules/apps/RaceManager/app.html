@@ -48,6 +48,12 @@
 
   <div ng-if="s.ready && !s.needsName">
 
+    <!-- Clicking off something open should shut it. The root takes no clicks,
+         so this sits behind the whole interface and catches the ones that miss
+         a panel. First in the file on purpose: everything below draws over it
+         and still gets its own clicks. -->
+    <div class="rm-scrim" ng-if="anythingOpen()" ng-click="dismiss()"></div>
+
     <!-- top banner -->
     <div class="rm-top">
       <img class="rm-mark" src="/ui/modules/apps/RaceManager/logo-round.png" alt="Baja Sim" />
@@ -332,15 +338,15 @@
       </div>
 
       <div ng-if="s.race.state === 'running'">
-        <div class="rm-hud-clock">
-          {{ bigClock(s.race.elapsed) }}<span class="rm-hud-added"
-            ng-if="s.race.penaltyTime">+{{ s.race.penaltyTime }}</span>
-        </div>
+        <!-- the big number already has the penalties in it, so the total sits
+             with the cut count instead of next to the clock, where it read as
+             another ninety seconds still to come -->
+        <div class="rm-hud-clock">{{ bigClock(s.race.elapsed) }}</div>
         <div class="rm-hud-row">
           <span ng-if="s.race.laps > 1">Lap {{ s.race.lap }} / {{ s.race.laps }}</span>
           <span ng-if="s.race.next">Gate {{ s.race.next }} / {{ s.race.gates }}</span>
           <span class="rm-hud-pen" ng-if="s.race.penalties">
-            {{ s.race.penalties }} cut
+            {{ s.race.penalties }} cut &middot; +{{ penaltyClock(s.race.penaltyTime) }}
           </span>
         </div>
         <div class="rm-hud-bar" ng-if="s.race.gates">
@@ -461,9 +467,12 @@
       </div>
     </div>
 
-    <div class="rm-toast" ng-if="s.toast" ng-click="clearToast()">
-      <span ng-if="s.toast.key === 'player_named'">{{ s.toast.a }} joined the board</span>
-      <span ng-if="s.toast.text">{{ s.toast.text }}</span>
+    <!-- keyed on seq so the countdown bar starts over when the next message
+         replaces this one instead of carrying on from where it was -->
+    <div class="rm-toast" ng-repeat="t in toasts() track by t.seq" ng-click="clearToast()">
+      <div class="rm-toast-time" ng-style="{ 'animation-duration': (t.secs || 10) + 's' }"></div>
+      <span ng-if="t.key === 'player_named'">{{ t.a }} joined the board</span>
+      <span ng-if="t.text">{{ t.text }}</span>
     </div>
   </div>
 

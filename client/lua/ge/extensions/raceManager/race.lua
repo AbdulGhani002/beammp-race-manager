@@ -202,6 +202,9 @@ local function onResults(d)
   st.waiting = nil
   startedLocal = nil
   extensions.raceManager_triggers.stopRace()
+
+  -- the light menu was still sitting over the results screen
+  extensions.raceManager_state.closeLights()
   push()
 end
 

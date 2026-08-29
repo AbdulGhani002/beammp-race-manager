@@ -50,6 +50,18 @@ local function gateOf(cp)
          tonumber(s.d) or DEFAULT_GATE.d
 end
 
+-- The one place a gate's shape is worked out. The volume and the posts you see
+-- read it from here, because they used to disagree about both axes.
+--
+-- The base is sunk a little because a gate is marked from the car, and a car's
+-- position sits above the dirt, so a gate drawn from that point floats.
+local BASE_SINK = 1.5
+
+local function gateBox(cp)
+  local w, h, d = gateOf(cp)
+  return w, d, cp.pos.z - BASE_SINK, cp.pos.z + h
+end
+
 local function spawnGate(cp, index)
   local name = PREFIX .. index
   removeOne(name)
@@ -87,14 +99,17 @@ local function spawnGate(cp, index)
     -- because it is the exact volume you have to drive through
     obj.debug = visible
 
-    obj:setPosition(vec3(cp.pos.x, cp.pos.y, cp.pos.z))
+    local across, along, bottom, top = gateBox(cp)
 
-    -- setScale takes the whole size, not half of it: the game's own
-    -- cylinderMarker scales a disc by radius * 2 to get a diameter. Halving it
-    -- here built a volume half the size of the gate on screen, so a car could
-    -- drive through the middle of a 20 metre gate and miss a 10 metre box.
-    local w, h, d = gateOf(cp)
-    obj:setScale(vec3(w, d, h))
+    -- the box is centred on its position, so it goes at the middle of the span
+    -- and not at its foot. sitting it on cp.pos.z buried half of it and left
+    -- the ceiling at four metres under an eight metre gate.
+    obj:setPosition(vec3(cp.pos.x, cp.pos.y, (bottom + top) * 0.5))
+
+    -- yaw sends local x along the way you drive, so the width goes in y and the
+    -- depth in x. these were swapped, which built a three metre slot twenty
+    -- metres long down the middle of the road instead of a gate across it.
+    obj:setScale(vec3(along, across, top - bottom))
 
     -- yaw only. a gate leaning with the camber of the road buys nothing and
     -- makes the volume harder to drive through.
@@ -289,21 +304,21 @@ function M.clearDraft()
 end
 
 local function drawGate(cp, index, post, face, bg)
-  local w, h = gateOf(cp)
+  -- the same box the volume uses, so what you see is what you drive through
+  local across, _, bottom, top = gateBox(cp)
   local yaw = tonumber(cp.yaw) or 0
 
   -- across the gate is perpendicular to the way you drive through it
   local rx, ry = -math.sin(yaw), math.cos(yaw)
-  local half = w * 0.5
+  local half = across * 0.5
 
   local lx, ly = cp.pos.x + rx * half, cp.pos.y + ry * half
   local mx, my = cp.pos.x - rx * half, cp.pos.y - ry * half
-  local z = cp.pos.z
 
-  local l  = vec3(lx, ly, z)
-  local r  = vec3(mx, my, z)
-  local lt = vec3(lx, ly, z + h)
-  local rt = vec3(mx, my, z + h)
+  local l  = vec3(lx, ly, bottom)
+  local r  = vec3(mx, my, bottom)
+  local lt = vec3(lx, ly, top)
+  local rt = vec3(mx, my, top)
 
   debugDrawer:drawCylinder(l, lt, 0.22, post)
   debugDrawer:drawCylinder(r, rt, 0.22, post)
@@ -311,7 +326,7 @@ local function drawGate(cp, index, post, face, bg)
   debugDrawer:drawQuadSolid(l, r, rt, lt, face)
 
   debugDrawer:drawTextAdvanced(
-    vec3(cp.pos.x, cp.pos.y, z + h + 1.2),
+    vec3(cp.pos.x, cp.pos.y, top + 1.2),
     String(tostring(index)), LABEL, true, false, bg)
 end
 

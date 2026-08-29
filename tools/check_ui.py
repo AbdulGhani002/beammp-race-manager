@@ -201,6 +201,20 @@ def main():
     check('"luaFunction"' in triggers,
           "triggers.lua never sets luaFunction, so the engine calls nothing")
 
+    # Yaw sends the box's local x along the way you drive, so the width has to
+    # be the y of the scale and the depth the x. They were the other way round,
+    # which built a three metre slot down the road instead of a gate across it
+    # and is why driving through a checkpoint so often did nothing. The shape is
+    # worked out once in gateBox now, and both the volume and the posts read it
+    # from there, so this checks it stayed that way.
+    check(re.search(r"obj:setScale\(vec3\(along,\s*across,", triggers) is not None,
+          "triggers.lua scales the gate volume with the width along the road")
+    for fn in ("spawnGate", "drawGate"):
+        body = re.search(r"local function %s\(.*?\n(.*?)\nend\n" % fn, triggers, re.S)
+        check(body is not None and "gateBox(cp)" in body.group(1),
+              "%s does not build its gate from gateBox, so the volume and the "
+              "posts can drift apart again" % fn)
+
     print("%d checks" % checks[0])
     if problems:
         for p in problems:

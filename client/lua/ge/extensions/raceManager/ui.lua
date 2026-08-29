@@ -112,6 +112,10 @@ function M.toggleLights()
   extensions.raceManager_state.toggleLights()
 end
 
+function M.closeLights()
+  extensions.raceManager_state.closeLights()
+end
+
 function M.togglePlayers()
   M.setRosterOpen(not extensions.raceManager_state.get().rosterOpen)
 end

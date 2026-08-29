@@ -147,8 +147,21 @@ angular.module("beamng.apps")
       var streams = ["electrics"];
       StreamsManager.add(streams);
 
+      // Escape shuts the top thing that is open, so there is one way out of
+      // everything on screen and not just the panels with a close button.
+      function onKey(e) {
+        if (e.key !== "Escape" && e.keyCode !== 27) return;
+        if ($scope.s.lights) ui("closeLights");
+        else if ($scope.panel) $scope.panel = null;
+        else if ($scope.s.rosterOpen) ui("setRosterOpen", false);
+        else return;
+        $scope.$applyAsync();
+      }
+      document.addEventListener("keydown", onKey);
+
       $scope.$on("$destroy", function () {
         StreamsManager.remove(streams);
+        document.removeEventListener("keydown", onKey);
         ui("setRosterOpen", false);
       });
 
@@ -294,7 +307,19 @@ angular.module("beamng.apps")
 
       $scope.lightPick = function (which) {
         call("raceManager_state", "notice", which + ": arrives in phase 3");
+        ui("closeLights");
       };
+
+      $scope.closeLights = function () { ui("closeLights"); };
+
+      // Only the light menu gets the catch-all layer. It is the one thing that
+      // pops up over the road and has nothing else to shut it. The player list
+      // and the panels are meant to be left open while you drive, and a layer
+      // eating clicks the whole time they are up would be worse than what it
+      // fixed. Escape closes those.
+      $scope.anythingOpen = function () { return !!$scope.s.lights; };
+
+      $scope.dismiss = function () { ui("closeLights"); };
 
       $scope.stopped = function () { return $scope.speed < 1; };
 
@@ -328,12 +353,17 @@ angular.module("beamng.apps")
         no_session:      "The server has not finished recognising you yet."
       };
 
+      // round first, then split off the minutes. taking the minutes from the
+      // raw value and rounding the seconds on their own put 4:60.0 on screen,
+      // because 59.98 to one decimal is 60.0.
       function fmt(sec, places) {
         if (typeof sec !== "number" || !isFinite(sec)) return "—";
         var neg = sec < 0;
         if (neg) sec = -sec;
-        var m = Math.floor(sec / 60);
-        var rest = sec - m * 60;
+        var unit = Math.pow(10, places);
+        var ticks = Math.round(sec * unit);
+        var m = Math.floor(ticks / (60 * unit));
+        var rest = (ticks - m * 60 * unit) / unit;
         var body = m > 0
           ? m + ":" + (rest < 10 ? "0" : "") + rest.toFixed(places)
           : rest.toFixed(places);
@@ -570,6 +600,12 @@ angular.module("beamng.apps")
       $scope.demoteSelf = function () { ui("demoteSelf"); };
       $scope.exitServer = function () { ui("exitServer"); };
       $scope.clearToast = function () { ui("clearToast"); };
+
+      // ng-repeat over the one message, so track by seq can restart the bar
+      $scope.toasts = function () {
+        var t = $scope.s.toast;
+        return t ? [t] : [];
+      };
 
       $scope.startPerf = function (label) {
         call("raceManager_perf", "start", label);

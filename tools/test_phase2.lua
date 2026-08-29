@@ -403,6 +403,27 @@ eq(#RM.race.get(0).penalties, 0, "so nothing is charged for it")
 eq(RM.race.get(0).nextGate, 3, "and the run stays where it was")
 ok(RM.race.gate(0, 3, RM.now() + 30), "the gate actually in front still counts")
 
+section("but being genuinely that far down the course is not ignored forever")
+-- Refusing every far gate meant a run that skipped more than the cap could
+-- never take another gate, never finish, and had to be quit. One stray volume
+-- fires once; being down there fires gate after gate.
+RM.race.clear(0)
+RM.race.arm(0, { id = "loop", mode = "controller", laps = 1 })
+cross(1, 5)
+eq(select(2, cross(4, 10)), "not_this_gate", "the first far gate is still refused")
+eq(RM.race.get(0).nextGate, 2, "and the run has not moved")
+ok(cross(5, 12), "the next one in order says it was real")
+eq(RM.race.get(0).nextGate, 6, "so the run picks up there, with only the line left")
+eq(#RM.race.get(0).penalties, 3, "and gates two to four are charged as cut")
+
+-- one brushed volume on its own still never counts, however many times
+RM.race.clear(0)
+RM.race.arm(0, { id = "loop", mode = "controller", laps = 1 })
+cross(1, 5)
+eq(select(2, cross(4, 10)), "not_this_gate", "a stray gate is refused")
+eq(select(2, cross(4, 12)), "not_this_gate", "and the same one again is still refused")
+eq(#RM.race.get(0).penalties, 0, "nothing is charged for either")
+
 RM.config.maxGateSkip = realCap
 ok(realCap >= 2, "and the real cap still leaves room for a cut corner")
 

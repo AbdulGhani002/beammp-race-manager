@@ -126,6 +126,13 @@
   letter-spacing: 0.1em;
 }
 
+/* sits under the bottom bar and swallows a click meant for anywhere else */
+.rm-scrim {
+  position: absolute;
+  inset: 0;
+  pointer-events: auto;
+}
+
 .rm-lightmenu {
   position: absolute;
   bottom: 100%;
@@ -280,15 +287,6 @@
   font-weight: 600;
   color: var(--rm-text);
   letter-spacing: 0.04em;
-}
-
-/* what the clock is carrying on top of the road time */
-.rm-hud-added {
-  font-size: 20px;
-  font-weight: 600;
-  color: var(--rm-bad);
-  margin-left: 8px;
-  vertical-align: 22%;
 }
 
 /* how far round the lap. a gate number alone means nothing on a 30 gate course */
@@ -449,6 +447,24 @@
   padding: 8px 18px;
   font-size: 13px;
   cursor: pointer;
+  overflow: hidden;
+}
+
+/* the line across the top fills as the message runs out, so it is obvious it
+   is going on its own and you are not expected to do anything about it */
+.rm-toast-time {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 2px;
+  width: 0;
+  background: linear-gradient(90deg, var(--rm-orange), var(--rm-yellow));
+  animation: rm-toast-fill linear forwards;
+}
+
+@keyframes rm-toast-fill {
+  from { width: 0; }
+  to   { width: 100%; }
 }
 
 .rm-offline {

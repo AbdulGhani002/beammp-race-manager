@@ -24,6 +24,7 @@
   <button onclick="show('picking')">picking</button>
   <button onclick="show('armed')">armed</button>
   <button onclick="show('running')">running</button>
+  <button onclick="show('lights')">lights</button>
   <button onclick="show('waiting')">waiting</button>
   <button onclick="show('results')">results</button>
 </div>
@@ -129,6 +130,19 @@ var SCENES = {
                mode: "wheel", laps: 2, lap: 1, gates: 30, next: 14, circuit: true,
                penalties: 1, penaltyTime: 30, elapsed: 477.3,
                lastSplit: { gate: 13, lap: 1, split: 421.882 } };
+    return s;
+  },
+
+  // the light menu open and a message counting itself down, which is where
+  // the annoying half of the interface lives
+  lights: function () {
+    var s = base();
+    s.race = { state: "running", track: "baja-1000", trackName: "Baja 1000",
+               mode: "wheel", laps: 2, lap: 2, gates: 30, next: 23, circuit: true,
+               penalties: 6, penaltyTime: 180, elapsed: 619.2 };
+    s.lights = true;
+    s.toast = { text: "Repair: this arrives in phase 3, and it would cost 30s in this run",
+                secs: 10, seq: Date.now() };
     return s;
   },
 

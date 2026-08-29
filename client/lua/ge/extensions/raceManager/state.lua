@@ -127,14 +127,26 @@ end
 -- carries rows for the player list, and it is not open half the time.
 -- a message from our own side rather than the server. same slot as a toast,
 -- so it expires the same way.
+-- how long a message sits there, and the seq so the bar counting it down
+-- starts again when the next one replaces it rather than carrying on
+local TOAST_SECS = 10
+local seq = 0
+
 function M.notice(text)
-  S.toast = { text = tostring(text or "") }
-  S.toastFor = 4
+  seq = seq + 1
+  S.toast = { text = tostring(text or ""), secs = TOAST_SECS, seq = seq }
+  S.toastFor = TOAST_SECS
   changed()
 end
 
 function M.toggleLights()
   S.lights = not S.lights
+  changed()
+end
+
+function M.closeLights()
+  if not S.lights then return end
+  S.lights = false
   changed()
 end
 
@@ -151,8 +163,13 @@ local function onMe(d)
 end
 
 local function onToast(d)
+  seq = seq + 1
   S.toast = d
-  S.toastFor = 6
+  if type(S.toast) == "table" then
+    S.toast.secs = TOAST_SECS
+    S.toast.seq = seq
+  end
+  S.toastFor = TOAST_SECS
   changed()
 end
 

@@ -314,12 +314,26 @@ function RM.race.gate(pid, index, clientTime)
     return false, "already_crossed"
   end
 
-  -- A gate far up the course is not one you drove through, it is one whose
-  -- volume happens to sit on the road you are on: this course puts gate 30
-  -- between gates 3 and 4, and accepting it charged 26 cuts for gates that
-  -- were still ahead. Brushing it is not a crossing, so it is ignored.
-  if index - expected > (RM.config.maxGateSkip or 4) then
-    return false, "not_this_gate"
+  -- A gate far up the course is usually not one you drove through, it is one
+  -- whose volume sits on the road you are on: this course puts gate 30 between
+  -- gates 3 and 4, and taking it charged 26 cuts for gates still ahead.
+  --
+  -- Refusing it forever is worse though. Miss more than the cap and every gate
+  -- left is refused, so the run cannot finish and quitting is the only way out.
+  -- A stray volume fires once. Being genuinely that far down the course fires
+  -- gate after gate, so the second one in order is taken as real.
+  local cap = RM.config.maxGateSkip or 4
+  if index - expected > cap then
+    if r.strayGate and index > r.strayGate and index - r.strayGate <= cap then
+      RM.info(("%s is at gate %d, not %d. picking the run up there"):format(
+        RM.identity.displayName(pid), index, expected))
+      r.strayGate = nil
+    else
+      r.strayGate = index
+      return false, "not_this_gate"
+    end
+  else
+    r.strayGate = nil
   end
 
   -- a later gate firing while an earlier one has no split means the earlier
