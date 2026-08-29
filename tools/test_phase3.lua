@@ -1,0 +1,232 @@
+-- Phase 3: the bottom bar. The hold, the penalty and the order the two happen
+-- in, all against the mock host so a sixty second wait costs nothing here.
+--
+--   lua tools/test_phase3.lua
+
+local M = dofile("tools/mock/beammp.lua")
+
+local pass, fail = 0, 0
+local failures = {}
+
+local function ok(cond, what)
+  if cond then pass = pass + 1
+  else
+    fail = fail + 1
+    failures[#failures + 1] = what
+    print("  FAIL  " .. what)
+  end
+end
+
+local function eq(got, want, what)
+  ok(got == want, ("%s (got %s, wanted %s)"):format(what, tostring(got), tostring(want)))
+end
+
+local function near(got, want, tol, what)
+  ok(type(got) == "number" and math.abs(got - want) <= tol,
+     ("%s (got %s, wanted %s +/- %s)"):format(what, tostring(got), tostring(want), tostring(tol)))
+end
+
+local function section(t) print("") print("== " .. t) end
+
+os.execute("cmd /c rmdir /s /q Resources 2>nul")
+M.loadPlugin()
+
+local function tick(n) for _ = 1, (n or 1) do M.fire("rm:tick") end end
+
+M.fire("onInit")
+
+-- one driver and a five gate circuit to run on
+M.addPlayer(0, "Driver", "5001", false, "203.0.113.1")
+M.fire("onPlayerJoining", 0)
+M.clientSend(0, "hello", { version = RM.VERSION })
+M.clientSend(0, "name.set", { name = "Driver" })
+RM.console.handle("rm role Driver owner")
+
+M.clientSend(0, "track.begin",
+  { id = "loop", name = "Loop", kind = "race", level = "utah_sc", circuit = true })
+tick(1)
+for i = 1, 5 do
+  M.advance(1)
+  M.clientSend(0, "track.mark", { pos = { x = i * 100, y = 0, z = 0 }, yaw = 0 })
+  tick(1)
+end
+M.clientSend(0, "track.finish")
+tick(1)
+eq(#RM.tracks.get("loop").checkpoints, 5, "a course to run on")
+
+local HOLD = RM.config.holds
+local PEN  = RM.config.penalties
+
+local function startRun()
+  RM.race.clear(0)
+  RM.service.forget(0)
+  RM.race.arm(0, { id = "loop", mode = "controller", laps = 1 })
+  M.advance(5)
+  RM.race.gate(0, 1, RM.now())
+end
+
+local function use(which, extra)
+  M.clearOutbox(0)
+  local d = { which = which }
+  for k, v in pairs(extra or {}) do d[k] = v end
+  M.clientSend(0, "service.use", d)
+  tick(1)
+  return M.lastMessage(0, "service.hold"), M.lastMessage(0, "service.failed")
+end
+
+section("outside a run nothing costs anything")
+RM.race.clear(0)
+RM.service.forget(0)
+local hold = use("repair")
+ok(hold ~= nil, "the repair is allowed")
+eq(hold.hold, 0, "with no hold")
+eq(hold.penalty, nil, "and no penalty")
+
+tick(1)
+ok(M.lastMessage(0, "service.run") ~= nil, "and the game is told to do it straight away")
+
+section("inside a run it holds you and charges you")
+startRun()
+local held = use("repair")
+ok(held ~= nil, "the repair is allowed")
+near(held.hold, HOLD.repair, 0.01, "the hold is the one from the config")
+near(held.penalty, PEN.repair, 0.01, "and so is the penalty")
+eq(RM.service.busy(0), true, "the job is running")
+
+section("the penalty lands at the start, not the end")
+-- otherwise you could quit half way through and get the repair for nothing
+near(RM.race.penaltyTotal(RM.race.get(0)), PEN.repair, 0.01,
+     "the seconds are on the run before the hold is up")
+local state = M.lastMessage(0, "race.state")
+ok(state ~= nil, "the clock on screen is told about it")
+near(state and state.penaltyTime, PEN.repair, 0.01, "and carries the seconds, not just a count")
+
+section("one job at a time")
+local _, refused = use("fuel")
+ok(refused ~= nil, "a second button while one is running is refused")
+eq(refused.why, "already_working", "and says why")
+near(RM.race.penaltyTotal(RM.race.get(0)), PEN.repair, 0.01, "the refusal charges nothing extra")
+
+section("the hold ends on its own")
+M.clearOutbox(0)
+M.advance(HOLD.repair - 1)
+tick(1)
+eq(M.lastMessage(0, "service.run"), nil, "nothing happens a second early")
+M.advance(2)
+tick(1)
+local run = M.lastMessage(0, "service.run")
+ok(run ~= nil, "and the game is told to do the job when it is up")
+eq(run.which, "repair", "the right job")
+eq(RM.service.busy(0), false, "the hold is over")
+
+section("a job the game could not do gives the seconds back")
+startRun()
+use("repair")
+near(RM.race.penaltyTotal(RM.race.get(0)), PEN.repair, 0.01, "charged on the way in")
+M.advance(HOLD.repair + 1)
+tick(1)
+M.clearOutbox(0)
+M.clientSend(0, "service.done", { which = "repair", ok = false, why = "no_vehicle" })
+tick(1)
+near(RM.race.penaltyTotal(RM.race.get(0)), 0, 0.01, "and taken back off when it failed")
+local told = M.lastMessage(0, "service.failed")
+ok(told ~= nil, "the driver is told")
+eq(told.why, "no_vehicle", "with the reason the game gave")
+
+section("a job that worked keeps its charge")
+startRun()
+use("repair")
+M.advance(HOLD.repair + 1)
+tick(1)
+M.clientSend(0, "service.done", { which = "repair", ok = true })
+tick(1)
+near(RM.race.penaltyTotal(RM.race.get(0)), PEN.repair, 0.01, "the penalty stays")
+
+section("the spare is only for a flat")
+-- the game can burst a tire and cannot mend one, so a spare is the same job as
+-- a repair for half the wait. needing a flat is what stops it replacing repair.
+startRun()
+local _, noFlat = use("spare")
+ok(noFlat ~= nil, "asking with nothing flat is refused")
+eq(noFlat.why, "no_flat_tire", "and says so")
+near(RM.race.penaltyTotal(RM.race.get(0)), 0, 0.01, "and costs nothing")
+
+local withFlat = use("spare", { flat = true })
+ok(withFlat ~= nil, "with a flat it is allowed")
+near(withFlat.penalty, PEN.flatTire, 0.01, "at the spare tire price")
+
+-- outside a run there is nothing to check, because there is nothing to charge
+RM.race.clear(0)
+RM.service.forget(0)
+local freeSpare = use("spare")
+ok(freeSpare ~= nil, "and free driving needs no flat at all")
+
+section("fuel waits but costs nothing")
+startRun()
+local fuel = use("fuel")
+ok(fuel ~= nil, "fuel is allowed")
+near(fuel.hold, HOLD.fuel, 0.01, "it has a hold")
+eq(fuel.penalty, nil, "and no penalty")
+near(RM.race.penaltyTotal(RM.race.get(0)), 0, 0.01, "nothing is added to the run")
+
+section("reposition")
+startRun()
+local rep = use("reposition")
+ok(rep ~= nil, "reposition is allowed")
+near(rep.hold, HOLD.reposition, 0.01, "with the short hold")
+near(rep.penalty, PEN.recovery, 0.01, "and the recovery penalty")
+
+section("a button nobody has heard of")
+startRun()
+local _, nope = use("teleport")
+ok(nope ~= nil, "an unknown action is refused")
+eq(nope.why, "no_such_action", "and named as such")
+
+section("a run that ends does not leave a car held")
+startRun()
+use("repair")
+eq(RM.service.busy(0), true, "a hold is running")
+M.clientSend(0, "race.end", {})
+tick(1)
+eq(RM.service.busy(0), false, "ending the run clears it")
+
+section("and neither does leaving")
+startRun()
+use("repair")
+eq(RM.service.busy(0), true, "a hold is running")
+M.fire("onPlayerDisconnect", 0)
+eq(RM.service.busy(0), false, "the hold goes with the player")
+eq(RM.service.count(), 0, "and nothing is left behind")
+
+section("the results still add up with a service penalty in them")
+M.addPlayer(0, "Driver", "5001", false, "203.0.113.1")
+M.fire("onPlayerJoining", 0)
+M.clientSend(0, "hello", { version = RM.VERSION })
+M.clientSend(0, "name.set", { name = "Driver" })
+RM.race.clear(0)
+RM.service.forget(0)
+RM.race.arm(0, { id = "loop", mode = "controller", laps = 1 })
+M.advance(5)
+RM.race.gate(0, 1, RM.now())
+use("repair")
+M.advance(HOLD.repair)
+tick(1)
+M.clientSend(0, "service.done", { which = "repair", ok = true })
+for g = 2, 5 do M.advance(10) RM.race.gate(0, g, RM.now()) end
+M.advance(10)
+RM.race.gate(0, 1, RM.now())
+
+local r = RM.race.get(0)
+eq(r.state, "finished", "the run finishes")
+eq(#r.penalties, 1, "one penalty on it")
+eq(r.penalties[1].reason, "repair", "and it is the repair")
+near(r.corrected - r.clean, PEN.repair, 0.01, "corrected carries it")
+
+local res = RM.race.results(0)
+ok(res ~= nil, "results are built")
+eq(#res.penalties, 1, "with the penalty listed by reason, not hidden in the total")
+
+print("")
+print(("%d passed, %d failed"):format(pass, fail))
+for _, f in ipairs(failures) do print("  - " .. f) end
+os.exit(fail == 0 and 0 or 1)

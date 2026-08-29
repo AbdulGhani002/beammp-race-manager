@@ -28,18 +28,9 @@ local function section(title)
   print("== " .. title)
 end
 
--- alphabetical, exactly like the host loads them
-local FILES = {
-  "00_config", "01_util", "02_store", "03_bus", "04_identity", "05_roles",
-  "06_players", "07_tracks", "08_console", "09_clock", "10_race", "11_results", "12_racelog",
-  "99_main",
-}
-
 os.execute("cmd /c rmdir /s /q Resources 2>nul")
 
-for _, name in ipairs(FILES) do
-  dofile("server/RaceManager/" .. name .. ".lua")
-end
+M.loadPlugin()
 
 local function tick(n)
   for _ = 1, (n or 1) do M.fire("rm:tick") end

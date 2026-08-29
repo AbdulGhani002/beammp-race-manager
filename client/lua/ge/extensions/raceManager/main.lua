@@ -1,6 +1,6 @@
 local M = {}
 
-M.VERSION = "0.2.0-phase2"
+M.VERSION = "0.3.0-phase3"
 
 -- ui goes last: it reads from every other module the moment it comes up
 local SUBS = {
@@ -11,6 +11,7 @@ local SUBS = {
   "raceManager_capture",
   "raceManager_race",
   "raceManager_bottombar",
+  "raceManager_service",
   "raceManager_hud",
   "raceManager_perf",
   "raceManager_ui",

@@ -98,7 +98,7 @@ angular.module("beamng.apps")
 
       // everything drawn comes from here. the server owns it, this only mirrors.
       $scope.s = { ready: false, needsName: false, me: {}, roster: [], tracks: [],
-                   capture: {}, perf: {}, config: {}, race: {} };
+                   capture: {}, perf: {}, config: {}, race: {}, service: {} };
       $scope.panel = null;
       // ng-if and ng-repeat each make a child scope, so a bare string model is
       // written on the child and the parent never sees it. Anything two way
@@ -298,12 +298,51 @@ angular.module("beamng.apps")
       $scope.setRecovering = function (v) { $scope.recovering = !!v; };
 
       $scope.bottom = [
-        { key: "reposition", label: "Reposition", note: "1 min penalty" },
-        { key: "spare",      label: "Spare tire", note: "30 sec hold, 30 sec penalty" },
-        { key: "repair",     label: "Repair",     note: "1 min hold, 30 sec penalty" },
-        { key: "fuel",       label: "Fuel +25%",  note: "20 sec hold, no penalty" },
-        { key: "lights",     label: "Lights",     note: "" }
+        { key: "reposition", label: "Reposition", hold: "reposition", pen: "recovery" },
+        { key: "spare",      label: "Spare tire", hold: "spareTire",  pen: "flatTire" },
+        { key: "repair",     label: "Repair",     hold: "repair",     pen: "repair" },
+        { key: "fuel",       label: "Fuel +25%",  hold: "fuel",       pen: null },
+        { key: "lights",     label: "Lights",     hold: null,         pen: null }
       ];
+
+      // the host can change any of these on the server without anybody
+      // reinstalling, so the button reads them rather than stating them
+      $scope.bottomNote = function (b) {
+        var c = $scope.s.config || {};
+        var h = (c.holds || {})[b.hold];
+        var p = b.pen && (c.penalties || {})[b.pen];
+        var bits = [];
+        if (h) bits.push(h + " sec hold");
+        if (p) bits.push(p + " sec penalty");
+        return bits.length ? bits.join(", ") + ", in a run" : "";
+      };
+
+      // ------------------------------------------------------------- holds
+
+      var HOLD_LABEL = {
+        reposition: "Repositioning", spare: "Fitting the spare",
+        repair: "Repairing", fuel: "Fuelling"
+      };
+
+      $scope.holding = function () {
+        var v = $scope.s.service || {};
+        return !!v.which && (v.hold || 0) > 0;
+      };
+
+      $scope.holdLabel = function () {
+        return HOLD_LABEL[($scope.s.service || {}).which] || "Working";
+      };
+
+      $scope.holdLeft = function () {
+        return Math.max(0, Math.ceil(($scope.s.service || {}).left || 0));
+      };
+
+      $scope.holdPct = function () {
+        var v = $scope.s.service || {};
+        if (!v.hold) return 0;
+        var gone = (v.hold - (v.left || 0)) / v.hold * 100;
+        return gone < 0 ? 0 : (gone > 100 ? 100 : Math.round(gone));
+      };
 
       $scope.lightItems = ["Headlights", "Lightbar", "Fog lights", "Siren", "Hazards", "Horn", "Flash"];
 

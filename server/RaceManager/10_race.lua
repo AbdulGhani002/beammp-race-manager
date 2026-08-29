@@ -132,6 +132,20 @@ function RM.race.penalty(pid, seconds, reason, gate)
   return true
 end
 
+-- a charge taken back off, for a job the game turned out not to be able to do
+function RM.race.dropPenalty(pid, reason, lap)
+  local r = runs[pid]
+  if not r then return false end
+  for i = #r.penalties, 1, -1 do
+    local p = r.penalties[i]
+    if p.reason == reason and (lap == nil or p.lap == lap) then
+      table.remove(r.penalties, i)
+      return true
+    end
+  end
+  return false
+end
+
 function RM.race.penaltyTotal(r)
   local total = 0
   for i = 1, #r.penalties do total = total + r.penalties[i].seconds end

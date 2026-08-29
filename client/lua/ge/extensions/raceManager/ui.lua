@@ -53,6 +53,7 @@ local function build()
   snap.capture = extensions.raceManager_capture.status()
   snap.perf = extensions.raceManager_perf.status()
   snap.race = extensions.raceManager_race.status()
+  snap.service = extensions.raceManager_service.status()
 
   return snap
 end

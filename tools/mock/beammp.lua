@@ -231,4 +231,27 @@ end
 function FS.IsDirectory(path) return FS.Exists(path) and not FS.IsFile(path) end
 function FS.ConcatPaths(...) return table.concat({ ... }, "/") end
 
+-- Every test carried its own copy of the file list, so adding a module to the
+-- plugin left four of them loading a server without it and failing somewhere
+-- unrelated. The directory is the list.
+function M.loadPlugin()
+  local dir = "server/RaceManager"
+  local names = {}
+
+  local pipe = io.popen('dir /b "' .. dir:gsub("/", "\\") .. '\\*.lua" 2>nul')
+  if pipe then
+    for line in pipe:lines() do
+      local name = line:match("^(.-)%.lua%s*$")
+      if name then names[#names + 1] = name end
+    end
+    pipe:close()
+  end
+
+  if #names == 0 then error("no plugin files found in " .. dir) end
+  table.sort(names)   -- the host loads them alphabetically
+
+  for _, name in ipairs(names) do dofile(dir .. "/" .. name .. ".lua") end
+  return names
+end
+
 return M

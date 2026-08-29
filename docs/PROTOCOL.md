@@ -43,6 +43,8 @@ the list of messages. `c` is the channel, `d` is whatever that channel carries.
 | `race.arm` | `{id,mode,laps}` | go to the grid. `mode` is `controller` or `wheel`. |
 | `race.end` | none | End Race. Files a did not finish. |
 | `race.clear` | none | the results screen was closed, the run can be let go |
+| `service.use` | `{which,flat}` | press a bottom bar button. `which` is `reposition`, `spare`, `repair` or `fuel`. `flat` is the car saying a tire is down, which is the only thing that lets `spare` through during a run. |
+| `service.done` | `{which,ok,why}` | how the job went. `ok:false` gives the penalty back. |
 | `perf` | `{label,seconds,frames,avg,min,max,p1low}` | an FPS run |
 
 ## Server to client
@@ -67,6 +69,9 @@ the list of messages. `c` is the channel, `d` is whatever that channel carries.
 | `race.waiting` | `{left}` | you are in, this many are still on track |
 | `race.results` | the whole payload | built once when the last car is off track, sent once |
 | `race.result` | `{ok:false,reason}` | why an arm was refused |
+| `service.hold` | `{which,hold,penalty}` | the job is allowed. `hold` is seconds the car is held still, 0 outside a run. `penalty` is the seconds already added to the clock. |
+| `service.run` | `{which}` | the hold is up, do the job |
+| `service.failed` | `{which,why}` | it was refused, or the game could not do it |
 
 
 ## The results payload

@@ -34,14 +34,8 @@ end
 
 local function section(t) print("") print("== " .. t) end
 
-local FILES = {
-  "00_config", "01_util", "02_store", "03_bus", "04_identity", "05_roles",
-  "06_players", "07_tracks", "08_console", "09_clock", "10_race", "11_results", "12_racelog",
-  "99_main",
-}
-
 os.execute("cmd /c rmdir /s /q Resources 2>nul")
-for _, n in ipairs(FILES) do dofile("server/RaceManager/" .. n .. ".lua") end
+M.loadPlugin()
 M.fire("onInit")
 
 local function deg(r) return r * 180 / math.pi end

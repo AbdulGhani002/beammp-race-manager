@@ -8,8 +8,6 @@ local M = {}
 local MPS_TO_MPH = 2.2369363
 local STOPPED_MPH = 1.0
 
-local PHASE3 = "This arrives in phase 3, with the hold"
-
 local LABEL = {
   reposition = "Reposition",
   spare      = "Spare tire",
@@ -74,13 +72,12 @@ local function press(which)
     return
   end
 
-  local cost = M.penaltyFor(which)
-  if cost then
-    extensions.raceManager_state.notice(
-      ("%s: %s, and it would cost %ds in this run"):format(label, PHASE3, cost))
-  else
-    extensions.raceManager_state.notice(label .. ": " .. PHASE3)
+  if extensions.raceManager_service.busy() then
+    extensions.raceManager_state.notice("Wait for the job you started")
+    return
   end
+
+  extensions.raceManager_service.ask(which)
 end
 
 function M.reposition() press("reposition") end

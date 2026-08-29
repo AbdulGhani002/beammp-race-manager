@@ -364,6 +364,16 @@
         </span>
       </div>
 
+      <!-- a hold is the clock still running while you wait, so it belongs
+           under the clock and not in a corner -->
+      <div class="rm-hud-hold" ng-if="holding()">
+        <span class="rm-hud-hold-what">{{ holdLabel() }}</span>
+        <span class="rm-hud-hold-left">{{ holdLeft() }}s</span>
+        <div class="rm-hud-hold-bar">
+          <div class="rm-hud-hold-fill" style="width: {{ holdPct() }}%"></div>
+        </div>
+      </div>
+
       <button class="rm-hud-end" ng-click="endRace()">End race</button>
     </div>
 
@@ -380,9 +390,10 @@
         <button ng-repeat="l in lightItems" ng-click="lightPick(l)">{{ l }}</button>
       </div>
       <button ng-repeat="b in bottom" ng-click="bottomClick(b)"
-              ng-disabled="!stopped() && b.key !== 'lights'"
-              title="{{ b.note }}">{{ b.label }}</button>
-      <span class="rm-moving" ng-if="!stopped()">stop the car to use these</span>
+              ng-disabled="b.key !== 'lights' && (!stopped() || holding())"
+              title="{{ bottomNote(b) }}">{{ b.label }}</button>
+      <span class="rm-moving" ng-if="holding()">{{ holdLabel() }} {{ holdLeft() }}s</span>
+      <span class="rm-moving" ng-if="!holding() && !stopped()">stop the car to use these</span>
     </div>
 
 

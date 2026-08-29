@@ -141,6 +141,7 @@ local function onState(d)
   if st.state == "idle" or st.state == "abandoned" then
     startedLocal = nil
     extensions.raceManager_triggers.stopRace()
+    extensions.raceManager_service.release()
   end
 
   if st.state == "finished" then
@@ -206,8 +207,10 @@ local function onResults(d)
   startedLocal = nil
   extensions.raceManager_triggers.stopRace()
 
-  -- the light menu was still sitting over the results screen
+  -- the light menu was still sitting over the results screen, and a car held
+  -- for a repair when the run ended would never be let go
   extensions.raceManager_state.closeLights()
+  extensions.raceManager_service.release()
   push()
 end
 

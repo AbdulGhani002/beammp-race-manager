@@ -1,6 +1,6 @@
 RM = RM or {}
 
-RM.VERSION = "0.2.0-phase2"
+RM.VERSION = "0.3.0-phase3"
 
 RM.config = {
   nameMinLen  = 3,
@@ -63,7 +63,11 @@ RM.config = {
 
   -- how far a client stamp may sit outside what the server believes
   clockTrustMs = 2000,
-  holds     = { spareTire = 30.0, repair = 60.0, fuel = 20.0 },
+  -- how long the car is held still while each job is done. only inside a run.
+  holds     = { reposition = 5.0, spareTire = 30.0, repair = 60.0, fuel = 20.0 },
+
+  -- a quarter of a tank per press
+  fuelStep  = 0.25,
 
   speedZoneMph = 37,
   xpCurve      = { first = 200, step = 2, floor = 20 },
@@ -85,6 +89,7 @@ RM.config.public = {
   penalties     = RM.config.penalties,
   maxCheckpointsPerLap = RM.config.maxCheckpoints,
   holds         = RM.config.holds,
+  fuelStep      = RM.config.fuelStep,
   speedZoneMph  = RM.config.speedZoneMph,
   discordUrl    = RM.config.discordUrl,
   nameMinLen    = RM.config.nameMinLen,

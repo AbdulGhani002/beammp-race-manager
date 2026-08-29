@@ -18,6 +18,9 @@ local function onTick()
 
   RM.players.tick()
 
+  -- a hold that has run its course, so the game can do the job
+  RM.service.tick(RM.now())
+
   -- the clock probe rides the batch that is already going out
   if ticks % rosterEvery == 0 then
     for pid, s in pairs(RM.identity.sessions()) do
@@ -55,6 +58,7 @@ local function onPlayerDisconnect(pid)
   RM.results.onRunEnded(pid)
   RM.race.clear(pid)
   RM.results.forget(pid)
+  RM.service.forget(pid)
   RM.players.onLeave(pid)
   RM.identity.onLeave(pid)
   RM.bus.forget(pid)
@@ -189,6 +193,7 @@ local function wireChannels()
   RM.bus.on("race.end", function(pid)
     local ok = RM.race.endRace(pid)
     if not ok then return end
+    RM.service.forget(pid)
     RM.bus.queue(pid, "race.state", RM.race.wire(pid))
     RM.results.onRunEnded(pid)
     RM.race.clear(pid)
@@ -218,6 +223,29 @@ local function wireChannels()
     if result.finished then
       RM.bus.queue(pid, "race.state", RM.race.wire(pid))
       RM.results.onRunEnded(pid)
+    end
+  end)
+
+  -- the bottom bar. one request in, a hold and then the job back out.
+  RM.bus.on("service.use", function(pid, d)
+    local ok, result = RM.service.use(pid, d)
+    if not ok then
+      RM.bus.queue(pid, "service.failed", {
+        which = type(d) == "table" and d.which or nil, why = result })
+      return
+    end
+    RM.bus.queue(pid, "service.hold", {
+      which = result.which, hold = result.hold, penalty = result.cost })
+    -- the clock on screen carries the penalty, so it has to hear about it now
+    if result.cost then RM.bus.queue(pid, "race.state", RM.race.wire(pid)) end
+  end)
+
+  RM.bus.on("service.done", function(pid, d)
+    local ok, job, why = RM.service.report(pid, d)
+    if not ok or not job then return end
+    if why then
+      RM.bus.queue(pid, "service.failed", { which = job.which, why = why })
+      if job.cost then RM.bus.queue(pid, "race.state", RM.race.wire(pid)) end
     end
   end)
 
