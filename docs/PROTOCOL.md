@@ -61,9 +61,9 @@ the list of messages. `c` is the channel, `d` is whatever that channel carries.
 | `options.result` | `{action,ok,value}` | |
 | `toast` | `{kind,key,a}` | short message, the client turns the key into text |
 | `clock.ping` | server clock as a number | rides a batch that was already going out, so it costs no messages |
-| `race.state` | `{state,track,mode,laps,lap,gates,next,circuit,penalties,waiting,why}` | the whole state, sent when it changes and never on a timer |
+| `race.state` | `{state,track,mode,laps,lap,gates,next,done,circuit,penalties,penaltyTime,waiting,why}` | the whole state, sent when it changes and never on a timer. `done` is gates finished on this lap; `next` is 1 while the lap waits on the line, not one past the last gate |
 | `race.teleport` | `{pos,yaw}` | put the car on the grid |
-| `race.split` | `{lap,gate,split,next,penalties,lapTime,lapTimeLap,missed,started,lapDone,finished}` | one crossing. `split` is seconds from the start of the run. |
+| `race.split` | `{lap,gate,split,next,done,penalties,penaltyTime,lapTime,lapTimeLap,missed,refunded,started,lapDone,finished}` | one crossing. `split` is seconds from the start of the run. `done` and `next` mean the same here as in `race.state`. |
 | `race.waiting` | `{left}` | you are in, this many are still on track |
 | `race.results` | the whole payload | built once when the last car is off track, sent once |
 | `race.result` | `{ok:false,reason}` | why an arm was refused |

@@ -427,6 +427,30 @@ eq(#RM.race.get(0).penalties, 0, "nothing is charged for either")
 RM.config.maxGateSkip = realCap
 ok(realCap >= 2, "and the real cap still leaves room for a cut corner")
 
+section("the lap bar does not empty itself at the end of the lap")
+-- nextGate is one past the last gate for the whole drive back to the line, and
+-- the screen used to read that as no gates done at all
+RM.race.clear(0)
+RM.race.arm(0, { id = "loop", mode = "controller", laps = 2 })
+cross(1, 5)
+local d = select(2, cross(2, 10))
+eq(d.done, 2, "two gates in, two are done")
+eq(d.next, 3, "and the third is next")
+
+cross(3, 10) cross(4, 10)
+local last = select(2, cross(5, 10))
+eq(last.done, 5, "every gate on the lap counts as done")
+eq(last.next, 1, "and the line is what is next, not gate six")
+eq(RM.race.get(0).nextGate, 6, "even though the run is tracking one past the end")
+
+local wire = RM.race.wire(0)
+eq(wire.done, 5, "the state the screen mirrors says the same")
+eq(wire.next, 1, "and agrees with the split about the gate, not 6")
+
+local lap = select(2, cross(1, 10))
+ok(lap and lap.lapDone, "the line closes the lap")
+eq(lap.done, 1, "and the bar starts the next one from the line it just crossed")
+
 section("a cut gate reached late gets its penalty back")
 -- two of these gates are fourteen metres apart and twenty wide, so they can
 -- fire in either order

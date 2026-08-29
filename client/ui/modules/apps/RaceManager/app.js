@@ -279,12 +279,14 @@ angular.module("beamng.apps")
         } catch (e) { }
       }
 
-      // how far round the lap, so a thirty gate course is not just a number
+      // how far round the lap, so a thirty gate course is not just a number.
+      // the server counts the gates: working it back from the next one emptied
+      // the bar the moment all thirty were done, because the next one is the
+      // line again.
       $scope.lapProgress = function () {
         var r = $scope.s.race || {};
         if (!r.gates) return 0;
-        var done = (r.next || 1) - 1;
-        var pct = (done / r.gates) * 100;
+        var pct = ((r.done || 0) / r.gates) * 100;
         return pct < 0 ? 0 : (pct > 100 ? 100 : Math.round(pct));
       };
 

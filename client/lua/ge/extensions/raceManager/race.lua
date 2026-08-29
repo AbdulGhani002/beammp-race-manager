@@ -15,6 +15,7 @@ local st = {
   lap       = 0,
   gates     = 0,
   next      = 1,
+  done      = 0,
   circuit   = false,
   elapsed   = 0,
   lastSplit = nil,
@@ -117,6 +118,7 @@ local function onState(d)
   st.lap       = d.lap or 0
   st.gates     = d.gates or 0
   st.next      = d.next or 1
+  st.done      = d.done or 0
   st.circuit   = d.circuit and true or false
   st.penalties = d.penalties or 0
   st.penaltyTime = d.penaltyTime or 0
@@ -188,6 +190,7 @@ local function onSplit(d)
     st.next = d.next
     extensions.raceManager_triggers.setNextGate(d.next)
   end
+  if d.done then st.done = d.done end
 
   if d.missed and d.missed > 0 then
     extensions.raceManager_state.notice(

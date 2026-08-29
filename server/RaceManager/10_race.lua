@@ -138,6 +138,21 @@ function RM.race.penaltyTotal(r)
   return total
 end
 
+-- nextGate runs one past the last gate while a lap waits on the line, which is
+-- the state the run is in for the whole drive back to it. Both of these say so
+-- plainly rather than leaving the screen to work it out: the bar counted that
+-- as no gates done and emptied itself right at the end of the lap.
+local function gatesDone(r)
+  local n = r.nextGate - 1
+  if n < 0 then return 0 end
+  if n > r.gates then return r.gates end
+  return n
+end
+
+local function nextShown(r)
+  return r.nextGate > r.gates and 1 or r.nextGate
+end
+
 local MPS_PER_MPH = 0.44704
 
 -- nothing on wheels covers this ground in that time, so a stamp claiming it
@@ -212,7 +227,7 @@ function RM.race.gate(pid, index, clientTime)
     r.lapStart[1] = 0
     r.nextGate   = 2
     return true, { lap = 1, gate = 1, split = 0, started = true, next = 2,
-                   penalties = 0 }
+                   done = 1, penalties = 0 }
   end
 
   if r.state ~= "running" then return false, "not_running" end
@@ -266,7 +281,8 @@ function RM.race.gate(pid, index, clientTime)
       finish(pid, r, t)
       return true, { lap = r.currentLap, gate = 1, split = elapsed,
                      lapTime = r.lapTime[r.currentLap], lapTimeLap = r.currentLap,
-                     finished = true, next = 0, penalties = #r.penalties,
+                     finished = true, next = 0, done = r.gates,
+                     penalties = #r.penalties,
                      penaltyTime = RM.race.penaltyTotal(r) }
     end
 
@@ -277,7 +293,7 @@ function RM.race.gate(pid, index, clientTime)
     r.nextGate = 2
     return true, { lap = r.currentLap, gate = 1, split = elapsed,
                    lapTime = r.lapTime[doneLap], lapTimeLap = doneLap,
-                   lapDone = true, next = 2, penalties = #r.penalties,
+                   lapDone = true, next = 2, done = 1, penalties = #r.penalties,
                      penaltyTime = RM.race.penaltyTotal(r) }
   end
 
@@ -304,7 +320,7 @@ function RM.race.gate(pid, index, clientTime)
         RM.info(("%s reached gate %d after all, penalty refunded"):format(
           RM.identity.displayName(pid), index))
         return true, { lap = r.currentLap, gate = index, split = elapsed,
-                       refunded = true, next = r.nextGate,
+                       refunded = true, next = nextShown(r), done = gatesDone(r),
                        penalties = #r.penalties,
                        penaltyTime = RM.race.penaltyTotal(r) }
       end
@@ -362,13 +378,14 @@ function RM.race.gate(pid, index, clientTime)
     finish(pid, r, t)
     return true, { lap = r.currentLap, gate = index, split = elapsed,
                    lapTime = r.lapTime[r.currentLap], lapTimeLap = r.currentLap,
-                   finished = true, next = 0, penalties = #r.penalties,
+                   finished = true, next = 0, done = r.gates,
+                   penalties = #r.penalties,
                      penaltyTime = RM.race.penaltyTotal(r) }
   end
 
   return true, {
     lap = r.currentLap, gate = index, split = elapsed,
-    next = r.nextGate > r.gates and 1 or r.nextGate,
+    next = nextShown(r), done = gatesDone(r),
     penalties = #r.penalties,
     penaltyTime = RM.race.penaltyTotal(r),
     missed = index > expected and (index - expected) or nil,
@@ -433,7 +450,8 @@ function RM.race.wire(pid)
     laps     = r.laps,
     lap      = r.currentLap,
     gates    = r.gates,
-    next     = r.nextGate,
+    next     = nextShown(r),
+    done     = gatesDone(r),
     circuit  = r.circuit,
     clean    = r.clean,
     corrected = r.corrected,

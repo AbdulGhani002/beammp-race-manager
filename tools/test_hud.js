@@ -1,17 +1,29 @@
-// The clock on screen, pulled straight out of app.js and run against the
-// values that broke it. A race put 4:60.0 and 6:60.0 up during a run.
+// The numbers the HUD puts on screen, pulled straight out of app.js and run
+// against the values that broke them. A race put 4:60.0 on the clock and
+// emptied the lap bar the moment every gate was done.
 //
-//   node tools/test_clock.js
+//   node tools/test_hud.js
 
 const fs = require("fs");
 
 const src = fs.readFileSync("client/ui/modules/apps/RaceManager/app.js", "utf8");
-const body = src.match(/function fmt\(sec, places\) \{[\s\S]*?\n      \}/);
-if (!body) {
-  console.error("could not find fmt in app.js");
-  process.exit(1);
+function lift(pattern, name) {
+  const m = src.match(pattern);
+  if (!m) {
+    console.error("could not find " + name + " in app.js");
+    process.exit(1);
+  }
+  return m[0];
 }
-const fmt = new Function(body[0] + "; return fmt;")();
+
+const fmt = new Function(
+  lift(/function fmt\(sec, places\) \{[\s\S]*?\n      \}/, "fmt") + "; return fmt;")();
+
+// lapProgress reads the scope, so it gets one
+const lapProgress = new Function("race",
+  "var $scope = { s: { race: race } };" +
+  lift(/\$scope\.lapProgress = function \(\) \{[\s\S]*?\n      \};/, "lapProgress") +
+  "return $scope.lapProgress();");
 
 let pass = 0, fail = 0;
 function eq(got, want, what) {
@@ -49,6 +61,18 @@ eq(fmt(undefined, 1), "—", "missing");
 eq(fmt(NaN, 1), "—", "not a number");
 eq(fmt(Infinity, 1), "—", "infinite");
 eq(fmt(-5.5, 1), "-5.5", "negative keeps its sign");
+
+console.log("\n== the lap bar");
+// nextGate sits one past the last gate for the whole drive back to the line,
+// so working the bar back from it read that as no gates done and the bar
+// emptied itself right at the end of the lap
+eq(lapProgress({ gates: 30, done: 0, next: 1 }), 0, "on the line, nothing done");
+eq(lapProgress({ gates: 30, done: 13, next: 14 }), 43, "part way round");
+eq(lapProgress({ gates: 30, done: 29, next: 30 }), 97, "one gate left");
+eq(lapProgress({ gates: 30, done: 30, next: 1 }), 100, "every gate done, heading for the line");
+eq(lapProgress({ gates: 0 }), 0, "no course, no bar");
+eq(lapProgress({}), 0, "nothing at all");
+eq(lapProgress({ gates: 30, done: 44 }), 100, "never past the end");
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail === 0 ? 0 : 1);
