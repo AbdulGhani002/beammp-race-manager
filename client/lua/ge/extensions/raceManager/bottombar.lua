@@ -86,4 +86,69 @@ function M.repair()     press("repair") end
 function M.fuel()       press("fuel") end
 function M.lights()     press("lights") end
 
+-- The rows in the light menu. All of these are the game's own electrics
+-- calls: a vehicle without the part just does nothing, same as the game's
+-- own key bindings.
+local LIGHT_DO = {
+  headlights = "electrics.toggle_lights()",
+  fog        = "electrics.toggle_fog_lights()",
+  hazards    = "electrics.toggle_warn_signal()",
+  lightbar   = "if electrics.values.lightbar == 1 then electrics.set_lightbar_signal(0) else electrics.set_lightbar_signal(1) end",
+  siren      = "if electrics.values.lightbar == 2 then electrics.set_lightbar_signal(0) else electrics.set_lightbar_signal(2) end",
+}
+
+-- horn and flash are held, not toggled, so they let go on their own
+local hornFor, flashFor = nil, nil
+
+local function vehicle()
+  local ok, v = pcall(function() return be:getPlayerVehicle(0) end)
+  if ok and v then return v end
+  return nil
+end
+
+function M.light(which)
+  local v = vehicle()
+  if not v then
+    extensions.raceManager_state.notice("Get in a car first")
+    return
+  end
+
+  if which == "horn" then
+    v:queueLuaCommand("electrics.horn(true)")
+    hornFor = 0.6
+    return
+  end
+  if which == "flash" then
+    v:queueLuaCommand("electrics.light_flash_highbeams(true)")
+    flashFor = 0.6
+    return
+  end
+
+  local cmd = LIGHT_DO[which]
+  if cmd then v:queueLuaCommand(cmd) end
+end
+
+local function onUpdate(dt)
+  if not hornFor and not flashFor then return end
+  local v = vehicle()
+  if not v then hornFor, flashFor = nil, nil return end
+
+  if hornFor then
+    hornFor = hornFor - dt
+    if hornFor <= 0 then
+      hornFor = nil
+      v:queueLuaCommand("electrics.horn(false)")
+    end
+  end
+  if flashFor then
+    flashFor = flashFor - dt
+    if flashFor <= 0 then
+      flashFor = nil
+      v:queueLuaCommand("electrics.light_flash_highbeams(false)")
+    end
+  end
+end
+
+M.onUpdate = onUpdate
+
 return M

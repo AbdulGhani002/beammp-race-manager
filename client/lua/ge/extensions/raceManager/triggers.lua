@@ -57,49 +57,52 @@ end
 -- position sits above the dirt, so a gate drawn from that point floats.
 local BASE_SINK = 1.5
 
--- A gate you meet off square is a narrower hole than its width says. Cross a
--- twenty metre gate at forty nine degrees off its normal and the gap across
--- your path is only twenty times cos, about thirteen metres. That is why the
--- gates down a straight all scored and the one on the corner only counted from
--- the middle. Widening by one over cos puts the gap back to what it should be.
-local TURN_STRETCH_MAX = 2.0
+-- A gate is centred on wherever the capture car happened to be driving, and
+-- that is rarely the middle of the track. Marked from the left half, a twenty
+-- metre gate ends mid road, and everything driven right of centre misses it.
+-- On screen that read as gates only counting near the middle. So each side is
+-- measured out to the first wall or bank, and the gate is slid and widened to
+-- span the whole gap.
+local PROBE_MAX = 25.0
+local PROBE_UP  = 1.2
+local SPAN_MOST = 50.0
 
-function M.angleGap(a, b)
-  local d = (a - b) % (2 * math.pi)
-  if d > math.pi then d = 2 * math.pi - d end
-  return d
+-- the sums on their own, so they can be tested without a game
+function M.fitSpan(w, left, right)
+  w = tonumber(w) or 0
+  if type(left) ~= "number" or type(right) ~= "number" then return w, 0 end
+  local across = left + right
+  if across < w then across = w end
+  if across > SPAN_MOST then across = SPAN_MOST end
+  return across, (left - right) * 0.5
 end
-local angleGap = M.angleGap
 
-function M.turnStretch(turn)
-  local c = math.cos(turn)
-  local floor = 1 / TURN_STRETCH_MAX
-  if not (c == c) or c < floor then c = floor end   -- nan guard, then the cap
-  return 1 / c
+-- static geometry only, so another car cannot shrink a gate
+local function probe(pos, dx, dy)
+  if type(castRayStatic) == "function" then
+    local ok, d = pcall(castRayStatic,
+      vec3(pos.x, pos.y, pos.z + PROBE_UP), vec3(dx, dy, 0), PROBE_MAX)
+    if ok and type(d) == "number" then return math.min(d, PROBE_MAX) end
+  end
+  return PROBE_MAX
 end
 
--- worked out once when a course goes up, not per frame per gate
-local function fitTurns(cps, circuit)
-  local n = #cps
-  for i = 1, n do
+local function fitSpans(cps)
+  for i = 1, #cps do
     local cp = cps[i]
-    if type(cp) == "table" then
-      local prev
-      if i > 1 then prev = cps[i - 1]
-      elseif circuit and n > 1 then prev = cps[n] end
-
-      if prev then
-        cp.rmStretch = M.turnStretch(angleGap(tonumber(cp.yaw) or 0, tonumber(prev.yaw) or 0))
-      else
-        cp.rmStretch = 1
-      end
+    if type(cp) == "table" and cp.pos then
+      local yaw = tonumber(cp.yaw) or 0
+      local rx, ry = -math.sin(yaw), math.cos(yaw)
+      local w = gateOf(cp)
+      cp.rmAcross, cp.rmOff = M.fitSpan(w,
+        probe(cp.pos, rx, ry), probe(cp.pos, -rx, -ry))
     end
   end
 end
 
 local function gateBox(cp)
   local w, h, d = gateOf(cp)
-  return w * (tonumber(cp.rmStretch) or 1), d, cp.pos.z - BASE_SINK, cp.pos.z + h
+  return cp.rmAcross or w, d, cp.pos.z - BASE_SINK, cp.pos.z + h, cp.rmOff or 0
 end
 
 local function spawnGate(cp, index)
@@ -139,12 +142,14 @@ local function spawnGate(cp, index)
     -- because it is the exact volume you have to drive through
     obj.debug = visible
 
-    local across, along, bottom, top = gateBox(cp)
+    local across, along, bottom, top, off = gateBox(cp)
+    local yaw = tonumber(cp.yaw) or 0
+    local rx, ry = -math.sin(yaw), math.cos(yaw)
 
-    -- the box is centred on its position, so it goes at the middle of the span
-    -- and not at its foot. sitting it on cp.pos.z buried half of it and left
-    -- the ceiling at four metres under an eight metre gate.
-    obj:setPosition(vec3(cp.pos.x, cp.pos.y, (bottom + top) * 0.5))
+    -- the box is centred on its position: at the middle of the vertical span,
+    -- and slid sideways to the middle of the measured gap rather than sitting
+    -- on the line the capture car happened to drive
+    obj:setPosition(vec3(cp.pos.x + rx * off, cp.pos.y + ry * off, (bottom + top) * 0.5))
 
     -- yaw sends local x along the way you drive, so the width goes in y and the
     -- depth in x. these were swapped, which built a three metre slot twenty
@@ -153,7 +158,6 @@ local function spawnGate(cp, index)
 
     -- yaw only. a gate leaning with the camber of the road buys nothing and
     -- makes the volume harder to drive through.
-    local yaw = tonumber(cp.yaw) or 0
     local q = quat(0, 0, math.sin(yaw * 0.5), math.cos(yaw * 0.5)):toTorqueQuat()
     obj:setField("rotation", 0, q.x .. " " .. q.y .. " " .. q.z .. " " .. q.w)
   end)
@@ -181,7 +185,7 @@ function M.build(track, showBoxes)
   M.clear()
   course = track
   visible = showBoxes and true or false
-  fitTurns(track.checkpoints, track.circuit)
+  fitSpans(track.checkpoints)
 
   local made = 0
   for i = 1, #track.checkpoints do
@@ -338,7 +342,7 @@ local draft = nil
 -- to collide with until the course is saved.
 function M.setDraft(checkpoints)
   draft = checkpoints
-  if type(draft) == "table" then fitTurns(draft, false) end
+  if type(draft) == "table" then fitSpans(draft) end
 end
 
 function M.clearDraft()
@@ -347,15 +351,16 @@ end
 
 local function drawGate(cp, index, post, face, bg)
   -- the same box the volume uses, so what you see is what you drive through
-  local across, _, bottom, top = gateBox(cp)
+  local across, _, bottom, top, off = gateBox(cp)
   local yaw = tonumber(cp.yaw) or 0
 
   -- across the gate is perpendicular to the way you drive through it
   local rx, ry = -math.sin(yaw), math.cos(yaw)
   local half = across * 0.5
+  local cx, cy = cp.pos.x + rx * off, cp.pos.y + ry * off
 
-  local lx, ly = cp.pos.x + rx * half, cp.pos.y + ry * half
-  local mx, my = cp.pos.x - rx * half, cp.pos.y - ry * half
+  local lx, ly = cx + rx * half, cy + ry * half
+  local mx, my = cx - rx * half, cy - ry * half
 
   local l  = vec3(lx, ly, bottom)
   local r  = vec3(mx, my, bottom)
@@ -368,7 +373,7 @@ local function drawGate(cp, index, post, face, bg)
   debugDrawer:drawQuadSolid(l, r, rt, lt, face)
 
   debugDrawer:drawTextAdvanced(
-    vec3(cp.pos.x, cp.pos.y, top + 1.2),
+    vec3(cx, cy, top + 1.2),
     String(tostring(index)), LABEL, true, false, bg)
 end
 

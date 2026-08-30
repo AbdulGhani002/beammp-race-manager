@@ -32,7 +32,7 @@ line, not across it.
 | **Mark here** | drop a gate where the car is standing |
 | **Undo last** | remove the gate you just placed |
 | **Set start line** | put the grid where the car is standing |
-| **Gate size** | width, height and depth in metres. A gate on a corner is drawn and scored wider than this: crossed off square it would otherwise be a narrower hole than its width says, so it is divided by the cosine of the turn, up to twice. Straights are left alone. |
+| **Gate size** | width, height and depth in metres. On screen the gate can be wider than this and sit to one side of the marked point: a gate is marked from wherever the capture car was driving, so each side is measured out to the first wall or bank and the gate is slid and widened to span the whole gap, up to fifty metres. What is drawn is what is scored. |
 | **Save course** | finish and write it |
 | **Throw it away** | discard the whole draft |
 

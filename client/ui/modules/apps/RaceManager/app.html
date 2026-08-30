@@ -387,7 +387,7 @@
     <!-- bottom bar. every one of these needs the car stopped. -->
     <div class="rm-bottom">
       <div class="rm-lightmenu" ng-if="s.lights">
-        <button ng-repeat="l in lightItems" ng-click="lightPick(l)">{{ l }}</button>
+        <button ng-repeat="l in lightItems" ng-click="lightPick(l)">{{ l.label }}</button>
       </div>
       <button ng-repeat="b in bottom" ng-click="bottomClick(b)"
               ng-disabled="b.key !== 'lights' && (!stopped() || holding())"

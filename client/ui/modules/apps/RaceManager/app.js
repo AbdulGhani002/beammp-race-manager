@@ -344,11 +344,20 @@ angular.module("beamng.apps")
         return gone < 0 ? 0 : (gone > 100 ? 100 : Math.round(gone));
       };
 
-      $scope.lightItems = ["Headlights", "Lightbar", "Fog lights", "Siren", "Hazards", "Horn", "Flash"];
+      $scope.lightItems = [
+        { key: "headlights", label: "Headlights" },
+        { key: "lightbar",   label: "Lightbar" },
+        { key: "fog",        label: "Fog lights" },
+        { key: "siren",      label: "Siren" },
+        { key: "hazards",    label: "Hazards" },
+        { key: "horn",       label: "Horn" },
+        { key: "flash",      label: "Flash" }
+      ];
 
-      $scope.lightPick = function (which) {
-        call("raceManager_state", "notice", which + ": arrives in phase 3");
-        ui("closeLights");
+      // the menu stays open: lights get flicked in pairs, and the scrim or
+      // Escape is how it goes away
+      $scope.lightPick = function (l) {
+        call("raceManager_bottombar", "light", l.key);
       };
 
       $scope.closeLights = function () { ui("closeLights"); };
