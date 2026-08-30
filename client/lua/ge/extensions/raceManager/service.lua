@@ -101,8 +101,12 @@ local function freeze(v, on)
   pcall(function() core_vehicleBridge.executeAction(v, "setFreeze", on and true or false) end)
 end
 
+-- beamstate.reset() was the wrong call: it only calls the vehicle's own init()
+-- and clears the low pressure flag, so the bookkeeping was reset and the bent
+-- metal stayed bent. This is what the reset key ends up calling, by way of
+-- resetGameplay and freeroam.
 local function repairAll(v)
-  return pcall(function() v:queueLuaCommand("beamstate.reset()") end)
+  return pcall(function() be:resetVehicle(0) end)
 end
 
 local function addFuel(v)
@@ -133,15 +137,29 @@ local function putBack(v)
   local n = #track.checkpoints
   if n == 0 then return false end
 
-  local i = (tonumber(race.next) or 1) - 1
-  if i < 1 then i = n end
-  local cp = track.checkpoints[i]
+  -- Before the line is crossed there is no gate behind you. Counting back from
+  -- the next one lands on the last gate of the course, which is the far end of
+  -- the lap, so a reposition on the grid threw you across the map.
+  local cp
+  if race.state == "running" then
+    local i = (tonumber(race.next) or 1) - 1
+    if i < 1 then i = n end
+    cp = track.checkpoints[i]
+  else
+    cp = track.start or track.checkpoints[1]
+  end
   if not cp or not cp.pos then return false end
 
   local yaw = tonumber(cp.yaw) or 0
   local dir = vec3(math.cos(yaw), math.sin(yaw), 0)
+
+  -- The eighth argument is resetVehicle and it defaults to true, which mends
+  -- the flex mesh and puts every node back where it started. So a reposition
+  -- was quietly a free repair, and there was no reason to ever press Repair.
+  -- False moves the car and leaves the damage on it.
   return pcall(function()
-    spawn.safeTeleport(v, vec3(cp.pos.x, cp.pos.y, cp.pos.z), quatFromDir(dir, vec3(0, 0, 1)))
+    spawn.safeTeleport(v, vec3(cp.pos.x, cp.pos.y, cp.pos.z),
+      quatFromDir(dir, vec3(0, 0, 1)), nil, nil, nil, nil, false)
   end)
 end
 
