@@ -210,8 +210,7 @@ angular.module("beamng.apps")
         records: "Records arrive in phase 5.",
         copilot: "CoPilot and Chase arrive in phase 6.",
         challenges: "Challenges arrive in phase 6.",
-        team: "Team arrives in phase 4.",
-        bottom: "The bottom bar buttons become live in phase 3."
+        team: "Team arrives in phase 4."
       };
 
       $scope.buttons = [

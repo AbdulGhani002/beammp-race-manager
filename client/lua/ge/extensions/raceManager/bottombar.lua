@@ -1,9 +1,9 @@
 local M = {}
 
--- The bottom bar, reachable from a key as well as the button. What each one
--- does lands in phase 3 with the holds and the penalties. The binding, the
--- stopped check and the wiring are here now so the keys are already in muscle
--- memory by then, and so nobody has to rebind anything later.
+-- The bottom bar, reachable from a key as well as the button. Each one asks
+-- the server, which decides whether it is allowed, holds the car for as long
+-- as the job takes and charges the penalty. The lights are the exception: they
+-- are instant, free, and handled here rather than round tripped.
 
 local MPS_TO_MPH = 2.2369363
 local STOPPED_MPH = 1.0

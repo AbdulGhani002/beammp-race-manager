@@ -185,7 +185,7 @@
                 && panel !== 'discord' && panel !== 'race'">
       <button class="rm-x" ng-click="close()">close</button>
       <h2>{{ panel === 'bottom' ? 'Recovery' : (buttons | filter:{key: panel})[0].label }}</h2>
-      <p class="rm-soon">{{ panel === 'bottom' ? SOON.bottom : SOON[panel] }}</p>
+      <p class="rm-soon">{{ SOON[panel] }}</p>
       <p class="rm-hint">The button is here so the layout is final. What sits behind it is not built yet.</p>
     </div>
 
