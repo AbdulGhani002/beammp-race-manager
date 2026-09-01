@@ -1,0 +1,251 @@
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage[margin=22mm]{geometry}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{longtable}
+\usepackage{enumitem}
+\usepackage{titlesec}
+\usepackage{fancyhdr}
+\usepackage{listings}
+\usepackage[hidelinks]{hyperref}
+
+\pagestyle{fancy}
+\fancyhf{}
+\lhead{\small BeamMP Race Manager}
+\rhead{\small Phases 3, 4 and 5}
+\cfoot{\small \thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+
+\titleformat{\section}{\large\bfseries}{\thesection}{0.6em}{}
+\titlespacing{\section}{0pt}{14pt}{6pt}
+
+\setlist[itemize]{leftmargin=*,itemsep=2pt,topsep=4pt}
+\setlist[enumerate]{leftmargin=*,itemsep=2pt,topsep=4pt}
+\setlength{\parskip}{6pt}
+\setlength{\parindent}{0pt}
+
+\lstset{
+  basicstyle=\ttfamily\scriptsize,
+  frame=single,
+  framesep=5pt,
+  columns=fullflexible,
+  keepspaces=true,
+  breaklines=true,
+  showstringspaces=false,
+  xleftmargin=0pt,
+  aboveskip=8pt,
+  belowskip=8pt,
+}
+
+\newcommand{\code}[1]{\texttt{\small #1}}
+
+\begin{document}
+
+\begin{center}
+{\LARGE\bfseries Phases 3, 4 and 5: what was built}\\[4pt]
+{\small BeamMP Race Manager \quad Client: dhardesty99}
+\end{center}
+
+\vspace{4pt}
+\hrule
+\vspace{8pt}
+
+All three phases are on the server. This is what each one does, what changed
+after your testing, and the few things the game itself will not allow.
+
+\section{Phase 3: the bottom bar}
+
+The five buttons work. The server decides whether you may press one, holds the
+car still for as long as the job takes, and adds the penalty. The game does the
+work.
+
+\begin{longtable}{@{}p{24mm}p{12mm}p{16mm}>{\raggedright\arraybackslash}p{70mm}@{}}
+\toprule
+\textbf{Button} & \textbf{Hold} & \textbf{Penalty} & \textbf{What it does} \\
+\midrule
+\endhead
+Reposition & 5s & 60s  & Back on its wheels where it stands. The damage stays. \\
+Spare tire & 30s & 30s & Air back into the flat tires, in place. See section 2. \\
+Repair     & 60s & 30s & The whole car rebuilt, in place. \\
+Fuel +25\% & 20s & none & A quarter of a tank. \\
+Lights     & none & none & Headlights, fog, hazards, lightbar, siren, horn, flash. \\
+\bottomrule
+\end{longtable}
+
+The penalty lands when the hold starts, not when it ends, so quitting half way
+through buys nothing. A job the game cannot do gives the seconds back. Outside
+a run everything is instant and free. Every number lives on the server and can
+change without anyone reinstalling.
+
+After your testing, three behaviours were corrected: nothing teleports any
+more. Reposition rights the car where it is and repairs nothing. Repair fixes
+the car where it is. Both go through the game's own safe placement, so a car
+against a wall is set down beside it rather than inside it.
+
+\section{The spare tire, honestly}
+
+You had seen a tire fixed without a full reset, and you were right. The game
+cannot mend a tire, but it can put air back in, because that is what its own
+onboard air compressors do. So Spare tire now refills every flat tire in place
+and clears the flat, touching nothing else.
+
+The limit: a tire that is shredded or on a broken wheel will not come back
+from air. In that case the button falls back to the full repair and tells you
+so. Nearly every racing flat is the recoverable kind.
+
+\section{Phase 4: races you make and join}
+
+The touchy motion start is gone. A race is a thing you make, and others join.
+
+\begin{enumerate}
+  \item Pick a course, laps and mode, and make the race \textbf{public} or
+        \textbf{invite only}, choosing people from the player list.
+  \item Everyone who joins is placed on the grid. Nothing is armed. The start
+        line does nothing, however many times it is crossed.
+  \item The host presses \textbf{Start Race}. Only then does the line go live.
+  \item Each driver's clock starts when they cross it, so the timing stays
+        exact for everyone even if they roll off a second apart.
+\end{enumerate}
+
+Only the host can start it. A race that has started refuses late joiners. If
+the host leaves before starting, the race passes to whoever joined first
+rather than dying. One race per course, different courses at the same time are
+fine, and solo practice works exactly as before.
+
+\section{Phase 4: the pit and the speed zones}
+
+A checkpoint can be marked as a \textbf{pit} when a course is built. It is not
+part of the lap, it is drawn in its own colour, and while you are inside it:
+
+\begin{itemize}
+  \item Fuel fills to 100\% instead of a quarter.
+  \item Repair and Spare tire add nothing to your race time.
+  \item The holds still run in full, and the clock is still going. A stop
+        costs the time it takes and nothing on top.
+\end{itemize}
+
+\textbf{Speed zones} are the 37 mph idea, between any two checkpoints you
+pick. A zone is a start gate, an end gate and a limit, and a course can have
+as many as needed. The server reads the speeds it already collects, so
+nothing is trusted to a driver's own game. Going over draws a warning first;
+the 30 second penalty lands only after three seconds over, so one bump over a
+crest is free, and it will not charge twice until you have dropped back under.
+
+\section{Phase 5: the record books}
+
+Every course keeps a book per mode. The Records button shows them.
+
+\begin{itemize}
+  \item Each driver's best corrected run, fastest first, with when it was set.
+  \item The fastest clean lap anyone has driven, held separately.
+  \item Your own position when you are outside the top ten.
+  \item Controller and wheel are separate books, as agreed in phase 2.
+\end{itemize}
+
+The moment a race finishes, the run goes into the books before the results go
+out, so the results screen hangs the badge on the row it belongs to:
+\textbf{course record} or \textbf{personal best}. The books live on disk and
+survive restarts.
+
+What never makes the books: a run the server marked as suspect, because its
+clock could not be vouched for, and any lap with a cut checkpoint in it,
+which was already refused a best lap by the results.
+
+\section{Fixed along the way}
+
+The recordings you sent found real bugs, and each one led somewhere useful.
+
+\begin{longtable}{@{}>{\raggedright\arraybackslash}p{78mm}>{\raggedright\arraybackslash}p{80mm}@{}}
+\toprule
+\textbf{What you saw} & \textbf{What it was} \\
+\midrule
+\endhead
+Checkpoints only counted near the middle of the road.
+& A gate is centred on wherever the capture car drove. Gates now measure the
+  track to each side and slide to span the whole lane. \\
+\addlinespace
+Some checkpoints floated and cars passed under them.
+& The volume was centred on its base. It now stands from just below the
+  ground to its full height. \\
+\addlinespace
+Missing one checkpoint froze the ones after it.
+& Several causes, all gone: the volume was a slot along the road instead of a
+  gate across it, and a run that skipped too many gates was refused forever. \\
+\addlinespace
+The clock read 4:60.0.
+& The minutes were split off before the rounding. \\
+\addlinespace
+Repair teleported the car across the map.
+& A bare engine reset means "back to spawn". Both movers now place the car
+  exactly where it stands. \\
+\addlinespace
+The clock jumped backwards thirty seconds.
+& A checkpoint charged as cut had been reached after all, and the penalty
+  came back off. Correct, but silent; it now says so on screen. \\
+\addlinespace
+The light menu would not close, and popups sat around.
+& Everything closes on a click elsewhere or Escape, and messages run a ten
+  second line and go. \\
+\bottomrule
+\end{longtable}
+
+\section{The numbers}
+
+\begin{longtable}{@{}p{60mm}p{30mm}@{}}
+\toprule
+\textbf{Suite} & \textbf{Tests} \\
+\midrule
+\endhead
+Gate geometry            & 12 \\
+Course capture and shape & 31 \\
+Phase 1, identity        & 91 \\
+Phase 2, racing          & 131 \\
+Phase 3, the bottom bar  & 50 \\
+Phase 4, lobby, pit, zones & 56 \\
+Phase 5, the books       & 31 \\
+Results                  & 103 \\
+The clock and lap bar    & 26 \\
+\midrule
+Total                    & 531 \\
+\bottomrule
+\end{longtable}
+
+Plus 146 interface checks and 10 key bindings that fail the build when the
+screen and the code stop agreeing. The books, the bar and the lobby were also
+tested by breaking them on purpose: charging at the wrong end, letting marked
+runs into the books, losing the store. Every sabotage was caught, which is
+what says the numbers above mean something.
+
+\section{What the game will not allow}
+
+Written down so nobody goes looking for a setting that does not exist.
+
+\begin{itemize}
+  \item One tire cannot be mended by itself. Air can be put back, which
+        covers punctures; a shredded tire needs the full repair.
+  \item A car cannot be frozen for one player only in a way other players do
+        not see. The hold freezes the car for everyone, which is correct for
+        a race anyway.
+\end{itemize}
+
+\section{Still open}
+
+\begin{itemize}
+  \item The tire shop sound for the spare. It needs a sound file from you, or
+        I use one of the game's.
+  \item The look of the interface, which you asked about. It is a separate
+        job and can start whenever you like.
+  \item CoPilot and Challenges are phase 6.
+\end{itemize}
+
+\vspace{10pt}
+\hrule
+\vspace{6pt}
+
+{\small All of the above is deployed. The books start empty, so the first
+finished race on each course sets its first record.}
+
+\end{document}

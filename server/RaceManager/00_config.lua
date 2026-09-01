@@ -1,6 +1,6 @@
 RM = RM or {}
 
-RM.VERSION = "0.4.0-phase4"
+RM.VERSION = "0.5.0-phase5"
 
 RM.config = {
   nameMinLen  = 3,
