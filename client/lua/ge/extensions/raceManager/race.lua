@@ -231,6 +231,12 @@ local function onSplit(d)
       d.missed == 1 and "Missed a checkpoint" or ("Missed " .. d.missed .. " checkpoints"))
   end
 
+  -- without this the clock stepping back thirty seconds reads as a bug
+  if d.refunded then
+    extensions.raceManager_state.notice(
+      ("Checkpoint %s counted after all, penalty given back"):format(tostring(d.gate)))
+  end
+
   push()
 end
 

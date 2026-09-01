@@ -209,8 +209,7 @@ angular.module("beamng.apps")
       $scope.SOON = {
         records: "Records arrive in phase 5.",
         copilot: "CoPilot and Chase arrive in phase 6.",
-        challenges: "Challenges arrive in phase 6.",
-        team: "Team arrives in phase 4."
+        challenges: "Challenges arrive in phase 6."
       };
 
       $scope.buttons = [
@@ -218,13 +217,62 @@ angular.module("beamng.apps")
         { key: "records",    label: "Records" },
         { key: "copilot",    label: "CoPilot" },
         { key: "challenges", label: "Challenges" },
-        { key: "team",       label: "Team" },
         { key: "options",    label: "Options" },
         { key: "discord",    label: "Discord" }
       ];
 
       $scope.open = function (key) {
         $scope.panel = ($scope.panel === key) ? null : key;
+        if ($scope.panel === "records") {
+          var id = $scope.recPick.track ||
+                   ($scope.s.tracks[0] && $scope.s.tracks[0].id);
+          if (id) $scope.recordsFor(id);
+        }
+      };
+
+      // ------------------------------------------------------------ records
+
+      $scope.recPick = { track: null };
+
+      $scope.recordsFor = function (id) {
+        $scope.recPick.track = id;
+        ui("getRecords", id);
+      };
+
+      $scope.recordsReady = function () {
+        var r = $scope.s.records;
+        return !!(r && r.id === $scope.recPick.track);
+      };
+
+      var MODE_LABEL = { controller: "Controller", wheel: "Wheel" };
+
+      $scope.recordModes = function () {
+        var r = $scope.s.records;
+        if (!r || !r.modes) return [];
+        var out = [];
+        for (var k in r.modes) {
+          if (Object.prototype.hasOwnProperty.call(r.modes, k)) {
+            out.push({ key: k, label: MODE_LABEL[k] || k, board: r.modes[k] });
+          }
+        }
+        out.sort(function (a, b) { return a.key < b.key ? -1 : 1; });
+        return out;
+      };
+
+      $scope.recordsAny = function () {
+        return $scope.recordModes().length > 0;
+      };
+
+      // whole days are enough for a record book
+      $scope.ago = function (at) {
+        if (!at) return "";
+        var days = Math.floor((Date.now() / 1000 - at) / 86400);
+        if (days <= 0) return "today";
+        if (days === 1) return "yesterday";
+        if (days < 30) return days + "d ago";
+        var months = Math.floor(days / 30);
+        if (months < 12) return months + "mo ago";
+        return Math.floor(months / 12) + "y ago";
       };
 
       // the game is fullscreen and keeps focus, so a browser opened from here

@@ -810,3 +810,43 @@
 .rm-sector .rm-time { color: var(--rm-text); }
 
 .rm-dnf { border-bottom: 1px solid var(--rm-line); }
+
+/* the record books */
+.rm-records { width: 460px; }
+
+.rm-recboard { margin-top: 14px; }
+.rm-recboard h3 { font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--rm-dim); }
+
+.rm-rec-head, .rm-rec-row {
+  display: grid;
+  grid-template-columns: 28px 1fr 90px 70px;
+  gap: 8px;
+  padding: 5px 8px;
+  align-items: baseline;
+}
+
+.rm-rec-head {
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--rm-dim);
+  border-bottom: 1px solid var(--rm-line);
+}
+
+.rm-rec-row { border-bottom: 1px solid rgba(255, 255, 255, 0.04); font-size: 13px; }
+.rm-rec-row.me { background: rgba(200, 60, 60, 0.12); }
+.rm-rec-row .rm-rtime { font-variant-numeric: tabular-nums; text-align: right; }
+.rm-rec-row .rm-rwhen { color: var(--rm-dim); font-size: 11px; text-align: right; }
+
+/* the badge a fresh record wears on the results screen */
+.rm-rec-chip {
+  margin-left: 8px;
+  padding: 1px 7px;
+  border-radius: 3px;
+  font-size: 10px;
+  font-style: normal;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  background: var(--rm-red);
+  color: #fff;
+}

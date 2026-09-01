@@ -179,6 +179,17 @@ local function close(trackId)
   end
 
   local payload = build(trackId, h)
+
+  -- the books first, so the badge rides on the row it belongs to
+  for i = 1, #payload.finished do
+    local e = payload.finished[i]
+    local got = RM.records and RM.records.submit(trackId, e)
+    if got then
+      e.record = got.track and "track" or (got.personal and "personal" or nil)
+      e.lapRecord = got.lap and true or nil
+    end
+  end
+
   local sent = send(h, payload)
   heats[trackId] = nil
 

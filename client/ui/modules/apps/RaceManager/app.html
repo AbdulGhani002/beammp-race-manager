@@ -227,9 +227,60 @@
       </div>
     </div>
 
+    <!-- the books. best run per driver per course, and the fastest clean lap. -->
+    <div class="rm-card rm-panel rm-records" rm-drag="records" ng-if="panel === 'records'">
+      <button class="rm-x" ng-click="close()">close</button>
+      <h2>Records</h2>
+
+      <div class="rm-empty" ng-if="!s.tracks.length">
+        No course is saved yet, so there is nothing to hold a record on.
+      </div>
+
+      <div ng-if="s.tracks.length">
+        <div class="rm-picklist">
+          <button ng-repeat="t in s.tracks" ng-click="recordsFor(t.id)"
+                  ng-class="{on: recPick.track === t.id}">
+            <span class="rm-pick-name">{{ t.name }}</span>
+          </button>
+        </div>
+
+        <div ng-if="recordsReady()">
+          <div class="rm-empty" ng-if="!recordsAny()">
+            Nobody has finished a race here yet. The first one to do it owns
+            the board.
+          </div>
+
+          <div class="rm-recboard" ng-repeat="m in recordModes()">
+            <h3>{{ m.label }}</h3>
+
+            <div class="rm-best" ng-if="m.board.lap">
+              Best lap <strong>{{ clock(m.board.lap.time) }}</strong>
+              by {{ m.board.lap.name }} &middot; {{ ago(m.board.lap.at) }}
+            </div>
+
+            <div class="rm-rec-head">
+              <span>#</span><span>Driver</span><span>Time</span><span>When</span>
+            </div>
+            <div class="rm-rec-row" ng-repeat="r in m.board.top"
+                 ng-class="{me: r.me}">
+              <span class="rm-pos">{{ r.pos }}</span>
+              <span class="rm-rname">{{ r.name }}</span>
+              <span class="rm-rtime">{{ clock(r.corrected) }}</span>
+              <span class="rm-rwhen">{{ ago(r.at) }}</span>
+            </div>
+
+            <p class="rm-hint" ng-if="m.board.mine && m.board.mine.pos > m.board.top.length">
+              You sit {{ m.board.mine.pos }} of {{ m.board.total }} at
+              {{ clock(m.board.mine.corrected) }}.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <div class="rm-card rm-panel" rm-drag="info"
          ng-if="panel && panel !== 'options' && panel !== 'capture'
-                && panel !== 'discord' && panel !== 'race'">
+                && panel !== 'discord' && panel !== 'race' && panel !== 'records'">
       <button class="rm-x" ng-click="close()">close</button>
       <h2>{{ panel === 'bottom' ? 'Recovery' : (buttons | filter:{key: panel})[0].label }}</h2>
       <p class="rm-soon">{{ SOON[panel] }}</p>
@@ -477,7 +528,9 @@
                ng-class="{open: opened === e.name, me: e.name === s.me.name}">
             <span class="rm-pos">{{ e.pos }}</span>
             <span class="rm-rname">{{ e.name }}<em ng-if="e.suspect"
-              title="The clock could not vouch for part of this run">marked</em></span>
+              title="The clock could not vouch for part of this run">marked</em><em
+              class="rm-rec-chip" ng-if="e.record === 'track'">course record</em><em
+              class="rm-rec-chip" ng-if="e.record === 'personal'">personal best</em></span>
             <span class="rm-time">{{ clock(e.corrected) }}</span>
             <span class="rm-pen-col" ng-class="{clean: !penaltySeconds(e)}"
                   title="{{ e.penalties.length }} penalt{{ e.penalties.length === 1 ? 'y' : 'ies' }}">{{

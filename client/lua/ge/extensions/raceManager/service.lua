@@ -101,18 +101,6 @@ local function freeze(v, on)
   pcall(function() core_vehicleBridge.executeAction(v, "setFreeze", on and true or false) end)
 end
 
--- Repair where the car stands. be:resetVehicle put it back at the last place it
--- was stopped, which is the recovery behaviour and not what a repair should do.
--- This pair is the game's own recipe, lifted from recovery.loadHome: the engine
--- reset fixes the physics and kills the velocity, and the flex mesh call puts
--- the bent panels back.
-local function repairAll(v)
-  return pcall(function()
-    v:queueLuaCommand("obj:requestReset(RESET_PHYSICS)")
-    v:resetBrokenFlexMesh()
-  end)
-end
-
 -- a quarter of a tank on the road, the whole tank in the pit
 local function addFuel(v, full)
   local share = full and 1.0 or FUEL_STEP
@@ -132,10 +120,6 @@ local function addFuel(v, full)
   end)
 end
 
--- On its wheels where it stands. No reset, so the damage stays on it, and no
--- course lookup either: there is nothing to drive back to, which is what he
--- asked for. The heading is flattened so it lands level rather than nose down,
--- and it is lifted a little so it does not come back inside the dirt.
 local UPRIGHT_LIFT = 0.6
 
 local function atan2(y, x)
@@ -143,20 +127,33 @@ local function atan2(y, x)
   return math.atan(y, x)
 end
 
-local function putBack(v)
+-- Both buttons put the car down where it already stands, through the game's
+-- own teleport so it lands somewhere sane. The mend flag is the whole
+-- difference: on, the car is rebuilt on the way down; off, the damage comes
+-- with it. The engine reset tried before snapped the car back to where it
+-- first spawned, because that is what a bare reset means to the engine, and
+-- everywhere the game uses one it teleports straight after.
+local function placeHere(v, mend)
   local okPos, pos = pcall(function() return v:getPosition() end)
   if not okPos or not pos then return false end
 
   local yaw = 0
   local okDir, dir = pcall(function() return v:getDirectionVector() end)
   if okDir and dir then yaw = atan2(dir.y, dir.x) end
-
   local fwd = vec3(math.cos(yaw), math.sin(yaw), 0)
-  local rot = quatFromDir(fwd, vec3(0, 0, 1))
 
   return pcall(function()
-    v:setPositionRotation(pos.x, pos.y, pos.z + UPRIGHT_LIFT, rot.x, rot.y, rot.z, rot.w)
+    spawn.safeTeleport(v, vec3(pos.x, pos.y, pos.z + UPRIGHT_LIFT),
+      quatFromDir(fwd, vec3(0, 0, 1)), nil, nil, nil, nil, mend and true or false)
   end)
+end
+
+local function putBack(v)
+  return placeHere(v, false)
+end
+
+local function repairAll(v)
+  return placeHere(v, true)
 end
 
 -- The tire fix. Air back into every flat and the flat flag cleared, which is

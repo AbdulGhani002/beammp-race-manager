@@ -360,6 +360,12 @@ local function wireChannels()
     end
   end)
 
+  RM.bus.on("records.get", function(pid, d)
+    local id = type(d) == "table" and (d.id or "") or (d or "")
+    local s = RM.identity.session(pid)
+    RM.bus.queue(pid, "records.data", RM.records.wire(id, s and s.key or nil))
+  end)
+
   -- the FPS baseline every later delivery is measured against
   RM.bus.on("perf", function(pid, d)
     if type(d) ~= "table" then return end

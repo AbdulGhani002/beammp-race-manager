@@ -54,6 +54,7 @@ local function build()
   snap.perf = extensions.raceManager_perf.status()
   snap.race = extensions.raceManager_race.status()
   snap.service = extensions.raceManager_service.status()
+  snap.records = S.records
 
   return snap
 end
@@ -170,6 +171,10 @@ function M.exitServer()
   if not ok then
     pcall(function() returnToMainMenu() end)
   end
+end
+
+function M.getRecords(id)
+  extensions.raceManager_net.send("records.get", { id = tostring(id or "") })
 end
 
 function M.clearToast()

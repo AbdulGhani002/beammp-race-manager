@@ -173,6 +173,11 @@ local function onToast(d)
   changed()
 end
 
+local function onRecords(d)
+  S.records = type(d) == "table" and d or nil
+  changed()
+end
+
 local function onCaptureResult(d)
   extensions.raceManager_capture.onResult(d)
 end
@@ -197,6 +202,7 @@ local function onExtensionLoaded()
   net.on("me",             onMe)
   net.on("toast",          onToast)
   net.on("capture.result", onCaptureResult)
+  net.on("records.data",   onRecords)
   net.on("options.result", onOptionsResult)
 end
 

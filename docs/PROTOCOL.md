@@ -54,6 +54,7 @@ the list of messages. `c` is the channel, `d` is whatever that channel carries.
 | `track.pit` | `{pos,yaw,w,h,d}` | mark a pit on the draft |
 | `track.pitundo` | none | remove the last pit |
 | `track.zones` | `{id,zones:[{from,to,mph}]}` | admin only. replace the speed zones on a course. |
+| `records.get` | `{id}` | ask for a course's record book |
 | `perf` | `{label,seconds,frames,avg,min,max,p1low}` | an FPS run |
 
 ## Server to client
@@ -83,6 +84,7 @@ the list of messages. `c` is the channel, `d` is whatever that channel carries.
 | `service.failed` | `{which,why}` | it was refused, or the game could not do it |
 | `race.lobbies` | list of `{id,track,name,host,laps,open,drivers}` | the open races, sent to everyone when they change |
 | `race.lobby` | `{id,track,name,laps,mode,open,host,members}` or nothing | the race you are in. nothing means you left it or it started. |
+| `records.data` | `{id,modes}` | the book: per mode the top runs, the lap record, and where the asker sits |
 | `zone.warn` | `{charged,zone:{mph,from,to}}` | over the limit in a speed zone. `charged` false is the warning, true is the thirty seconds. |
 
 
