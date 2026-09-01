@@ -101,12 +101,16 @@ local function freeze(v, on)
   pcall(function() core_vehicleBridge.executeAction(v, "setFreeze", on and true or false) end)
 end
 
--- beamstate.reset() was the wrong call: it only calls the vehicle's own init()
--- and clears the low pressure flag, so the bookkeeping was reset and the bent
--- metal stayed bent. This is what the reset key ends up calling, by way of
--- resetGameplay and freeroam.
+-- Repair where the car stands. be:resetVehicle put it back at the last place it
+-- was stopped, which is the recovery behaviour and not what a repair should do.
+-- This pair is the game's own recipe, lifted from recovery.loadHome: the engine
+-- reset fixes the physics and kills the velocity, and the flex mesh call puts
+-- the bent panels back.
 local function repairAll(v)
-  return pcall(function() be:resetVehicle(0) end)
+  return pcall(function()
+    v:queueLuaCommand("obj:requestReset(RESET_PHYSICS)")
+    v:resetBrokenFlexMesh()
+  end)
 end
 
 local function addFuel(v)
@@ -126,40 +130,30 @@ local function addFuel(v)
   end)
 end
 
--- back on the course at the last gate that counted, facing the way it faces,
--- which is the same call that puts you on the grid
+-- On its wheels where it stands. No reset, so the damage stays on it, and no
+-- course lookup either: there is nothing to drive back to, which is what he
+-- asked for. The heading is flattened so it lands level rather than nose down,
+-- and it is lifted a little so it does not come back inside the dirt.
+local UPRIGHT_LIFT = 0.6
+
+local function atan2(y, x)
+  if math.atan2 then return math.atan2(y, x) end
+  return math.atan(y, x)
+end
+
 local function putBack(v)
-  local S = extensions.raceManager_state.get()
-  local track = S and S.track
-  local race = extensions.raceManager_race.status()
-  if type(track) ~= "table" or type(track.checkpoints) ~= "table" then return false end
+  local okPos, pos = pcall(function() return v:getPosition() end)
+  if not okPos or not pos then return false end
 
-  local n = #track.checkpoints
-  if n == 0 then return false end
+  local yaw = 0
+  local okDir, dir = pcall(function() return v:getDirectionVector() end)
+  if okDir and dir then yaw = atan2(dir.y, dir.x) end
 
-  -- Before the line is crossed there is no gate behind you. Counting back from
-  -- the next one lands on the last gate of the course, which is the far end of
-  -- the lap, so a reposition on the grid threw you across the map.
-  local cp
-  if race.state == "running" then
-    local i = (tonumber(race.next) or 1) - 1
-    if i < 1 then i = n end
-    cp = track.checkpoints[i]
-  else
-    cp = track.start or track.checkpoints[1]
-  end
-  if not cp or not cp.pos then return false end
+  local fwd = vec3(math.cos(yaw), math.sin(yaw), 0)
+  local rot = quatFromDir(fwd, vec3(0, 0, 1))
 
-  local yaw = tonumber(cp.yaw) or 0
-  local dir = vec3(math.cos(yaw), math.sin(yaw), 0)
-
-  -- The eighth argument is resetVehicle and it defaults to true, which mends
-  -- the flex mesh and puts every node back where it started. So a reposition
-  -- was quietly a free repair, and there was no reason to ever press Repair.
-  -- False moves the car and leaves the damage on it.
   return pcall(function()
-    spawn.safeTeleport(v, vec3(cp.pos.x, cp.pos.y, cp.pos.z),
-      quatFromDir(dir, vec3(0, 0, 1)), nil, nil, nil, nil, false)
+    v:setPositionRotation(pos.x, pos.y, pos.z + UPRIGHT_LIFT, rot.x, rot.y, rot.z, rot.w)
   end)
 end
 
@@ -177,7 +171,7 @@ local function doJob(which)
   end
   if which == "reposition" then
     local ok = putBack(v)
-    return ok, (not ok) and "nowhere_to_put_it" or nil
+    return ok, (not ok) and "no_vehicle" or nil
   end
   return false, "no_such_action"
 end
@@ -224,7 +218,6 @@ local WHY = {
   no_vehicle      = "Get in a car first",
   no_tank         = "Nothing on this car takes fuel",
   repair_failed   = "The car could not be reset",
-  nowhere_to_put_it = "No checkpoint to go back to",
 }
 
 local function onFailed(d)
