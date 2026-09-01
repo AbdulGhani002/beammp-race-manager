@@ -1,0 +1,335 @@
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage[margin=22mm]{geometry}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{longtable}
+\usepackage{enumitem}
+\usepackage{titlesec}
+\usepackage{fancyhdr}
+\usepackage{listings}
+\usepackage[hidelinks]{hyperref}
+
+\pagestyle{fancy}
+\fancyhf{}
+\lhead{\small BeamMP Race Manager}
+\rhead{\small Phase 3 result and phase 4 plan}
+\cfoot{\small \thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+
+\titleformat{\section}{\large\bfseries}{\thesection}{0.6em}{}
+\titlespacing{\section}{0pt}{14pt}{6pt}
+
+\setlist[itemize]{leftmargin=*,itemsep=2pt,topsep=4pt}
+\setlist[enumerate]{leftmargin=*,itemsep=2pt,topsep=4pt}
+\setlength{\parskip}{6pt}
+\setlength{\parindent}{0pt}
+
+\lstset{
+  basicstyle=\ttfamily\scriptsize,
+  frame=single,
+  framesep=5pt,
+  columns=fullflexible,
+  keepspaces=true,
+  breaklines=true,
+  showstringspaces=false,
+  xleftmargin=0pt,
+  aboveskip=8pt,
+  belowskip=8pt,
+}
+
+\newcommand{\code}[1]{\texttt{\small #1}}
+
+\begin{document}
+
+\begin{center}
+{\LARGE\bfseries Phase 3 is done, and what phase 4 is}\\[4pt]
+{\small BeamMP Race Manager \quad Client: dhardesty99}
+\end{center}
+
+\vspace{4pt}
+\hrule
+\vspace{8pt}
+
+Phase 3 is finished, including the three changes you asked for after testing.
+One thing you asked for cannot be done, and section 4 says why in full.
+
+Phase 4 was going to be racing together on one grid. Your two new ideas, the
+pit checkpoint and starting a race properly, belong in it, so they are in here
+as part of the same phase.
+
+\section{What the bottom bar does now}
+
+\begin{longtable}{@{}p{24mm}p{12mm}p{16mm}p{72mm}@{}}
+\toprule
+\textbf{Button} & \textbf{Hold} & \textbf{Penalty} & \textbf{What it does} \\
+\midrule
+\endhead
+Reposition & 5s & 60s  & Puts the car back on its wheels where it stands. \\
+Spare tire & 30s & 30s & Fixes the car where it stands. Only when a tire is flat. \\
+Repair     & 60s & 30s & Fixes the car where it stands. \\
+Fuel +25\% & 20s & none & Adds a quarter of a tank. \\
+Lights     & none & none & Head lights, fog, hazards, lightbar, siren, horn, flash. \\
+\bottomrule
+\end{longtable}
+
+\textbf{Hold} is how long the car is held still. \textbf{Penalty} is seconds
+added to your race time. The clock keeps running during a hold, so a repair in
+a race costs a minute of waiting and thirty seconds on the time.
+
+Outside a run there is no hold and no penalty. The buttons just work. This is
+worth knowing when you test: on the grid, before you cross the line, you are
+still outside the run, so everything is instant and free.
+
+Every number lives on the server and can change without anyone reinstalling
+the mod.
+
+\section{The three things you found}
+
+All three were the same mistake. Each one moved the car.
+
+\begin{longtable}{@{}p{26mm}p{58mm}p{58mm}@{}}
+\toprule
+& \textbf{What was wrong} & \textbf{What it does now} \\
+\midrule
+\endhead
+Reposition
+& It teleported you to the last checkpoint, and it also repaired the car for
+  free, so there was never a reason to press Repair.
+& Sets the car back on its wheels where it stands. Nothing is repaired. No
+  checkpoint is needed. \\
+\addlinespace
+Repair
+& It put the car at the last place it had stopped.
+& Repairs where it stands. \\
+\addlinespace
+Spare tire
+& The same teleport as Repair.
+& No teleport. See section 4 for the part that cannot be fixed. \\
+\bottomrule
+\end{longtable}
+
+Reposition was repairing because of one setting. The game call that moves a car
+takes an argument that decides whether to mend it on the way, and it is on
+unless you turn it off. Repair was moving the car because it was calling the
+recovery function, which is the one that puts you back where you were last
+stopped. It uses the reset call now, which fixes the car and leaves it where it
+is.
+
+\section{The spare tire, and the one thing the game will not do}
+
+You asked for the spare tire to change only the broken tire, in place. In place
+is done. Only the broken tire cannot be.
+
+BeamNG can burst a tire and it cannot mend one. Its own code offers
+\code{deflateTire}, \code{deflateTires} and \code{deflateRandomTire}, and
+nothing that goes the other way. The only place the game clears the flat flag is
+inside a full reset of every wheel. There is no call that repairs one wheel and
+leaves the rest of the car alone, so there is nothing for me to reach for.
+
+So Spare tire fixes the whole car, like Repair does. What keeps the two buttons
+apart is that Spare tire is only allowed when a tire is actually flat. You
+cannot use it as a cheap repair, because you need a flat first.
+
+Three ways to go. My default is the first.
+
+\begin{enumerate}
+  \item Leave it. Spare tire is the cheaper repair you can only use with a flat.
+  \item Make it cost the same as Repair, so the choice is only about the wait.
+  \item Drop Spare tire and keep Repair.
+\end{enumerate}
+
+The tire shop sound is a separate thing and it is easy. It needs a sound file
+from you, or I can use one of the game's own.
+
+\section{Phase 4: racing together}
+
+Today everybody drives the same course alone and the results are collected when
+the last car is off track. Phase 4 makes it one race.
+
+\begin{itemize}
+  \item One grid. Everyone is placed in a row behind the start line.
+  \item One set of results, in finishing order, with gaps to the leader and to
+        the car in front.
+  \item Qualifying, then a race, if you want the two split up.
+  \item Somebody leaving no longer holds up everyone else.
+\end{itemize}
+
+\section{Phase 4: public and invited races}
+
+This is your idea and it replaces the part you called touchy.
+
+Right now a run arms the moment you pick a course, and the clock starts the
+first time you touch the start line. That is easy to trigger by accident.
+
+Instead, a race becomes a thing you make, and other people join.
+
+\begin{enumerate}
+  \item You pick a course, the laps and the mode, and you make a race.
+  \item You choose \textbf{public}, so anyone on the server can join, or
+        \textbf{invite}, and you pick who.
+  \item People join. Everyone who joins is put on the grid.
+  \item Nothing is armed. The line does nothing. You can sit there as long as
+        you like.
+  \item You press \textbf{Start Race}. Only then does the line become live.
+  \item Each driver's clock starts when they cross the first checkpoint.
+\end{enumerate}
+
+So the start line still starts your own time, which keeps the timing honest,
+but it does nothing at all until the host says go.
+
+\begin{lstlisting}
+local lobbies = {}
+
+function RM.lobby.create(pid, d)
+  local track = RM.tracks.get(tostring(d.track or ""))
+  if not track then return false, "no_such_track" end
+  if RM.lobby.of(pid) then return false, "already_in_one" end
+
+  local id = RM.util.shortId()
+  lobbies[id] = {
+    id      = id,
+    host    = pid,
+    track   = track.id,
+    laps    = math.floor(tonumber(d.laps) or 1),
+    mode    = tostring(d.mode or "controller"),
+    open    = d.open and true or false,
+    state   = "waiting",
+    members = { [pid] = true },
+    invited = {},
+  }
+  return true, lobbies[id]
+end
+
+function RM.lobby.start(pid)
+  local l = RM.lobby.of(pid)
+  if not l then return false, "no_lobby" end
+  if l.host ~= pid then return false, "not_the_host" end
+  if l.state ~= "waiting" then return false, "already_started" end
+
+  l.state = "armed"
+  for member in pairs(l.members) do
+    RM.race.arm(member, { id = l.track, mode = l.mode, laps = l.laps })
+    RM.bus.queue(member, "race.state", RM.race.wire(member))
+  end
+  return true, l
+end
+\end{lstlisting}
+
+\section{Phase 4: the pit checkpoint}
+
+Your other idea. A checkpoint can be marked as a pit when the course is built.
+
+A pit is not part of the lap. Driving through it does not count as a gate and
+does not skip one. What it does is put you in the pit while you are inside it.
+
+While you are in the pit:
+
+\begin{itemize}
+  \item Fuel fills to 100\% instead of adding a quarter.
+  \item Repair and Spare tire add nothing to your race time.
+  \item The holds still apply in full. A repair still costs you the minute of
+        waiting, and the clock is still running.
+\end{itemize}
+
+So a pit stop costs you the time it takes and nothing on top. That is the point
+of having one.
+
+\begin{lstlisting}
+function RM.service.use(pid, d)
+  local action = ACTIONS[tostring(d.which or "")]
+  if not action then return false, "no_such_action" end
+  if jobs[pid] then return false, "already_working" end
+
+  local r = RM.race.get(pid)
+  local racing = r ~= nil and r.state == "running"
+  local inPit = racing and r.inPit == true
+
+  local hold, cost = 0, nil
+  if racing then
+    hold = tonumber(RM.config.holds[action.hold]) or 0
+    if action.penalty and not inPit then
+      local seconds = tonumber(RM.config.penalties[action.penalty])
+      if seconds and seconds > 0 then
+        RM.race.penalty(pid, seconds, action.penalty)
+        cost = seconds
+      end
+    end
+  end
+
+  jobs[pid] = { which = action.name, hold = hold, endsAt = RM.now() + hold,
+                cost = cost, full = inPit }
+  return true, jobs[pid]
+end
+\end{lstlisting}
+
+The course builder gets one more control: mark the checkpoint you just dropped
+as a pit. Pit checkpoints are drawn in a different colour so they are obvious.
+
+\section{Order of work}
+
+\begin{enumerate}
+  \item The pit checkpoint. It is small, it is self contained, and it is
+        useful on its own.
+  \item Lobbies on the server: make, join, invite, start. All testable without
+        the game.
+  \item The race panel: a list of open races, a join button, an invite list and
+        the Start Race button.
+  \item One grid for everybody, and one set of results.
+  \item Qualifying, if you want it split from the race.
+\end{enumerate}
+
+The server side comes first every time, because most of it can be proven before
+the game is even opened. That is what worked in phases 2 and 3.
+
+\section{Questions, and what I will do if you say nothing}
+
+\begin{longtable}{@{}p{6mm}>{\raggedright\arraybackslash}p{70mm}>{\raggedright\arraybackslash}p{72mm}@{}}
+\toprule
+& \textbf{Question} & \textbf{Default if you say nothing} \\
+\midrule
+\endhead
+1 & The spare tire cannot fix only one tire. Which of the three in section 4?
+  & The first. It stays the cheaper repair that needs a flat first. \\
+\addlinespace
+2 & Can people join a race after it has started?
+  & No. Once you press Start Race the field is closed. \\
+\addlinespace
+3 & What happens to a driver who joins and then never moves?
+  & The race carries on. They are filed as a did not finish, the same as now. \\
+\addlinespace
+4 & Can there be more than one race going at once?
+  & Yes, on different courses. One race per course at a time. \\
+\addlinespace
+5 & Who can make a race public?
+  & Anybody. Invites are picked from the player list. \\
+\addlinespace
+6 & Does a pit checkpoint have to be driven through slowly?
+  & No speed rule for now. There is a 37 mph limit sitting unused in the
+    settings if you want one later. \\
+\addlinespace
+7 & Should the pit also fix a flat for free?
+  & Yes. In the pit nothing adds to your time. \\
+\addlinespace
+8 & The tire shop sound. Your file or one of the game's?
+  & One of the game's, until you send one. \\
+\bottomrule
+\end{longtable}
+
+\section{Not in phase 4}
+
+Records and personal bests are phase 5. CoPilot and Challenges are phase 6.
+
+The look of the interface is a separate job and can happen at any point, as we
+said. It does not need to wait for phase 6.
+
+\vspace{10pt}
+\hrule
+\vspace{6pt}
+
+{\small Phase 3 is on the server now. Phase 4 starts on your word, and the eight
+questions above are the only thing that would change the shape of it.}
+
+\end{document}
