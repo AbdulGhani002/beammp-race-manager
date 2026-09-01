@@ -105,10 +105,53 @@
 
       <div class="rm-problem" ng-if="s.race.problem">{{ raceProblem() }}</div>
 
-      <div ng-if="raceIdle()">
-        <p class="rm-hint">Time trial. You are put on the grid, and the clock starts
-          when you drive through the start line. Nothing you do outside a run costs
-          you anything.</p>
+      <!-- the race you are in, waiting to start -->
+      <div ng-if="raceIdle() && s.race.lobby" class="rm-lobby">
+        <div class="rm-field">{{ s.race.lobby.name }} &middot;
+          {{ s.race.lobby.laps }} lap{{ s.race.lobby.laps === 1 ? "" : "s" }} &middot;
+          {{ s.race.lobby.open ? "public" : "invite only" }}</div>
+
+        <div class="rm-lobby-row" ng-repeat="m in s.race.lobby.members">
+          <span>{{ m.name }}</span>
+          <em ng-if="m.host">host</em>
+        </div>
+
+        <div ng-if="s.race.lobby.host && !s.race.lobby.open">
+          <div class="rm-field">Invite</div>
+          <div class="rm-picklist rm-invitelist">
+            <button ng-repeat="p in invitable()" ng-click="lobbyInvite(p.id)">{{ p.name }}</button>
+          </div>
+          <p class="rm-hint" ng-if="!invitable().length">Nobody else is on the server yet.</p>
+        </div>
+
+        <p class="rm-hint">Everyone is on the grid and nothing is live. The start
+          line does nothing until the host presses Start Race, and then your time
+          begins when you cross it.</p>
+
+        <div class="rm-pickrow">
+          <button class="rm-primary" ng-if="s.race.lobby.host"
+                  ng-click="lobbyStart()">Start Race</button>
+          <button ng-click="lobbyLeave()">Leave</button>
+        </div>
+      </div>
+
+      <div ng-if="raceIdle() && !s.race.lobby">
+        <!-- races other people have made -->
+        <div ng-if="s.race.lobbies.length">
+          <div class="rm-field">Open races</div>
+          <div class="rm-picklist">
+            <button ng-repeat="l in s.race.lobbies" ng-click="lobbyJoin(l.id)">
+              <span class="rm-pick-name">{{ l.name }}</span>
+              <span class="rm-pick-note">{{ l.host }} &middot; {{ l.drivers }}
+                driver{{ l.drivers === 1 ? "" : "s" }} &middot;
+                {{ l.open ? "public" : "invite" }}</span>
+            </button>
+          </div>
+        </div>
+
+        <p class="rm-hint">Practice runs alone, or make a race and others join you.
+          The clock starts when you drive through the start line. Nothing you do
+          outside a run costs you anything.</p>
 
         <div class="rm-empty" ng-if="!s.tracks.length">
           No course is saved yet. Capture one under Options, Course tools.
@@ -149,10 +192,14 @@
             {{ s.level }}. Load that map first.
           </div>
 
-          <button class="rm-primary" ng-disabled="!entry.track || wrongLevel()"
-                  ng-click="arm()">
-            Go to the grid
-          </button>
+          <div class="rm-pickrow">
+            <button class="rm-primary" ng-disabled="!entry.track || wrongLevel()"
+                    ng-click="arm()">Practice alone</button>
+            <button ng-disabled="!entry.track || wrongLevel()"
+                    ng-click="lobbyCreate(true)">Public race</button>
+            <button ng-disabled="!entry.track || wrongLevel()"
+                    ng-click="lobbyCreate(false)">Invite race</button>
+          </div>
         </div>
       </div>
 
@@ -306,6 +353,15 @@
           <button ng-click="cap('setStart')">Set start line</button>
         </div>
 
+        <!-- a pit is not part of the lap. fuel fills, repairs are free,
+             holds still apply -->
+        <div class="rm-buttons">
+          <button ng-click="cap('markPit')">Mark pit here</button>
+          <button ng-click="cap('undoPit')" ng-disabled="!s.capture.pits">Undo pit</button>
+          <span class="rm-pick-note" ng-if="s.capture.pits">{{ s.capture.pits }}
+            pit{{ s.capture.pits === 1 ? "" : "s" }}</span>
+        </div>
+
         <h3>Gate size</h3>
         <p class="rm-hint">Applies to the next gate, and corrects the one just placed.</p>
         <div class="rm-gate">
@@ -348,6 +404,7 @@
           <span class="rm-hud-pen" ng-if="s.race.penalties">
             {{ s.race.penalties }} cut &middot; +{{ penaltyClock(s.race.penaltyTime) }}
           </span>
+          <span class="rm-hud-inpit" ng-if="s.race.inPit">in the pit &middot; service is free</span>
         </div>
         <div class="rm-hud-bar" ng-if="s.race.gates">
           <div class="rm-hud-bar-fill" style="width: {{ lapProgress() }}%"></div>

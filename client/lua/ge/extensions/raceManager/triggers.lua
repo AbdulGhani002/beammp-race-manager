@@ -14,6 +14,7 @@ local M = {}
 -- is registered silently does nothing.
 
 local PREFIX = "rm_cp_"
+local PIT_PREFIX = "rm_pit_"
 local DEFAULT_GATE = { w = 20, h = 8, d = 3 }
 
 local spawned = {}
@@ -105,8 +106,8 @@ local function gateBox(cp)
   return cp.rmAcross or w, d, cp.pos.z - BASE_SINK, cp.pos.z + h, cp.rmOff or 0
 end
 
-local function spawnGate(cp, index)
-  local name = PREFIX .. index
+local function spawnGate(cp, index, prefix)
+  local name = (prefix or PREFIX) .. index
   removeOne(name)
 
   local ok, obj = pcall(function() return createObject("BeamNGTrigger") end)
@@ -176,8 +177,9 @@ function M.build(track, showBoxes)
   if type(track) ~= "table" or type(track.checkpoints) ~= "table" then return 0 end
 
   -- rebuilding the same course on every message is wasted work and makes the
-  -- log unreadable
-  if course and course.id == track.id and #spawned == #track.checkpoints then
+  -- log unreadable. the volumes are the gates plus the pits.
+  local want = #track.checkpoints + #(type(track.pits) == "table" and track.pits or {})
+  if course and course.id == track.id and #spawned == want then
     M.setVisible(showBoxes and true or false)
     return #spawned
   end
@@ -194,6 +196,15 @@ function M.build(track, showBoxes)
       made = made + 1
       spawned[made] = name
     end
+  end
+
+  -- pits are volumes too, under their own names, so the crossing handler can
+  -- tell a pit from a gate without guessing
+  local pits = type(track.pits) == "table" and track.pits or {}
+  fitSpans(pits)
+  for i = 1, #pits do
+    local name = spawnGate(pits[i], i, PIT_PREFIX)
+    if name then spawned[#spawned + 1] = name end
   end
 
   log("I", "raceManager", ("built %d of %d checkpoint volumes for %s")
@@ -276,14 +287,23 @@ end
 
 local function onBeamNGTrigger(data)
   if type(data) ~= "table" or not course then return end
-  if data.event ~= "enter" then return end
-
-  local index = tostring(data.triggerName or ""):match("^" .. PREFIX .. "(%d+)$")
-  if not index then return end
 
   -- only our own car. everyone else's crossings are their client's business.
   local mine = localVehicleId()
   if mine and data.subjectID and data.subjectID ~= mine then return end
+
+  local name = tostring(data.triggerName or "")
+
+  -- a pit is a place, so leaving it matters as much as entering
+  local pit = name:match("^" .. PIT_PREFIX .. "(%d+)$")
+  if pit then
+    extensions.raceManager_net.send("pit.state", { inside = data.event == "enter" })
+    return
+  end
+
+  if data.event ~= "enter" then return end
+  local index = name:match("^" .. PREFIX .. "(%d+)$")
+  if not index then return end
 
   -- stamped here, at the frame the trigger fired, because anything later
   -- carries half a round trip and the server cannot take that back out
@@ -331,6 +351,11 @@ local NEXT_BG     = ColorI(150, 85, 12, 230)
 local REST_POST   = ColorF(0.95, 0.94, 0.92, 0.45)
 local REST_FACE   = ColorF(0.66, 0.11, 0.13, 0.08)
 local REST_BG     = ColorI(122, 20, 24, 140)
+
+-- a pit is a different kind of place, so it gets its own colour
+local PIT_POST = ColorF(0.20, 0.75, 0.85, 0.95)
+local PIT_FACE = ColorF(0.10, 0.55, 0.65, 0.18)
+local PIT_BG   = ColorI(12, 95, 110, 215)
 
 local DRAW_RANGE = 900
 local RACE_RANGE = 400
@@ -425,9 +450,14 @@ local function onUpdate()
   local okEye, p = pcall(function() return core_camera.getPosition() end)
   if okEye then eye = p end
 
+  local pits = course and type(course.pits) == "table" and course.pits or nil
+
   local ok, err = pcall(function()
     if showRace  then drawRace(course.checkpoints, eye) end
     if showSaved then drawSet(course.checkpoints, eye, SAVED_POST, SAVED_FACE, SAVED_BG) end
+    if (showRace or showSaved) and pits and #pits > 0 then
+      drawSet(pits, eye, PIT_POST, PIT_FACE, PIT_BG)
+    end
     if showDraft then drawSet(draft, eye, DRAFT_POST, DRAFT_FACE, DRAFT_BG) end
   end)
 

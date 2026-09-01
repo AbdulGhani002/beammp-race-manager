@@ -393,6 +393,14 @@ angular.module("beamng.apps")
       };
 
       var PROBLEM = {
+        no_such_race:    "That race is gone.",
+        already_started: "That race has already started.",
+        already_in_one:  "You are already in a race. Leave it first.",
+        not_invited:     "That race is invite only.",
+        not_the_host:    "Only the host can do that.",
+        no_lobby:        "You are not in a race.",
+        course_in_use:   "There is already a race on that course.",
+        no_such_player:  "That player is gone.",
         no_such_track:   "That course is gone.",
         course_too_short: "That course has too few checkpoints to race.",
         bad_mode:        "Pick controller or wheel.",
@@ -435,6 +443,26 @@ angular.module("beamng.apps")
 
       // penalties are whole seconds, so no decimals
       $scope.penaltyClock = function (sec) { return fmt(sec, 0); };
+
+      // ------------------------------------------------------------- lobby
+
+      $scope.lobbyCreate = function (open) {
+        call("raceManager_race", "createLobby",
+          [$scope.entry.track, $scope.entry.mode, $scope.entry.laps, !!open]);
+      };
+      $scope.lobbyJoin  = function (id) { call("raceManager_race", "joinLobby", id); };
+      $scope.lobbyLeave = function () { call("raceManager_race", "leaveLobby"); };
+      $scope.lobbyStart = function () { call("raceManager_race", "startLobby"); };
+      $scope.lobbyInvite = function (pid) { call("raceManager_race", "inviteLobby", pid); };
+
+      // everyone on the server who is not already in the race
+      $scope.invitable = function () {
+        var l = $scope.s.race.lobby;
+        if (!l) return [];
+        var inRace = {};
+        (l.members || []).forEach(function (m) { inRace[m.id] = true; });
+        return ($scope.s.roster || []).filter(function (p) { return !inRace[p.id]; });
+      };
 
       $scope.raceIdle = function () {
         var st = ($scope.s.race || {}).state;

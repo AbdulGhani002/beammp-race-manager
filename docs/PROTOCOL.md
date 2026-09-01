@@ -45,6 +45,15 @@ the list of messages. `c` is the channel, `d` is whatever that channel carries.
 | `race.clear` | none | the results screen was closed, the run can be let go |
 | `service.use` | `{which,flat}` | press a bottom bar button. `which` is `reposition`, `spare`, `repair` or `fuel`. `flat` is the car saying a tire is down, which is the only thing that lets `spare` through during a run. |
 | `service.done` | `{which,ok,why}` | how the job went. `ok:false` gives the penalty back. |
+| `race.create` | `{track,laps,mode,open}` | make a race. `open` true is public, false is invite only. |
+| `race.join` | `{id}` | join an open race, or one you are invited to |
+| `race.invite` | `{who}` | host only. `who` is a player id from the roster. |
+| `race.leave` | none | leave the race you are in. a host leaving hands it to whoever joined first. |
+| `race.start` | none | host only. arms everyone, places the grid, and the line goes live. |
+| `pit.state` | `{inside}` | the car entered or left a pit volume |
+| `track.pit` | `{pos,yaw,w,h,d}` | mark a pit on the draft |
+| `track.pitundo` | none | remove the last pit |
+| `track.zones` | `{id,zones:[{from,to,mph}]}` | admin only. replace the speed zones on a course. |
 | `perf` | `{label,seconds,frames,avg,min,max,p1low}` | an FPS run |
 
 ## Server to client
@@ -70,8 +79,11 @@ the list of messages. `c` is the channel, `d` is whatever that channel carries.
 | `race.results` | the whole payload | built once when the last car is off track, sent once |
 | `race.result` | `{ok:false,reason}` | why an arm was refused |
 | `service.hold` | `{which,hold,penalty}` | the job is allowed. `hold` is seconds the car is held still, 0 outside a run. `penalty` is the seconds already added to the clock. |
-| `service.run` | `{which}` | the hold is up, do the job |
+| `service.run` | `{which,full}` | the hold is up, do the job. `full` true means the pit rate: the tank fills instead of gaining a quarter. |
 | `service.failed` | `{which,why}` | it was refused, or the game could not do it |
+| `race.lobbies` | list of `{id,track,name,host,laps,open,drivers}` | the open races, sent to everyone when they change |
+| `race.lobby` | `{id,track,name,laps,mode,open,host,members}` or nothing | the race you are in. nothing means you left it or it started. |
+| `zone.warn` | `{charged,zone:{mph,from,to}}` | over the limit in a speed zone. `charged` false is the warning, true is the thirty seconds. |
 
 
 ## The results payload

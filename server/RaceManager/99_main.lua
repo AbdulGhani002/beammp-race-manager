@@ -27,6 +27,19 @@ local function onTick()
       if s.hello then RM.clock.maybeProbe(pid, s) end
     end
 
+    for pid, sess in pairs(RM.identity.sessions()) do
+      local verdict = RM.zones.sample(pid, sess.speed)
+      if verdict == "warn" or verdict == "charged" then
+        RM.bus.queue(pid, "zone.warn", {
+          charged = verdict == "charged",
+          zone = RM.zones.wire(pid),
+        })
+        if verdict == "charged" then
+          RM.bus.queue(pid, "race.state", RM.race.wire(pid))
+        end
+      end
+    end
+
     local ended = RM.race.sweep()
     if ended then
       for i = 1, #ended do
@@ -59,6 +72,7 @@ local function onPlayerDisconnect(pid)
   RM.race.clear(pid)
   RM.results.forget(pid)
   RM.service.forget(pid)
+  RM.lobby.forget(pid)
   RM.players.onLeave(pid)
   RM.identity.onLeave(pid)
   RM.bus.forget(pid)
@@ -104,6 +118,7 @@ local function wireChannels()
     })
     RM.tracks.sendList(pid)
     RM.tracks.sendDraft(pid)
+    RM.bus.queue(pid, "race.lobbies", RM.lobby.list())
   end)
 
   RM.bus.on("name.set", function(pid, d)
@@ -224,6 +239,102 @@ local function wireChannels()
       RM.bus.queue(pid, "race.state", RM.race.wire(pid))
       RM.results.onRunEnded(pid)
     end
+  end)
+
+  -- lobby changes fan out to everyone in it, and the list of open races to
+  -- everybody on the server
+  local function lobbyFan(l)
+    if not l then return end
+    for member in pairs(l.members) do
+      RM.bus.queue(member, "race.lobby", RM.lobby.wire(member))
+    end
+  end
+
+  local function lobbyList()
+    RM.bus.broadcast("race.lobbies", RM.lobby.list())
+  end
+
+  RM.bus.on("race.create", function(pid, d)
+    local ok, result = RM.lobby.create(pid, d)
+    if not ok then
+      RM.bus.queue(pid, "race.result", { ok = false, reason = result })
+      return
+    end
+    RM.bus.queue(pid, "race.lobby", RM.lobby.wire(pid))
+    lobbyList()
+  end)
+
+  RM.bus.on("race.join", function(pid, d)
+    local ok, result = RM.lobby.join(pid, type(d) == "table" and d.id or d)
+    if not ok then
+      RM.bus.queue(pid, "race.result", { ok = false, reason = result })
+      return
+    end
+    lobbyFan(result)
+    lobbyList()
+  end)
+
+  RM.bus.on("race.invite", function(pid, d)
+    local ok, result = RM.lobby.invite(pid, type(d) == "table" and d.who or d)
+    if not ok then
+      RM.bus.queue(pid, "race.result", { ok = false, reason = result })
+      return
+    end
+    local who = math.floor(tonumber(type(d) == "table" and d.who or d) or -1)
+    RM.bus.queue(who, "toast", { kind = "info",
+      text = RM.identity.displayName(pid) .. " invited you to a race. Open the Race panel." })
+    lobbyFan(result)
+  end)
+
+  RM.bus.on("race.leave", function(pid)
+    local ok, result = RM.lobby.leave(pid)
+    if not ok then return end
+    RM.bus.queue(pid, "race.lobby", nil)
+    lobbyFan(result)
+    lobbyList()
+  end)
+
+  RM.bus.on("race.start", function(pid)
+    local ok, result, order = RM.lobby.start(pid)
+    if not ok then
+      RM.bus.queue(pid, "race.result", { ok = false, reason = result })
+      return
+    end
+
+    local track = RM.tracks.get(result.track)
+    for i, member in ipairs(order) do
+      RM.results.forget(member)
+      local armed = RM.race.arm(member,
+        { id = result.track, mode = result.mode, laps = result.laps })
+      if armed then
+        RM.results.join(member, result.track)
+        RM.bus.queue(member, "race.lobby", nil)
+        RM.bus.queue(member, "race.state", RM.race.wire(member))
+        if track and track.start then
+          RM.bus.queue(member, "race.teleport", RM.tracks.gridSpot(track, i - 1))
+        end
+      end
+    end
+    lobbyList()
+  end)
+
+  -- the pit is a place, and the client says when the car is in it
+  RM.bus.on("pit.state", function(pid, d)
+    local inside = type(d) == "table" and d.inside == true
+    local ok = RM.race.setPit(pid, inside)
+    if ok then RM.bus.queue(pid, "race.state", RM.race.wire(pid)) end
+  end)
+
+  RM.bus.on("track.pit", function(pid, d)
+    reply(pid, "pit", RM.tracks.markPit(pid, d))
+  end)
+
+  RM.bus.on("track.pitundo", function(pid)
+    reply(pid, "pitundo", RM.tracks.undoPit(pid))
+  end)
+
+  RM.bus.on("track.zones", function(pid, d)
+    reply(pid, "zones", RM.tracks.setZones(pid, d))
   end)
 
   -- the bottom bar. one request in, a hold and then the job back out.

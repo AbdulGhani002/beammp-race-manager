@@ -36,15 +36,21 @@ function RM.service.use(pid, d)
   -- The game can burst a tire and cannot mend one. The only repair it has
   -- rebuilds the whole car, so a spare is the same job as a repair for half
   -- the wait. Needing a flat first is what stops it replacing repair outright.
-  if action.needsFlat and racing and not (type(d) == "table" and d.flat == true) then
+  local inPitNow = racing and r.inPit == true
+  if action.needsFlat and racing and not inPitNow
+     and not (type(d) == "table" and d.flat == true) then
     return false, "no_flat_tire"
   end
 
-  -- free driving costs nothing and waits for nothing
+  -- free driving costs nothing and waits for nothing. neither does the pit:
+  -- the hold still runs and the clock is still going, but nothing is added on
+  -- top, which is the whole point of stopping there.
+  local inPit = racing and r.inPit == true
+
   local hold, cost = 0, nil
   if racing then
     hold = tonumber(RM.config.holds[action.hold]) or 0
-    if action.penalty then
+    if action.penalty and not inPit then
       local seconds = tonumber(RM.config.penalties[action.penalty])
       if seconds and seconds > 0 then
         RM.race.penalty(pid, seconds, action.penalty)
@@ -60,6 +66,7 @@ function RM.service.use(pid, d)
     cost   = cost,
     reason = action.penalty,
     lap    = r and r.currentLap or nil,
+    full   = inPit,
   }
 
   RM.info(("%s: %s%s"):format(RM.identity.displayName(pid), which,
@@ -82,7 +89,8 @@ function RM.service.tick(now)
     local pid = ready[i]
     sent[pid] = jobs[pid]
     jobs[pid] = nil
-    RM.bus.queue(pid, "service.run", { which = sent[pid].which })
+    RM.bus.queue(pid, "service.run", {
+      which = sent[pid].which, full = sent[pid].full and true or false })
   end
   return ready
 end

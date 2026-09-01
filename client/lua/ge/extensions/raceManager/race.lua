@@ -25,6 +25,8 @@ local st = {
   results   = nil,
   why       = nil,
   problem   = nil,
+  lobby     = nil,
+  lobbies   = {},
 }
 
 local startedLocal = nil
@@ -71,6 +73,36 @@ function M.restart()
   st.results = nil
   st.waiting = nil
   if id then M.arm(id, mode, laps) end
+end
+
+-- the race you make and the ones you can join
+function M.createLobby(trackId, mode, laps, open)
+  if type(trackId) ~= "string" or trackId == "" then return end
+  st.problem = nil
+  extensions.raceManager_net.send("race.create", {
+    track = trackId,
+    mode  = tostring(mode or "controller"),
+    laps  = math.floor(tonumber(laps) or 1),
+    open  = open and true or false,
+  })
+end
+
+function M.joinLobby(id)
+  st.problem = nil
+  extensions.raceManager_net.send("race.join", { id = tostring(id or "") })
+end
+
+function M.leaveLobby()
+  extensions.raceManager_net.send("race.leave", {})
+end
+
+function M.startLobby()
+  st.problem = nil
+  extensions.raceManager_net.send("race.start", {})
+end
+
+function M.inviteLobby(pid)
+  extensions.raceManager_net.send("race.invite", { who = math.floor(tonumber(pid) or -1) })
 end
 
 ------------------------------------------------------------ from the server
@@ -122,6 +154,7 @@ local function onState(d)
   st.circuit   = d.circuit and true or false
   st.penalties = d.penalties or 0
   st.penaltyTime = d.penaltyTime or 0
+  st.inPit     = d.inPit and true or false
   st.waiting   = d.waiting
   st.why       = d.why
 
@@ -214,6 +247,33 @@ local function onResults(d)
   push()
 end
 
+-- over the limit in a zone. the warning comes before the charge, so there is
+-- a moment to lift off before it costs anything.
+local function onZoneWarn(d)
+  if type(d) ~= "table" then return end
+  local zone = type(d.zone) == "table" and d.zone or {}
+  if d.charged then
+    local pens = extensions.raceManager_state.get().config.penalties
+    local cost = type(pens) == "table" and tonumber(pens.speeding) or 30
+    extensions.raceManager_state.notice(
+      ("Speeding: +%ds. The limit here is %d mph"):format(
+        cost, tonumber(zone.mph) or 0))
+  else
+    extensions.raceManager_state.notice(
+      ("Slow down: %d mph limit here"):format(tonumber(zone.mph) or 0))
+  end
+end
+
+local function onLobby(d)
+  st.lobby = type(d) == "table" and d or nil
+  push()
+end
+
+local function onLobbies(d)
+  st.lobbies = type(d) == "table" and d or {}
+  push()
+end
+
 local function onWaiting(d)
   st.waiting = type(d) == "table" and d.left or nil
   push()
@@ -268,6 +328,9 @@ local function onExtensionLoaded()
   net.on("race.split",   onSplit)
   net.on("race.results", onResults)
   net.on("race.waiting", onWaiting)
+  net.on("zone.warn",    onZoneWarn)
+  net.on("race.lobby",   onLobby)
+  net.on("race.lobbies", onLobbies)
   net.on("race.result",  onResult)
   net.on("race.teleport", teleport)
 end

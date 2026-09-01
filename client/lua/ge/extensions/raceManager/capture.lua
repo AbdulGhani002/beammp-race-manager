@@ -163,6 +163,28 @@ function M.undo()
   extensions.raceManager_net.send("track.undo", {})
 end
 
+-- a pit is marked the same way a gate is: stand the car in it and press
+function M.markPit()
+  if not st.active then return end
+  local pos, yaw = readPose()
+  if not pos then
+    st.lastError, st.errorFor = "no_vehicle", 6
+    extensions.raceManager_ui.push()
+    return
+  end
+  local w = st.gate.w
+  if st.fitWidth then w = roadWidthAt(vec3(pos.x, pos.y, pos.z)) or st.gate.w end
+  extensions.raceManager_net.send("track.pit", {
+    pos = pos, yaw = yaw,
+    w = w, h = st.gate.h, d = st.gate.d,
+  })
+end
+
+function M.undoPit()
+  if not st.active then return end
+  extensions.raceManager_net.send("track.pitundo", {})
+end
+
 function M.setGate(w, h, d)
   if tonumber(w) and tonumber(w) ~= st.gate.w then st.fitWidth = false end
   st.gate.w = tonumber(w) or st.gate.w
@@ -219,6 +241,7 @@ end
 -- an unfinished capture came back from the server on reconnect
 function M.resume(draft)
   st.active  = true
+  st.pits    = #(draft.pits or {})
   st.id      = draft.id
   st.name    = draft.name
   st.kind    = draft.kind
@@ -240,6 +263,7 @@ end
 local function onBegin(d)
   gates = {}
   pushDraft()
+  st.pits = 0
   st.active     = true
   st.id         = d.id
   st.name       = d.name
@@ -273,6 +297,10 @@ function M.onResult(d)
     onBegin(d.data or {})
   elseif a == "mark" then
     onMark(d.data or {})
+  elseif a == "pit" then
+    st.pits = type(d.data) == "table" and d.data.i or ((st.pits or 0) + 1)
+  elseif a == "pitundo" then
+    st.pits = tonumber(d.data) or math.max(0, (st.pits or 0) - 1)
   elseif a == "undo" then
     st.count = tonumber(d.data) or math.max(0, st.count - 1)
     for i = st.count + 1, #gates do gates[i] = nil end

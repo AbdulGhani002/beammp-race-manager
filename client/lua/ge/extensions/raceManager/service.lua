@@ -113,14 +113,16 @@ local function repairAll(v)
   end)
 end
 
-local function addFuel(v)
+-- a quarter of a tank on the road, the whole tank in the pit
+local function addFuel(v, full)
+  local share = full and 1.0 or FUEL_STEP
   return pcall(function()
     core_vehicleBridge.requestValue(v, function(ret)
       for _, tank in ipairs((ret and ret[1]) or {}) do
         if tank.energyType ~= "electricEnergy" then
           local max = tank.maxEnergy or 0
           local now = tank.currentEnergy or 0
-          local add = math.min(max - now, max * FUEL_STEP)
+          local add = math.min(max - now, max * share)
           if add > 0 then
             core_vehicleBridge.executeAction(v, "setEnergyStorageEnergy", tank.name, now + add)
           end
@@ -157,16 +159,60 @@ local function putBack(v)
   end)
 end
 
-local function doJob(which)
+-- The tire fix. Air back into every flat and the flat flag cleared, which is
+-- what the game's own onboard compressors do, and nothing else on the car is
+-- touched. A tire that is torn up or on a broken wheel will not come back
+-- from air alone, so that case falls back to the full repair and says so.
+local SPARE_FIX = [[
+  local allFixed = true
+  for _, wd in pairs(wheels.wheels or {}) do
+    if wd.isTireDeflated then
+      if wd.isBroken or not wd.pressureGroupId or not wd.startingPressure then
+        allFixed = false
+      else
+        obj:setGroupPressure(wd.pressureGroupId, wd.startingPressure)
+        wd.isTireDeflated = false
+      end
+    end
+  end
+  obj:queueGameEngineLua("extensions.raceManager_service.onSpareFixed(" .. tostring(allFixed) .. ")")
+]]
+
+-- the vehicle answers on its own frame, so the spare reports back late
+function M.onSpareFixed(allFixed)
+  if allFixed then
+    st.which = "spare"
+    report(true, nil)
+    st.which = nil
+    notice("Spare tire on")
+    return
+  end
+
+  local v = playerVehicle()
+  local ok = v and repairAll(v) or false
+  st.which = "spare"
+  report(ok and true or false, (not ok) and "repair_failed" or nil)
+  st.which = nil
+  notice(ok and "That tire was too far gone, so the whole car was repaired"
+            or "The tire could not be fixed")
+end
+
+local function doJob(which, full)
   local v = playerVehicle()
   if not v then return false, "no_vehicle" end
 
-  if which == "repair" or which == "spare" then
+  if which == "spare" then
+    local ok = pcall(function() v:queueLuaCommand(SPARE_FIX) end)
+    if not ok then return false, "repair_failed" end
+    return "async"
+  end
+
+  if which == "repair" then
     local ok = repairAll(v)
     return ok, (not ok) and "repair_failed" or nil
   end
   if which == "fuel" then
-    local ok = addFuel(v)
+    local ok = addFuel(v, full)
     return ok, (not ok) and "no_tank" or nil
   end
   if which == "reposition" then
@@ -199,14 +245,21 @@ end
 
 local function onRun(d)
   local which = type(d) == "table" and tostring(d.which or "") or st.which
+  local full = type(d) == "table" and d.full == true
   local v = playerVehicle()
   if v then freeze(v, false) end
 
-  local ok, why = doJob(which)
+  local ok, why = doJob(which, full)
 
   st.which, st.endsAt, st.hold, st.left = nil, nil, 0, 0
-  report(ok, why)
-  if not ok then notice((which or "that") .. " could not be done") end
+
+  -- the spare answers from the vehicle's own frame, through onSpareFixed
+  if ok ~= "async" then
+    st.which = which
+    report(ok, why)
+    st.which = nil
+    if not ok then notice((which or "that") .. " could not be done") end
+  end
   extensions.raceManager_ui.push()
 end
 

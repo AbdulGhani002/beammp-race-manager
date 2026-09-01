@@ -183,6 +183,34 @@ function RM.tracks.gridFor(track)
   }
 end
 
+-- one spot in a grid of many. three across, then the next row back, so a
+-- lobby of eight is two and a half rows behind the line.
+local GRID_ACROSS, GRID_BACK, GRID_WIDE = 5.0, 7.0, 3
+
+function RM.tracks.gridSpot(track, index)
+  local base = RM.tracks.gridFor(track)
+  if not base or not base.pos then return base end
+
+  local i = math.max(0, math.floor(tonumber(index) or 0))
+  local col = i % GRID_WIDE
+  local row = math.floor(i / GRID_WIDE)
+
+  local yaw = tonumber(base.yaw) or 0
+  local dx, dy = math.cos(yaw), math.sin(yaw)
+  local rx, ry = math.sin(yaw), -math.cos(yaw)
+  local side = (col - (GRID_WIDE - 1) / 2) * GRID_ACROSS
+  local back = row * GRID_BACK
+
+  return {
+    pos = {
+      x = base.pos.x + rx * side - dx * back,
+      y = base.pos.y + ry * side - dy * back,
+      z = base.pos.z,
+    },
+    yaw = yaw,
+  }
+end
+
 function RM.tracks.countTracks()
   local n = 0
   for _ in pairs(tracks) do n = n + 1 end
@@ -218,6 +246,8 @@ function RM.tracks.beginCapture(pid, d)
     level       = level,
     circuit     = d.circuit and true or false,
     checkpoints = {},
+    pits        = {},
+    zones       = {},
     start       = nil,
     createdBy   = key,
     createdAt   = os.time(),
@@ -254,6 +284,72 @@ function RM.tracks.mark(pid, d)
   draft.checkpoints[cp.i] = cp
   RM.store.markDirty(DSTORE)
   return true, cp
+end
+
+-- A pit is not part of the lap, so it goes in its own list. Putting it in with
+-- the gates would renumber the course and change what every lap counts.
+function RM.tracks.markPit(pid, d)
+  local key = keyOf(pid)
+  local draft = key and drafts[key]
+  if not draft then return false, "no_draft" end
+  if type(d) ~= "table" then return false, "bad_request" end
+
+  local pos = readVec(d.pos)
+  if not pos then return false, "bad_pos" end
+  if not RM.util.isNum(d.yaw) then return false, "bad_yaw" end
+
+  draft.pits = draft.pits or {}
+  if #draft.pits >= 16 then return false, "too_many_pits" end
+
+  local pit = { i = #draft.pits + 1, pos = pos, yaw = d.yaw, size = gateFrom(d) }
+  draft.pits[pit.i] = pit
+  RM.store.markDirty(DSTORE)
+  return true, pit
+end
+
+function RM.tracks.undoPit(pid)
+  local key = keyOf(pid)
+  local draft = key and drafts[key]
+  if not draft then return false, "no_draft" end
+  local n = #(draft.pits or {})
+  if n == 0 then return false, "no_pits" end
+  draft.pits[n] = nil
+  RM.store.markDirty(DSTORE)
+  return true, n - 1
+end
+
+-- Zones are set on a saved course, not while capturing, because you only know
+-- which gates you want to slow people between once you can see the numbers.
+function RM.tracks.setZonesDirect(id, zones)
+  local track = tracks[tostring(id or "")]
+  if not track then return false, "no_such_track" end
+
+  local n = #track.checkpoints
+  local out = {}
+  for _, z in ipairs(type(zones) == "table" and zones or {}) do
+    local from = math.floor(tonumber(z.from) or 0)
+    local to   = math.floor(tonumber(z.to) or 0)
+    local mph  = tonumber(z.mph) or 0
+    if from >= 1 and from <= n and to >= 1 and to <= n and mph > 0 then
+      out[#out + 1] = { from = from, to = to, mph = mph }
+    end
+  end
+
+  track.zones = out
+  RM.store.markDirty(STORE)
+  RM.store.flushNow(STORE)
+  return true, track
+end
+
+function RM.tracks.setZones(pid, d)
+  if not RM.roles.atLeast(pid, "admin") then return false, "not_allowed" end
+  if type(d) ~= "table" then return false, "bad_request" end
+  local ok, result = RM.tracks.setZonesDirect(d.id, d.zones)
+  if ok then
+    RM.info(("%s set %d speed zone(s) on %s"):format(
+      RM.identity.displayName(pid), #result.zones, result.id))
+  end
+  return ok, result
 end
 
 function RM.tracks.undo(pid)
@@ -336,6 +432,9 @@ function RM.tracks.finishCapture(pid)
   local draft = key and drafts[key]
   if not draft then return false, "no_draft" end
   if #draft.checkpoints < 2 then return false, "need_two_checkpoints" end
+
+  draft.pits  = draft.pits or {}
+  draft.zones = draft.zones or {}
 
   -- the grid sits at the first gate unless it was placed by hand
   if not draft.start then

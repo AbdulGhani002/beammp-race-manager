@@ -18,6 +18,9 @@ local HELP = {
   "rm races               runs on track now, and who results are waiting on",
   "rm perf                recorded FPS runs",
   "rm save                write every store now",
+  "rm zones <id>          the speed zones on a course",
+  "rm zone <id> <from> <to> <mph>   add one, e.g. rm zone baja-1000 12 14 37",
+  "rm zoneclear <id>      remove every zone from a course",
 }
 
 local function statusLines(say)
@@ -207,6 +210,36 @@ function RM.console.handle(input)
     forget(say, name)
   elseif cmd == "save" then
     say(("wrote %d store(s)"):format(RM.store.flushAll()))
+  elseif cmd == "zones" then
+    local id = rest:match("^zones%s+(%S+)%s*$")
+    local track = id and RM.tracks.get(id)
+    if not track then
+      say("no course called " .. tostring(id))
+    else
+      local zones = type(track.zones) == "table" and track.zones or {}
+      if #zones == 0 then say("no zones on " .. track.id) end
+      for i = 1, #zones do
+        local z = zones[i]
+        say(("%d: gates %d to %d, %d mph"):format(i, z.from, z.to, z.mph))
+      end
+    end
+  elseif cmd == "zone" then
+    local id, from, to, mph = rest:match("^zone%s+(%S+)%s+(%d+)%s+(%d+)%s+(%d+)%s*$")
+    local track = id and RM.tracks.get(id)
+    if not track then
+      say("rm zone <course> <from> <to> <mph>")
+    else
+      local zones = type(track.zones) == "table" and track.zones or {}
+      zones[#zones + 1] = { from = tonumber(from), to = tonumber(to), mph = tonumber(mph) }
+      local ok, why = RM.tracks.setZonesDirect(track.id, zones)
+      if ok then say(("zone added: gates %s to %s at %s mph"):format(from, to, mph))
+      else say("could not add it: " .. tostring(why)) end
+    end
+  elseif cmd == "zoneclear" then
+    local id = rest:match("^zoneclear%s+(%S+)%s*$")
+    local ok, why = id and RM.tracks.setZonesDirect(id, {})
+    if ok then say("zones cleared from " .. id)
+    else say("could not clear: " .. tostring(why)) end
   else
     for i = 1, #HELP do say(HELP[i]) end
   end

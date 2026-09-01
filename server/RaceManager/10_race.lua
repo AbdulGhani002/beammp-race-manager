@@ -94,6 +94,7 @@ function RM.race.arm(pid, d)
     missed     = {},
     penalties  = {},
     suspect    = false,
+    inPit      = false,
   }
 
   RM.info(("%s armed %s, %s, %d lap(s)"):format(
@@ -406,6 +407,22 @@ function RM.race.gate(pid, index, clientTime)
   }
 end
 
+-- In the pit nothing is added to your time. The hold still runs and the clock
+-- is still going, so a stop costs you the wait and nothing on top.
+function RM.race.setPit(pid, inside)
+  local r = runs[pid]
+  if not r or r.state ~= "running" then return false, "not_running" end
+  local was = r.inPit and true or false
+  r.inPit = inside and true or false
+  if was == r.inPit then return false, "no_change" end
+  return true, r.inPit
+end
+
+function RM.race.inPit(pid)
+  local r = runs[pid]
+  return r ~= nil and r.inPit == true
+end
+
 -- End Race. stops everything at once, which is what the button promises.
 function RM.race.endRace(pid)
   local r = runs[pid]
@@ -475,6 +492,7 @@ function RM.race.wire(pid)
     -- a penalty that does not move the time reads as free until the results
     -- come up, which is far too late to change how you are driving.
     penaltyTime = RM.race.penaltyTotal(r),
+    inPit    = r.inPit and true or false,
     why      = r.why,
 
     -- only somebody who is off track is waiting on anyone. waitingOn counts

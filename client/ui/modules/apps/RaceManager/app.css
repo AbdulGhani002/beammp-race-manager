@@ -289,6 +289,34 @@
   letter-spacing: 0.04em;
 }
 
+/* the race you are in, waiting for the host to say go */
+.rm-lobby-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: 5px 8px;
+  border-bottom: 1px solid var(--rm-line);
+  font-size: 13px;
+}
+
+.rm-lobby-row em {
+  font-style: normal;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--rm-orange);
+}
+
+.rm-invitelist { max-height: 150px; overflow-y: auto; }
+
+/* in the pit nothing is added to your time */
+.rm-hud-inpit {
+  color: #35c4d8;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
 /* the wait while a job is done. the race clock keeps going, so this sits with
    it rather than off in a corner where you would not watch it. */
 .rm-hud-hold {

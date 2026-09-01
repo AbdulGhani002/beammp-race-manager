@@ -1,6 +1,6 @@
 RM = RM or {}
 
-RM.VERSION = "0.3.0-phase3"
+RM.VERSION = "0.4.0-phase4"
 
 RM.config = {
   nameMinLen  = 3,
@@ -45,7 +45,8 @@ RM.config = {
 
   -- his document names every penalty except this one, so it is a guess until
   -- he says otherwise. flagged in the phase 2 plan.
-  penalties = { recovery = 60.0, flatTire = 30.0, repair = 30.0, missedGate = 30.0 },
+  penalties = { recovery = 60.0, flatTire = 30.0, repair = 30.0, missedGate = 30.0,
+                speeding = 30.0 },
 
   -- a run is thrown away if nobody crosses anything for this long
   raceIdleTimeoutMs = 900000,
@@ -69,7 +70,10 @@ RM.config = {
   -- a quarter of a tank per press
   fuelStep  = 0.25,
 
-  speedZoneMph = 37,
+  -- the default limit offered when you add a zone, and how long you have to
+  -- stay over it before it costs you. one bump over a crest is free.
+  speedZoneMph   = 37,
+  speedGraceSec  = 3.0,
   xpCurve      = { first = 200, step = 2, floor = 20 },
 
   maxCheckpoints = 200,
@@ -91,6 +95,7 @@ RM.config.public = {
   holds         = RM.config.holds,
   fuelStep      = RM.config.fuelStep,
   speedZoneMph  = RM.config.speedZoneMph,
+  speedGraceSec = RM.config.speedGraceSec,
   discordUrl    = RM.config.discordUrl,
   nameMinLen    = RM.config.nameMinLen,
   nameMaxLen    = RM.config.nameMaxLen,
