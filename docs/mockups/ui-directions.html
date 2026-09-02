@@ -1,0 +1,1097 @@
+<title>Race Manager UI Directions</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Barlow:wght@400;500;600;700&family=Chivo+Mono:wght@300;400;600&family=Chivo:wght@300;400;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Saira+Condensed:wght@500;600;700&display=swap">
+
+<style>
+/* ------------------------------------------------------------------
+   FRAME. Deliberately quiet warm grey. The only colour on the page
+   frame is borrowed from whichever direction is selected, so the
+   chrome always tells you which world you are looking at.
+   ------------------------------------------------------------------ */
+:root {
+  --ground: #f5f3f0;
+  --card:   #ffffff;
+  --sunk:   #edeae5;
+  --ink:    #17161a;
+  --dim:    #6b6862;
+  --faint:  #97938c;
+  --line:   rgba(23, 22, 26, 0.13);
+  --line-2: rgba(23, 22, 26, 0.07);
+  --shadow: 0 1px 2px rgba(23,22,26,.05), 0 12px 32px rgba(23,22,26,.07);
+  --accent: #b4451f;
+  --on-accent: #ffffff;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --ground: #121113;
+    --card:   #1a191c;
+    --sunk:   #211f24;
+    --ink:    #edebe7;
+    --dim:    #918d86;
+    --faint:  #6d6a65;
+    --line:   rgba(255, 255, 255, 0.12);
+    --line-2: rgba(255, 255, 255, 0.06);
+    --shadow: 0 1px 2px rgba(0,0,0,.4), 0 14px 40px rgba(0,0,0,.45);
+    --accent: #e0673a;
+    --on-accent: #17161a;
+  }
+}
+
+:root[data-theme="dark"] {
+  --ground: #121113;
+  --card:   #1a191c;
+  --sunk:   #211f24;
+  --ink:    #edebe7;
+  --dim:    #918d86;
+  --faint:  #6d6a65;
+  --line:   rgba(255, 255, 255, 0.12);
+  --line-2: rgba(255, 255, 255, 0.06);
+  --shadow: 0 1px 2px rgba(0,0,0,.4), 0 14px 40px rgba(0,0,0,.45);
+  --accent: #e0673a;
+  --on-accent: #17161a;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--ground);
+  color: var(--ink);
+  font-family: "Barlow", "Segoe UI", system-ui, sans-serif;
+  font-size: 16px;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+}
+
+.wrap {
+  max-width: 1140px;
+  margin: 0 auto;
+  padding: 0 24px 96px;
+}
+
+.eyebrow {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--faint);
+  margin: 0 0 10px;
+}
+
+h1 {
+  font-size: clamp(30px, 4.4vw, 46px);
+  font-weight: 700;
+  line-height: 1.06;
+  letter-spacing: -0.02em;
+  margin: 0 0 14px;
+  text-wrap: balance;
+}
+
+h2 {
+  font-size: 23px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  margin: 0 0 6px;
+  text-wrap: balance;
+}
+
+h3 {
+  font-size: 15px;
+  font-weight: 600;
+  margin: 0 0 6px;
+}
+
+p { margin: 0 0 14px; max-width: 66ch; }
+.lede { font-size: 18px; color: var(--dim); max-width: 62ch; }
+.muted { color: var(--dim); }
+small { font-size: 13px; }
+
+header.top {
+  padding: 72px 0 34px;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 30px;
+}
+
+/* --- direction picker ------------------------------------------- */
+
+.pick {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  margin: 0 0 34px;
+}
+
+.pick button {
+  appearance: none;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  background: var(--card);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  padding: 14px 15px 15px;
+  display: grid;
+  gap: 7px;
+  transition: border-color .14s, transform .14s, box-shadow .14s;
+}
+
+.pick button:hover { border-color: var(--dim); transform: translateY(-1px); }
+.pick button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.pick button[aria-pressed="true"] {
+  border-color: var(--sw-a);
+  box-shadow: inset 0 0 0 1px var(--sw-a), var(--shadow);
+}
+
+.swatch { display: flex; gap: 4px; height: 15px; }
+.swatch i { flex: 1; border-radius: 1px; }
+.swatch i:nth-child(1) { background: var(--sw-1); }
+.swatch i:nth-child(2) { background: var(--sw-2); }
+.swatch i:nth-child(3) { background: var(--sw-a); flex: 1.7; }
+
+.pick b { font-size: 15px; font-weight: 600; letter-spacing: -0.01em; }
+.pick span { font-size: 13px; color: var(--dim); line-height: 1.4; }
+
+.pick button:nth-child(1) { --sw-1:#0a0a0c; --sw-2:#3a3a40; --sw-a:#a81d22; }
+.pick button:nth-child(2) { --sw-1:#0b0c0e; --sw-2:#2b3037; --sw-a:#ff6a13; }
+.pick button:nth-child(3) { --sw-1:#16130e; --sw-2:#e9dfc9; --sw-a:#c2521b; }
+.pick button:nth-child(4) { --sw-1:#070809; --sw-2:#2a3138; --sw-a:#8fe6ff; }
+
+/* --- the section that swaps ------------------------------------- */
+
+.dirhead {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 20px;
+  flex-wrap: wrap;
+  padding-bottom: 14px;
+  border-bottom: 2px solid var(--rail);
+  margin-bottom: 22px;
+}
+
+.dirhead p { margin: 4px 0 0; }
+.tag {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--on-rail);
+  background: var(--rail);
+  padding: 5px 10px;
+  border-radius: 2px;
+  white-space: nowrap;
+}
+
+.toggles { display: flex; gap: 8px; align-items: center; margin: 0 0 14px; }
+.toggles button {
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  background: transparent;
+  color: var(--dim);
+  border: 1px solid var(--line);
+  border-radius: 2px;
+  padding: 5px 11px;
+}
+.toggles button[aria-pressed="true"] { color: var(--ink); border-color: var(--dim); background: var(--sunk); }
+.toggles button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.caption {
+  font-size: 13px;
+  color: var(--faint);
+  margin: 9px 0 30px;
+  max-width: 68ch;
+}
+
+/* ==================================================================
+   MOCKUP WORLD. Everything below draws a picture of a game screen,
+   so it stays dark whatever theme the page is in.
+   ================================================================== */
+
+.viewport {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  container-type: inline-size;
+  overflow: hidden;
+  border-radius: 4px;
+  border: 1px solid var(--line);
+  background: #0b0b0c;
+  box-shadow: var(--shadow);
+}
+
+.board {
+  container-type: inline-size;
+  background: #0b0b0c;
+  border-radius: 4px;
+  border: 1px solid var(--line);
+  padding: 26px;
+  box-shadow: var(--shadow);
+  position: relative;
+  overflow: hidden;
+}
+
+/* on the screen one unit is a pixel at a 1440-wide design width, so the
+   overlay sits at the size it really would. the panels below are shown 1:1. */
+.viewport { --s: calc(100cqw / 1440); }
+.board { --s: 1px; }
+
+/* --- the desert behind the overlay ------------------------------ */
+
+.bd { position: absolute; inset: -6px; filter: blur(1.6px) saturate(1.06); }
+.viewport.flat .bd { display: none; }
+
+.bd-sky    { position: absolute; inset: 0 0 44% 0;
+             background: linear-gradient(#1b2939 0%, #3d4854 38%, #7b6a53 76%, #a4855f 100%); }
+.bd-sun    { position: absolute; left: 58%; top: 16%; width: 30%; aspect-ratio: 1;
+             background: radial-gradient(circle, rgba(255,208,142,.9), rgba(255,168,88,0) 62%); }
+.bd-far    { position: absolute; left: -3%; right: -3%; top: 38%; height: 14%;
+             background: #4a4038; opacity: .75;
+             clip-path: polygon(0 100%,0 62%,9% 34%,17% 58%,26% 22%,36% 52%,47% 30%,58% 60%,69% 26%,80% 56%,90% 36%,100% 66%,100% 100%); }
+.bd-near   { position: absolute; left: -3%; right: -3%; top: 44%; height: 16%;
+             background: #2e2721;
+             clip-path: polygon(0 100%,0 74%,12% 40%,23% 70%,34% 44%,45% 72%,57% 38%,68% 68%,79% 46%,90% 72%,100% 52%,100% 100%); }
+.bd-ground { position: absolute; inset: 56% 0 0 0;
+             background: linear-gradient(#8d7150 0%, #6d5740 38%, #493b2c 100%); }
+.bd-road   { position: absolute; bottom: 0; left: 50%; transform: translateX(-50%);
+             width: 130%; height: 46%;
+             background: linear-gradient(#6d5b45 0%, #574632 55%, #3d3123 100%);
+             clip-path: polygon(45.5% 0, 54.5% 0, 98% 100%, 2% 100%); }
+.bd-rut    { position: absolute; bottom: 0; left: 50%; transform: translateX(-50%);
+             width: 130%; height: 46%; opacity: .35;
+             background: linear-gradient(to bottom, rgba(190,158,116,.5), rgba(190,158,116,0));
+             clip-path: polygon(49.4% 0, 50.6% 0, 62% 100%, 38% 100%); }
+.bd-dust   { position: absolute; inset: 0;
+             background: radial-gradient(ellipse at 50% 64%, rgba(214,178,132,.34), rgba(214,178,132,0) 62%); }
+.bd::after { content: ""; position: absolute; inset: 0;
+             background: linear-gradient(rgba(0,0,0,.34), rgba(0,0,0,.06) 42%, rgba(0,0,0,.46)); }
+
+/* --- shared mockup token defaults (overridden per direction) ----- */
+
+.stage {
+  --m-bar: rgba(10,10,12,.80);
+  --m-panel: rgba(14,14,17,.96);
+  --m-line: rgba(255,255,255,.10);
+  --m-text: #f2f0eb;
+  --m-dim: #8a8f95;
+  --m-accent: #a81d22;
+  --m-on-accent: #ffffff;
+  --m-good: #7ddc8a;
+  --m-warn: #f0b429;
+  --m-bad: #e0574c;
+  --m-radius: 3px;
+  --m-pad: 6;
+  --m-font: "Barlow", sans-serif;
+  --m-display: "Barlow", sans-serif;
+  --m-mono: "Barlow", sans-serif;
+  --m-clock: 42;
+  --m-clock-w: 700;
+  --m-clock-ls: 0em;
+  --m-btn-bg: rgba(26,26,30,.9);
+  --m-btn-line: rgba(255,255,255,.10);
+  --m-btn-tt: uppercase;
+  --m-btn-ls: .04em;
+  --m-btn-w: 400;
+  --m-btn-r: 3px;
+  --m-card-bg: rgba(14,14,17,.96);
+  --m-card-text: #f2f0eb;
+  --m-card-dim: #8a8f95;
+  --m-card-line: rgba(255,255,255,.10);
+  --m-card-btn-bg: rgba(26,26,30,.9);
+  --m-card-btn-line: rgba(255,255,255,.10);
+  --m-card-warn: #f0b429;
+  --rail: #a81d22;
+  --on-rail: #ffffff;
+}
+
+.mock { position: absolute; inset: 0; font-family: var(--m-font); color: var(--m-text); }
+.mock * { box-sizing: border-box; }
+
+/* the frame sets small at a fixed 13px. inside a screen mockup that is
+   bigger than the numbers it is meant to sit under. */
+.mock small, .board small { font-size: .74em; opacity: .72; margin-left: calc(var(--s) * 1.5); }
+
+/* top nav */
+.m-top {
+  position: absolute; top: calc(var(--s) * 10); left: 50%; transform: translateX(-50%);
+  display: flex; align-items: center; gap: calc(var(--s) * 5);
+  padding: calc(var(--s) * 6);
+  background: var(--m-bar);
+  border: 1px solid var(--m-line);
+  border-radius: var(--m-radius);
+  backdrop-filter: blur(6px);
+}
+.m-mark {
+  width: calc(var(--s) * 26); height: calc(var(--s) * 26); border-radius: 50%;
+  background: radial-gradient(circle at 34% 30%, #d8cbb0, #8a6f47 60%, #3a2f20);
+  border: 1px solid rgba(255,255,255,.22);
+  flex: none;
+}
+
+.btn {
+  font-family: var(--m-font);
+  background: var(--m-btn-bg);
+  border: 1px solid var(--m-btn-line);
+  color: var(--m-text);
+  padding: calc(var(--s) * 7) calc(var(--s) * 14);
+  border-radius: var(--m-btn-r);
+  font-size: calc(var(--s) * 13);
+  line-height: 1.1;
+  letter-spacing: var(--m-btn-ls);
+  text-transform: var(--m-btn-tt);
+  font-weight: var(--m-btn-w);
+  white-space: nowrap;
+}
+.btn.on { background: var(--m-accent); border-color: var(--m-accent); color: var(--m-on-accent); }
+.btn.pri { background: var(--m-accent); border-color: var(--m-accent); color: var(--m-on-accent); font-weight: 600; }
+.btn.off { opacity: .34; }
+
+/* the racing clock */
+.m-hud {
+  position: absolute; top: calc(var(--s) * 62); left: 50%; transform: translateX(-50%);
+  min-width: calc(var(--s) * 260); text-align: center;
+  padding: calc(var(--s) * 10) calc(var(--s) * 22) calc(var(--s) * 12);
+  background: var(--m-bar);
+  border: 1px solid var(--m-line);
+  border-radius: var(--m-radius);
+  backdrop-filter: blur(6px);
+}
+.m-clock {
+  font-family: var(--m-display);
+  font-size: calc(var(--s) * var(--m-clock));
+  font-weight: var(--m-clock-w);
+  letter-spacing: var(--m-clock-ls);
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+.m-hud-row {
+  display: flex; justify-content: center; gap: calc(var(--s) * 14);
+  font-size: calc(var(--s) * 12.5); color: var(--m-dim);
+  margin-top: calc(var(--s) * 6);
+  text-transform: uppercase; letter-spacing: .06em;
+}
+.m-hud-row .pen { color: var(--m-warn); }
+.m-bar {
+  height: calc(var(--s) * 3); margin-top: calc(var(--s) * 9);
+  background: rgba(255,255,255,.12); border-radius: 99px; overflow: hidden;
+}
+.m-bar i { display: block; height: 100%; width: 58%; background: var(--m-accent); border-radius: 99px; }
+.m-split {
+  margin-top: calc(var(--s) * 8); font-size: calc(var(--s) * 13);
+  color: var(--m-good); font-variant-numeric: tabular-nums;
+}
+.m-hold {
+  margin-top: calc(var(--s) * 10); padding-top: calc(var(--s) * 9);
+  border-top: 1px solid var(--m-line);
+  display: grid; gap: calc(var(--s) * 5);
+}
+.m-hold-top {
+  display: flex; justify-content: space-between; align-items: baseline;
+  font-size: calc(var(--s) * 12.5); text-transform: uppercase; letter-spacing: .07em;
+}
+.m-hold-top b { color: var(--m-warn); font-variant-numeric: tabular-nums; }
+.m-hold-bar { height: calc(var(--s) * 3); background: rgba(255,255,255,.12); border-radius: 99px; overflow: hidden; }
+.m-hold-bar i { display: block; height: 100%; width: 32%; background: var(--m-warn); }
+
+/* player list */
+.m-players {
+  position: absolute; top: calc(var(--s) * 62); right: calc(var(--s) * 16);
+  width: calc(var(--s) * 232);
+  background: var(--m-bar); border: 1px solid var(--m-line);
+  border-radius: var(--m-radius); overflow: hidden;
+  backdrop-filter: blur(6px);
+  font-size: calc(var(--s) * 12.5);
+}
+.m-players-head {
+  display: flex; justify-content: space-between;
+  padding: calc(var(--s) * 7) calc(var(--s) * 11);
+  border-bottom: 1px solid var(--m-line);
+  text-transform: uppercase; letter-spacing: .1em; font-size: calc(var(--s) * 11);
+  color: var(--m-dim);
+}
+.m-prow {
+  display: grid; grid-template-columns: calc(var(--s)*20) 1fr calc(var(--s)*52) calc(var(--s)*26);
+  gap: calc(var(--s) * 6); align-items: center;
+  padding: calc(var(--s) * 6) calc(var(--s) * 11);
+  font-variant-numeric: tabular-nums;
+}
+.m-prow + .m-prow { border-top: 1px solid var(--m-line); }
+.m-prow.me { background: rgba(255,255,255,.05); }
+.m-prow .lv { color: var(--m-dim); }
+.m-prow .sp { color: var(--m-dim); text-align: right; white-space: nowrap; }
+.m-prow .pg { text-align: right; color: var(--m-good); }
+.m-prow .pg.mid { color: var(--m-warn); }
+
+/* toast */
+.m-toast {
+  position: absolute; bottom: calc(var(--s) * 78); left: 50%; transform: translateX(-50%);
+  background: var(--m-panel); border: 1px solid var(--m-line);
+  border-left: calc(var(--s) * 3) solid var(--m-warn);
+  border-radius: var(--m-radius);
+  padding: calc(var(--s) * 9) calc(var(--s) * 18);
+  font-size: calc(var(--s) * 13);
+  overflow: hidden;
+}
+.m-toast .tl { position: absolute; left: 0; top: 0; height: calc(var(--s) * 2); width: 62%; background: var(--m-warn); }
+
+/* bottom service bar */
+.m-bottom {
+  position: absolute; bottom: calc(var(--s) * 12); left: 50%; transform: translateX(-50%);
+  display: flex; align-items: center; gap: calc(var(--s) * 5);
+  padding: calc(var(--s) * 6);
+  background: var(--m-bar); border: 1px solid var(--m-line);
+  border-radius: var(--m-radius);
+  backdrop-filter: blur(6px);
+}
+.m-bottom .note {
+  font-size: calc(var(--s) * 12); color: var(--m-dim);
+  padding-left: calc(var(--s) * 6); text-transform: uppercase; letter-spacing: .05em;
+}
+/* a column off the right end of the bar, the way the real one opens */
+.m-lights {
+  position: absolute; bottom: calc(100% + var(--s) * 7); right: 0;
+  display: flex; flex-direction: column; gap: calc(var(--s) * 4);
+  padding: calc(var(--s) * 6);
+  background: var(--m-bar); border: 1px solid var(--m-line);
+  border-radius: var(--m-radius);
+  backdrop-filter: blur(6px);
+}
+.m-lights .btn { text-align: center; }
+
+/* the lights menu gets its own strip: on a real screen it opens over the
+   message line, so showing both at once would be a picture the app never draws */
+.strip {
+  position: relative;
+  height: calc(var(--s) * 345);
+  font-family: var(--m-font);
+  color: var(--m-text);
+}
+.strip .m-bottom { bottom: calc(var(--s) * 10); }
+
+/* panels shown at 1:1 on the board */
+.m-card {
+  background: var(--m-card-bg);
+  color: var(--m-card-text);
+  border: 1px solid var(--m-card-line);
+  border-top: 2px solid var(--m-accent);
+  border-radius: calc(var(--m-radius) + 1px);
+  padding: calc(var(--s) * 20) calc(var(--s) * 22);
+  font-family: var(--m-font);
+  font-size: calc(var(--s) * 13.5);
+  box-shadow: 0 calc(var(--s)*18) calc(var(--s)*50) rgba(0,0,0,.7);
+}
+.m-card h4 {
+  font-family: var(--m-display);
+  font-size: calc(var(--s) * 19);
+  font-weight: 700; margin: 0 0 calc(var(--s) * 12);
+  text-transform: uppercase; letter-spacing: .05em;
+}
+.m-card h5 {
+  font-size: calc(var(--s) * 12); font-weight: 600; margin: calc(var(--s)*14) 0 calc(var(--s)*7);
+  text-transform: uppercase; letter-spacing: .1em; color: var(--m-card-dim);
+}
+.m-card .hint { color: var(--m-card-dim); font-size: calc(var(--s) * 12.5); margin: calc(var(--s)*8) 0 0; line-height: 1.45; }
+.m-card .row { display: flex; gap: calc(var(--s) * 6); flex-wrap: wrap; margin-top: calc(var(--s)*8); }
+
+/* a panel can be a light card in a dark game, so everything on one takes its
+   colour from the card's set and not from the screen behind it */
+.m-tbl { color: var(--m-card-text); }
+.m-card .btn {
+  color: var(--m-card-text);
+  background: var(--m-card-btn-bg);
+  border-color: var(--m-card-btn-line);
+}
+.m-card .btn.on, .m-card .btn.pri {
+  background: var(--m-accent); border-color: var(--m-accent); color: var(--m-on-accent);
+}
+
+.m-lobby-row {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: calc(var(--s) * 7) calc(var(--s) * 10);
+  border: 1px solid var(--m-card-line); border-radius: var(--m-radius);
+  margin-top: calc(var(--s) * 5);
+}
+.m-lobby-row em { font-style: normal; font-size: calc(var(--s)*11); text-transform: uppercase;
+  letter-spacing: .1em; color: var(--m-accent); }
+
+.m-tbl { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+.m-tbl th {
+  text-align: left; font-size: calc(var(--s) * 11); font-weight: 600;
+  text-transform: uppercase; letter-spacing: .1em; color: var(--m-card-dim);
+  padding: 0 calc(var(--s)*8) calc(var(--s)*6) 0;
+  border-bottom: 1px solid var(--m-card-line);
+}
+.m-tbl td {
+  padding: calc(var(--s)*7) calc(var(--s)*8) calc(var(--s)*7) 0;
+  border-bottom: 1px solid var(--m-card-line);
+}
+.m-tbl tr.me td { background: rgba(255,255,255,.045); }
+.m-tbl .n { text-align: right; font-family: var(--m-mono); }
+.m-tbl .pos { color: var(--m-card-dim); width: calc(var(--s)*24); }
+.m-tbl .when { color: var(--m-card-dim); }
+.m-tbl .clean { color: var(--m-card-dim); }
+.m-tbl .pen { color: var(--m-card-warn); }
+
+.chip {
+  display: inline-block; margin-left: calc(var(--s)*7);
+  font-size: calc(var(--s)*10); font-style: normal;
+  text-transform: uppercase; letter-spacing: .1em;
+  padding: calc(var(--s)*2) calc(var(--s)*6);
+  border-radius: 2px;
+  background: var(--m-accent); color: var(--m-on-accent);
+}
+.chip.pb { background: transparent; color: var(--m-card-dim); border: 1px solid var(--m-card-line); }
+
+.m-best {
+  padding: calc(var(--s)*8) calc(var(--s)*10);
+  border-left: calc(var(--s)*2) solid var(--m-good);
+  background: rgba(255,255,255,.04);
+  margin-bottom: calc(var(--s)*12);
+  font-size: calc(var(--s)*12.5);
+  font-variant-numeric: tabular-nums;
+}
+
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; align-items: start; }
+.grid2 > .full { grid-column: 1 / -1; }
+
+/* ==================================================================
+   DIRECTION 1 &mdash; CURRENT. What is on the server today, for reference.
+   ================================================================== */
+.stage[data-dir="current"] { --rail: #a81d22; --on-rail: #ffffff; }
+
+.stage[data-dir="current"] .m-lobby-row em { color: #e8801e; }
+
+/* ==================================================================
+   DIRECTION 2 &mdash; BROADCAST. Race television. Hard edges, a skewed
+   leading stripe, condensed numerals, one hot orange.
+   ================================================================== */
+.stage[data-dir="broadcast"] {
+  --m-bar: rgba(11,12,14,.9);
+  --m-panel: #101216;
+  --m-line: rgba(255,255,255,.08);
+  --m-text: #ffffff;
+  --m-dim: #838b95;
+  --m-accent: #ff6a13;
+  --m-on-accent: #12100c;
+  --m-good: #3bd67f;
+  --m-warn: #ffb01f;
+  --m-bad: #ff4747;
+  --m-radius: 0px;
+  --m-display: "Saira Condensed", "Barlow Condensed", sans-serif;
+  --m-mono: "Saira Condensed", sans-serif;
+  --m-clock: 56;
+  --m-clock-w: 700;
+  --m-clock-ls: -0.01em;
+  --m-btn-bg: #191c21;
+  --m-btn-line: transparent;
+  --m-btn-tt: uppercase;
+  --m-btn-ls: .08em;
+  --m-btn-w: 600;
+  --m-btn-r: 0px;
+  --m-card-bg: #101216;
+  --m-card-line: rgba(255,255,255,.08);
+  --m-card-btn-bg: #191c21;
+  --m-card-btn-line: transparent;
+  --m-card-warn: #ffb01f;
+  --rail: #ff6a13;
+  --on-rail: #12100c;
+}
+.stage[data-dir="broadcast"] .btn { font-family: "Saira Condensed", sans-serif; }
+/* the skew goes on a background layer, not on the bar itself: clipping the
+   bar would take the lights menu hanging off it with it */
+.stage[data-dir="broadcast"] .m-top,
+.stage[data-dir="broadcast"] .m-bottom {
+  border: 0; background: transparent; backdrop-filter: none;
+  padding: calc(var(--s)*7) calc(var(--s)*10);
+  gap: calc(var(--s)*3);
+  isolation: isolate;
+}
+.stage[data-dir="broadcast"] .m-top::before,
+.stage[data-dir="broadcast"] .m-bottom::before {
+  content: ""; position: absolute; inset: 0; z-index: -1;
+  background: var(--m-bar); backdrop-filter: blur(6px);
+  clip-path: polygon(calc(var(--s)*12) 0, 100% 0, calc(100% - var(--s)*12) 100%, 0 100%);
+}
+.stage[data-dir="broadcast"] .m-lights {
+  border: 0; border-left: calc(var(--s)*3) solid var(--m-accent);
+  padding: calc(var(--s)*7) calc(var(--s)*10);
+  gap: calc(var(--s)*3);
+}
+.stage[data-dir="broadcast"] .m-hud {
+  border: 0; border-left: calc(var(--s)*5) solid var(--m-accent);
+  text-align: left; padding: calc(var(--s)*10) calc(var(--s)*26) calc(var(--s)*13) calc(var(--s)*16);
+}
+.stage[data-dir="broadcast"] .m-hud-row { justify-content: flex-start; }
+.stage[data-dir="broadcast"] .m-hold-bar,
+.stage[data-dir="broadcast"] .m-bar { border-radius: 0; }
+.stage[data-dir="broadcast"] .m-bar i,
+.stage[data-dir="broadcast"] .m-hold-bar i { border-radius: 0; }
+.stage[data-dir="broadcast"] .m-players { border: 0; border-top: calc(var(--s)*3) solid var(--m-accent); }
+.stage[data-dir="broadcast"] .m-players-head { background: var(--m-accent); color: var(--m-on-accent); font-weight: 700; }
+.stage[data-dir="broadcast"] .m-card {
+  border: 0; border-left: calc(var(--s)*5) solid var(--m-accent); border-radius: 0;
+}
+.stage[data-dir="broadcast"] .m-card h4 { font-weight: 700; letter-spacing: .02em; font-size: calc(var(--s)*24); }
+.stage[data-dir="broadcast"] .m-toast { border-radius: 0; border: 0; border-left: calc(var(--s)*4) solid var(--m-warn); }
+.stage[data-dir="broadcast"] .chip { border-radius: 0; font-weight: 700; }
+
+/* ==================================================================
+   DIRECTION 3 &mdash; ROADBOOK. Baja on paper. Sand cards, ink rules,
+   a mono grid the way a real roadbook page is set.
+   ================================================================== */
+.stage[data-dir="roadbook"] {
+  --m-bar: rgba(22,19,14,.88);
+  --m-panel: #e9dfc9;
+  --m-line: rgba(233,223,201,.22);
+  --m-text: #f0e6d2;
+  --m-dim: #a5977c;
+  --m-accent: #c2521b;
+  --m-on-accent: #fdf6e8;
+  --m-good: #6f8f4a;
+  --m-warn: #d69a1e;
+  --m-bad: #b23b25;
+  --m-radius: 2px;
+  --m-font: "Barlow", sans-serif;
+  --m-display: "Archivo Black", "Barlow", sans-serif;
+  --m-mono: "IBM Plex Mono", monospace;
+  --m-clock: 46;
+  --m-clock-w: 400;
+  --m-clock-ls: -0.03em;
+  --m-btn-bg: rgba(233,223,201,.09);
+  --m-btn-line: rgba(233,223,201,.28);
+  --m-btn-tt: uppercase;
+  --m-btn-ls: .1em;
+  --m-btn-w: 600;
+  --m-btn-r: 2px;
+  --m-card-bg: #e9dfc9;
+  --m-card-text: #1e1a14;
+  --m-card-dim: #7a6c53;
+  --m-card-line: rgba(30,26,20,.22);
+  --m-card-btn-bg: rgba(30,26,20,.06);
+  --m-card-btn-line: rgba(30,26,20,.3);
+  --m-card-warn: #7a5210;
+  --rail: #c2521b;
+  --on-rail: #fdf6e8;
+}
+.stage[data-dir="roadbook"] .m-clock { font-family: "Archivo Black", sans-serif; }
+.stage[data-dir="roadbook"] .m-hud-row,
+.stage[data-dir="roadbook"] .m-split,
+.stage[data-dir="roadbook"] .m-prow,
+.stage[data-dir="roadbook"] .m-hold-top { font-family: "IBM Plex Mono", monospace; }
+.stage[data-dir="roadbook"] .m-hud {
+  border: 1px solid var(--m-line);
+  border-top: calc(var(--s)*3) solid var(--m-accent);
+}
+.stage[data-dir="roadbook"] .m-card { border: calc(var(--s)*2) solid #1e1a14; border-top-width: calc(var(--s)*6); border-top-color: var(--m-accent); }
+.stage[data-dir="roadbook"] .m-card h4 { font-family: "Archivo Black", sans-serif; font-weight: 400; letter-spacing: .01em; }
+.stage[data-dir="roadbook"] .m-tbl { font-family: "IBM Plex Mono", monospace; font-size: calc(var(--s)*12.5); }
+.stage[data-dir="roadbook"] .m-tbl th { font-family: "Barlow", sans-serif; }
+.stage[data-dir="roadbook"] .m-tbl tr.me td { background: rgba(30,26,20,.07); }
+.stage[data-dir="roadbook"] .m-best { background: rgba(30,26,20,.06); font-family: "IBM Plex Mono", monospace; }
+.stage[data-dir="roadbook"] /* a panel can be a light card in a dark game, so everything on one takes its
+   colour from the card's set and not from the screen behind it */
+.m-tbl { color: var(--m-card-text); }
+.m-card .btn {
+  color: var(--m-card-text);
+  background: var(--m-card-btn-bg);
+  border-color: var(--m-card-btn-line);
+}
+.m-card .btn.on, .m-card .btn.pri {
+  background: var(--m-accent); border-color: var(--m-accent); color: var(--m-on-accent);
+}
+
+.m-lobby-row { border-color: rgba(30,26,20,.25); }
+.stage[data-dir="roadbook"] .chip.pb { color: #7a6c53; border-color: rgba(30,26,20,.3); }
+.stage[data-dir="roadbook"] .m-toast {
+  background: #e9dfc9; color: #1e1a14;
+  border: calc(var(--s)*2) solid #1e1a14; border-left-width: calc(var(--s)*5);
+  border-left-color: var(--m-accent);
+}
+.stage[data-dir="roadbook"] .m-players { font-family: "IBM Plex Mono", monospace; }
+.stage[data-dir="roadbook"] .m-toast .tl { background: var(--m-card-warn); }
+
+/* ==================================================================
+   DIRECTION 4 &mdash; INSTRUMENT. Nearly nothing. Hairlines, air, and one
+   very large number. Ice blue is the only colour that is not white.
+   ================================================================== */
+.stage[data-dir="instrument"] {
+  --m-bar: rgba(8,10,13,.66);
+  --m-panel: rgba(9,11,14,.9);
+  --m-line: rgba(255,255,255,.14);
+  --m-text: #f4f7f9;
+  --m-dim: #79838c;
+  --m-accent: #8fe6ff;
+  --m-on-accent: #04161d;
+  --m-good: #8fe6ff;
+  --m-warn: #ffc24b;
+  --m-bad: #ff7a6b;
+  --m-radius: 2px;
+  --m-font: "Chivo", sans-serif;
+  --m-display: "Chivo", sans-serif;
+  --m-mono: "Chivo Mono", monospace;
+  --m-clock: 64;
+  --m-clock-w: 300;
+  --m-clock-ls: -0.045em;
+  --m-btn-bg: transparent;
+  --m-btn-line: rgba(255,255,255,.16);
+  --m-btn-tt: none;
+  --m-btn-ls: .01em;
+  --m-btn-w: 400;
+  --m-btn-r: 2px;
+  --m-card-bg: rgba(9,11,14,.93);
+  --m-card-line: rgba(255,255,255,.11);
+  --m-card-btn-bg: transparent;
+  --m-card-btn-line: rgba(255,255,255,.16);
+  --m-card-warn: #ffc24b;
+  --rail: #4d8fa4;
+  --on-rail: #ffffff;
+}
+.stage[data-dir="instrument"] .m-clock { font-family: "Chivo Mono", monospace; font-weight: 300; }
+.stage[data-dir="instrument"] .m-hud { border-color: rgba(255,255,255,.09); padding: calc(var(--s)*16) calc(var(--s)*30) calc(var(--s)*16); }
+.stage[data-dir="instrument"] .m-hud-row { letter-spacing: .12em; font-size: calc(var(--s)*11); }
+.stage[data-dir="instrument"] .m-bar,
+.stage[data-dir="instrument"] .m-hold-bar { height: calc(var(--s)*1.5); background: rgba(255,255,255,.14); }
+.stage[data-dir="instrument"] .btn.on,
+.stage[data-dir="instrument"] .btn.pri { background: transparent; color: var(--m-accent); border-color: var(--m-accent); }
+.stage[data-dir="instrument"] .m-card { border-top-width: 1px; border-top-color: var(--m-card-line); }
+.stage[data-dir="instrument"] .m-card h4 { font-weight: 300; text-transform: none; letter-spacing: -.02em; font-size: calc(var(--s)*24); }
+.stage[data-dir="instrument"] .m-tbl .n,
+.stage[data-dir="instrument"] .m-tbl td { font-family: "Chivo Mono", monospace; }
+.stage[data-dir="instrument"] .m-tbl th { font-family: "Chivo", sans-serif; }
+.stage[data-dir="instrument"] .chip { background: transparent; color: var(--m-accent); border: 1px solid var(--m-accent); }
+.stage[data-dir="instrument"] .m-best { border-left-color: var(--m-accent); }
+.stage[data-dir="instrument"] .m-toast { border-left-color: var(--m-warn); }
+
+/* --- notes at the bottom ---------------------------------------- */
+
+.notes { margin-top: 56px; padding-top: 30px; border-top: 1px solid var(--line); }
+.notecols { display: grid; grid-template-columns: 1fr 1fr; gap: 34px; margin-top: 22px; }
+.notecols ul { margin: 0; padding-left: 18px; }
+.notecols li { margin-bottom: 8px; color: var(--dim); }
+.notecols li b { color: var(--ink); font-weight: 600; }
+
+.status { width: 100%; border-collapse: collapse; margin: 18px 0 0; font-variant-numeric: tabular-nums; }
+.status th {
+  text-align: left; font-size: 11px; font-weight: 600; text-transform: uppercase;
+  letter-spacing: .12em; color: var(--faint); padding: 0 14px 8px 0; border-bottom: 1px solid var(--line);
+}
+.status td { padding: 10px 14px 10px 0; border-bottom: 1px solid var(--line-2); vertical-align: top; }
+.status td:last-child, .status th:last-child { padding-right: 0; }
+.status .done { color: #2f7d4f; font-weight: 600; white-space: nowrap; }
+.status .todo { color: var(--faint); white-space: nowrap; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .status .done { color: #6cc48c; } }
+:root[data-theme="dark"] .status .done { color: #6cc48c; }
+
+@media (max-width: 860px) {
+  .pick { grid-template-columns: 1fr 1fr; }
+  .grid2, .notecols { grid-template-columns: 1fr; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; animation: none !important; }
+}
+</style>
+
+<div class="wrap">
+
+<header class="top">
+  <p class="eyebrow">Baja Sim &middot; Race Manager &middot; September 2026</p>
+  <h1>Three ways the overlay could look</h1>
+  <p class="lede">Same mod, same buttons, same information. Only the skin changes.
+    Pick one and it becomes the real stylesheet &mdash; nothing behind it has to move.</p>
+</header>
+
+<div class="pick" id="pick">
+  <button type="button" data-dir="current" aria-pressed="false">
+    <span class="swatch"><i></i><i></i><i></i></span>
+    <b>Current</b>
+    <span>What is on the server now. Here for comparison.</span>
+  </button>
+  <button type="button" data-dir="broadcast" aria-pressed="true">
+    <span class="swatch"><i></i><i></i><i></i></span>
+    <b>Broadcast</b>
+    <span>Race television. Hard edges, condensed numbers, safety orange.</span>
+  </button>
+  <button type="button" data-dir="roadbook" aria-pressed="false">
+    <span class="swatch"><i></i><i></i><i></i></span>
+    <b>Roadbook</b>
+    <span>Baja on paper. Sand cards on dark, typed like a route note.</span>
+  </button>
+  <button type="button" data-dir="instrument" aria-pressed="false">
+    <span class="swatch"><i></i><i></i><i></i></span>
+    <b>Instrument</b>
+    <span>Nearly nothing. Hairlines, air, one very large number.</span>
+  </button>
+</div>
+
+<div class="stage" id="stage" data-dir="broadcast">
+
+  <div class="dirhead">
+    <div>
+      <h2 id="dName">Broadcast</h2>
+      <p class="muted" id="dNote">Race television.</p>
+    </div>
+    <span class="tag" id="dTag">Direction</span>
+  </div>
+
+  <div class="toggles">
+    <button type="button" id="bdBtn" aria-pressed="true">Desert behind it</button>
+    <span class="muted" style="font-size:13px">Mid race, on the grid at Baja 1000</span>
+  </div>
+
+  <!-- ============ the in-game screen ============ -->
+  <div class="viewport" id="vp">
+    <div class="bd">
+      <div class="bd-sky"></div>
+      <div class="bd-sun"></div>
+      <div class="bd-far"></div>
+      <div class="bd-near"></div>
+      <div class="bd-ground"></div>
+      <div class="bd-road"></div>
+      <div class="bd-rut"></div>
+      <div class="bd-dust"></div>
+    </div>
+
+    <div class="mock">
+
+      <div class="m-top">
+        <span class="m-mark"></span>
+        <span class="btn on">Race</span>
+        <span class="btn">Records</span>
+        <span class="btn">CoPilot</span>
+        <span class="btn">Challenges</span>
+        <span class="btn">Options</span>
+        <span class="btn">Discord</span>
+        <span class="btn">Players</span>
+      </div>
+
+      <div class="m-hud">
+        <div class="m-clock">2:14.8</div>
+        <div class="m-hud-row">
+          <span>Lap 2 / 3</span>
+          <span>Gate 7 / 12</span>
+          <span class="pen">1 cut &middot; +30s</span>
+        </div>
+        <div class="m-bar"><i></i></div>
+        <div class="m-split">Gate 6 &mdash; 0:21.4</div>
+        <div class="m-hold">
+          <div class="m-hold-top"><span>Repair</span><b>41s</b></div>
+          <div class="m-hold-bar"><i></i></div>
+        </div>
+      </div>
+
+      <div class="m-players">
+        <div class="m-players-head"><span>On track</span><span>4</span></div>
+        <div class="m-prow me"><span class="lv">7</span><span>Marx</span><span class="sp">63<small>mph</small></span><span class="pg">28</span></div>
+        <div class="m-prow"><span class="lv">12</span><span>Dard</span><span class="sp">71<small>mph</small></span><span class="pg">31</span></div>
+        <div class="m-prow"><span class="lv">4</span><span>Colt</span><span class="sp">0<small>mph</small></span><span class="pg mid">96</span></div>
+        <div class="m-prow"><span class="lv">2</span><span>Rico</span><span class="sp">58<small>mph</small></span><span class="pg">44</span></div>
+      </div>
+
+      <div class="m-toast">
+        <span class="tl"></span>
+        Checkpoint 7 counted after all, penalty given back
+      </div>
+
+      <div class="m-bottom">
+        <span class="btn">Reposition</span>
+        <span class="btn">Spare tire</span>
+        <span class="btn on">Repair</span>
+        <span class="btn off">Fuel +25%</span>
+        <span class="btn">Lights</span>
+        <span class="note">Repair 41s</span>
+      </div>
+
+    </div>
+  </div>
+  <p class="caption">Everything on this screen is real: the clock counts locally,
+    the bar fills to the gate you are on, the hold runs while the car is held, and
+    the message underneath times itself out.</p>
+
+  <!-- ============ the panels ============ -->
+  <div class="board">
+    <div class="grid2">
+
+      <div class="m-card">
+        <h4>Race</h4>
+        <div class="hint" style="margin-top:0">Baja 1000 &middot; 3 laps &middot; public</div>
+        <div class="m-lobby-row"><span>Dard</span><em>host</em></div>
+        <div class="m-lobby-row"><span>Marx</span><em></em></div>
+        <div class="m-lobby-row"><span>Colt</span><em></em></div>
+        <p class="hint">Everyone is on the grid and nothing is live. The start line
+          does nothing until the host presses the button.</p>
+        <div class="row">
+          <span class="btn pri">Start race</span>
+          <span class="btn">Leave</span>
+        </div>
+      </div>
+
+      <div class="m-card">
+        <h4>Records</h4>
+        <div class="row" style="margin-top:0">
+          <span class="btn on">Baja 1000</span>
+          <span class="btn">Dust Bowl</span>
+          <span class="btn">Ridge Run</span>
+        </div>
+        <h5>Controller</h5>
+        <div class="m-best">Best lap <strong>1:58.4</strong> by Dard &middot; 2 days ago</div>
+        <table class="m-tbl">
+          <tr><th class="pos">#</th><th>Driver</th><th class="n">Time</th><th class="when">When</th></tr>
+          <tr><td class="pos">1</td><td>Dard</td><td class="n">6:12.7</td><td class="when">2 days ago</td></tr>
+          <tr class="me"><td class="pos">2</td><td>Marx</td><td class="n">6:31.2</td><td class="when">yesterday</td></tr>
+          <tr><td class="pos">3</td><td>Colt</td><td class="n">6:48.9</td><td class="when">4 days ago</td></tr>
+          <tr><td class="pos">4</td><td>Rico</td><td class="n">7:02.1</td><td class="when">last week</td></tr>
+        </table>
+      </div>
+
+      <div class="strip full">
+        <div class="m-bottom">
+          <div class="m-lights">
+            <span class="btn">Headlights</span>
+            <span class="btn">Lightbar</span>
+            <span class="btn">Fog lights</span>
+            <span class="btn">Siren</span>
+            <span class="btn">Hazards</span>
+            <span class="btn">Horn</span>
+            <span class="btn">Flash</span>
+          </div>
+          <span class="btn">Reposition</span>
+          <span class="btn">Spare tire</span>
+          <span class="btn">Repair</span>
+          <span class="btn">Fuel +25%</span>
+          <span class="btn on">Lights</span>
+        </div>
+      </div>
+
+      <div class="m-card full">
+        <h4>Baja 1000</h4>
+        <div class="m-best">Best lap <strong>1:58.4</strong> by Dard</div>
+        <table class="m-tbl">
+          <tr>
+            <th class="pos">#</th><th>Driver</th><th class="n">Time</th>
+            <th class="n">Penalties</th><th class="n">Leader</th><th class="n">Ahead</th>
+          </tr>
+          <tr>
+            <td class="pos">1</td>
+            <td>Dard<em class="chip">course record</em></td>
+            <td class="n">6:12.7</td><td class="n clean">&mdash;</td><td class="n">&mdash;</td><td class="n">&mdash;</td>
+          </tr>
+          <tr class="me">
+            <td class="pos">2</td>
+            <td>Marx<em class="chip pb">personal best</em></td>
+            <td class="n">6:31.2</td><td class="n pen">+30s</td><td class="n">+18.5</td><td class="n">+18.5</td>
+          </tr>
+          <tr>
+            <td class="pos">3</td><td>Colt</td>
+            <td class="n">6:48.9</td><td class="n clean">&mdash;</td><td class="n">+36.2</td><td class="n">+17.7</td>
+          </tr>
+        </table>
+        <h5>Did not finish</h5>
+        <div class="m-lobby-row"><span>Rico</span><em style="color:inherit;opacity:.6">left the server</em></div>
+        <div class="row">
+          <span class="btn pri">Go again</span>
+          <span class="btn">Close</span>
+        </div>
+      </div>
+
+    </div>
+  </div>
+  <p class="caption">The lobby, the record books, what the Lights button opens, and
+    the results screen. The same set in every direction, so the only thing you are
+    judging is the look.</p>
+
+</div>
+
+<!-- ============ notes ============ -->
+<section class="notes">
+  <p class="eyebrow">Where the build stands</p>
+  <h2>Phases one to five are finished and on the server</h2>
+  <p class="muted">Version 0.5.0. 531 tests, 146 interface checks and 10 key bindings pass.</p>
+
+  <table class="status">
+    <tr><th>Phase</th><th>What it covers</th><th>State</th></tr>
+    <tr><td>1</td><td>Names, codes, roles, the player list, levels</td><td class="done">Done</td></tr>
+    <tr><td>2</td><td>Courses, gates, the clock, penalties, results</td><td class="done">Done</td></tr>
+    <tr><td>3</td><td>Reposition, spare tire, repair, fuel, lights</td><td class="done">Done</td></tr>
+    <tr><td>4</td><td>Public and invite races, the pit, speed zones</td><td class="done">Done</td></tr>
+    <tr><td>5</td><td>The record books and the result badges</td><td class="done">Done</td></tr>
+    <tr><td>6</td><td>CoPilot and Chase, Challenges, language, XP</td><td class="todo">Not started</td></tr>
+  </table>
+
+  <div class="notecols">
+    <div>
+      <h3>What a new skin changes</h3>
+      <ul>
+        <li><b>One file.</b> The look lives in <code>app.css</code>. The markup, the
+          Lua and the server never move.</li>
+        <li><b>Nothing is retested.</b> The 146 interface checks read names, not
+          colours, so they keep passing.</li>
+        <li><b>It can be swapped later.</b> Picking one now does not lock the
+          server out of the others.</li>
+      </ul>
+    </div>
+    <div>
+      <h3>What stays the same either way</h3>
+      <ul>
+        <li>Every panel drags where you want it and remembers the spot.</li>
+        <li>Clicking off a panel, or Escape, shuts it.</li>
+        <li>Messages count themselves out over ten seconds and go.</li>
+        <li>The clock, the lap bar and the hold stay on screen with every panel shut.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+</div>
+
+<script>
+(function () {
+  var META = {
+    current:    ["Current",    "What is on the server now. Black, grey and the deep red off the badge."],
+    broadcast:  ["Broadcast",  "Race television. Hard edges, a skewed leading stripe, condensed numerals and one hot orange."],
+    roadbook:   ["Roadbook",   "Baja on paper. Sand cards on a dark ground, set in a mono grid like a real route note."],
+    instrument: ["Instrument", "Nearly nothing. Hairlines, a lot of air, and one very large number doing the work."]
+  };
+
+  var stage = document.getElementById("stage");
+  var pick  = document.getElementById("pick");
+  var name  = document.getElementById("dName");
+  var note  = document.getElementById("dNote");
+  var tag   = document.getElementById("dTag");
+  var vp    = document.getElementById("vp");
+  var bdBtn = document.getElementById("bdBtn");
+
+  function choose(dir) {
+    if (!META[dir]) return;
+    stage.setAttribute("data-dir", dir);
+    name.textContent = META[dir][0];
+    note.textContent = META[dir][1];
+    tag.textContent  = dir === "current" ? "On the server today" : "Proposed";
+    var all = pick.querySelectorAll("button");
+    for (var i = 0; i < all.length; i++) {
+      all[i].setAttribute("aria-pressed", all[i].getAttribute("data-dir") === dir ? "true" : "false");
+    }
+    try { localStorage.setItem("rm-dir", dir); } catch (e) {}
+  }
+
+  pick.addEventListener("click", function (ev) {
+    var b = ev.target.closest("button[data-dir]");
+    if (b) choose(b.getAttribute("data-dir"));
+  });
+
+  bdBtn.addEventListener("click", function () {
+    var on = bdBtn.getAttribute("aria-pressed") !== "true";
+    bdBtn.setAttribute("aria-pressed", on ? "true" : "false");
+    vp.classList.toggle("flat", !on);
+    try { localStorage.setItem("rm-bd", on ? "1" : "0"); } catch (e) {}
+  });
+
+  var saved = null, savedBd = null;
+  try { saved = localStorage.getItem("rm-dir"); savedBd = localStorage.getItem("rm-bd"); } catch (e) {}
+  choose(saved && META[saved] ? saved : "broadcast");
+  if (savedBd === "0") { bdBtn.setAttribute("aria-pressed", "false"); vp.classList.add("flat"); }
+})();
+</script>
