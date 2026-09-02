@@ -46,16 +46,21 @@ span(20, 24, 1, 25, 11.5, "and the same the other way round")
 span(20, 5, 20, 25, -7.5, "part way over still centres on the gap")
 
 section("open ground does not make a monster")
-span(20, 25, 25, 50, 0, "nothing found either side is capped")
-span(20, 25, 10, 35, 7.5, "open on one side only takes what it found")
+-- the desert. both rays ran out without touching anything, and reading that
+-- as twenty five metres of track each way drew fifty metre gates.
+span(20, nil, nil, 20, 0, "neither side found a thing, so the marked width stands")
+span(20, 14, 10, 24, 2, "walls on both sides, the gate takes the gap it found")
+span(20, 20, 20, 30, 0, "two distant walls are still pulled back to the ceiling")
 
 section("a narrow gap never squeezes the gate below what was captured")
 span(20, 3, 4, 20, -0.5, "a tight spot keeps the captured width")
 span(8, 2, 3, 8, -0.5, "and a small gate keeps its own")
 
-section("bad measurements change nothing")
-span(20, nil, 10, 20, 0, "no left measurement, gate as captured")
-span(20, 10, nil, 20, 0, "no right measurement, same")
+section("one side measured is still worth having")
+span(20, nil, 10, 20, 0, "no left reading, the marked half fills in for it")
+span(20, 10, nil, 20, 0, "no right reading, same")
+span(20, nil, 4, 20, 3, "a close wall on the right slides the gate away from it")
+span(20, 4, nil, 20, -3, "and the same on the left")
 span(nil, nil, nil, 0, 0, "nothing at all falls back to zero width, not a crash")
 
 print("")

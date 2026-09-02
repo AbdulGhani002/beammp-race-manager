@@ -64,28 +64,49 @@ local BASE_SINK = 1.5
 -- On screen that read as gates only counting near the middle. So each side is
 -- measured out to the first wall or bank, and the gate is slid and widened to
 -- span the whole gap.
-local PROBE_MAX = 25.0
+-- Past this there is no lane edge worth finding: a ray that reaches this far
+-- has left the track, not measured it. Keep it tight, because whatever a probe
+-- reports is what the gate is built to.
+local PROBE_MAX = 15.0
 local PROBE_UP  = 1.2
-local SPAN_MOST = 50.0
+local SPAN_MOST = 30.0
 
 -- the sums on their own, so they can be tested without a game
 function M.fitSpan(w, left, right)
   w = tonumber(w) or 0
-  if type(left) ~= "number" or type(right) ~= "number" then return w, 0 end
-  local across = left + right
-  if across < w then across = w end
-  if across > SPAN_MOST then across = SPAN_MOST end
-  return across, (left - right) * 0.5
+  local half = w * 0.5
+  local l, r = tonumber(left), tonumber(right)
+
+  -- Neither side found anything, so there is nothing to fit to and the width
+  -- the course was marked with stands. Reading a miss as open track is what
+  -- put fifty metre gates across the desert.
+  if l == nil and r == nil then return w, 0 end
+
+  -- one side measured is still worth having: the gate slides off the wall it
+  -- found and keeps its marked half on the side that told us nothing
+  l = l or half
+  r = r or half
+
+  local across = l + r
+  if across < w then
+    local add = (w - across) * 0.5
+    l, r, across = l + add, r + add, w
+  end
+  if across > SPAN_MOST then
+    local k = SPAN_MOST / across
+    l, r, across = l * k, r * k, SPAN_MOST
+  end
+  return across, (l - r) * 0.5
 end
 
--- static geometry only, so another car cannot shrink a gate
+-- Static geometry only, so another car cannot shrink a gate. Nil means the ray
+-- found nothing, which is not the same as finding open ground far away.
 local function probe(pos, dx, dy)
-  if type(castRayStatic) == "function" then
-    local ok, d = pcall(castRayStatic,
-      vec3(pos.x, pos.y, pos.z + PROBE_UP), vec3(dx, dy, 0), PROBE_MAX)
-    if ok and type(d) == "number" then return math.min(d, PROBE_MAX) end
-  end
-  return PROBE_MAX
+  if type(castRayStatic) ~= "function" then return nil end
+  local ok, d = pcall(castRayStatic,
+    vec3(pos.x, pos.y, pos.z + PROBE_UP), vec3(dx, dy, 0), PROBE_MAX)
+  if ok and type(d) == "number" and d >= 0 and d < PROBE_MAX - 0.01 then return d end
+  return nil
 end
 
 local function fitSpans(cps)

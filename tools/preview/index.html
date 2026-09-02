@@ -117,11 +117,15 @@ var SCENES = {
     return s;
   },
 
+  // nothing is drawn over the road before the clock exists. the message is
+  // what the client pushes on arming, so the scene carries it.
   armed: function () {
     var s = base();
     s.race = { state: "armed", track: "baja-1000", trackName: "Baja 1000",
                mode: "wheel", laps: 2, lap: 0, gates: 30, next: 1, circuit: true,
                penalties: 0, elapsed: 0 };
+    s.toast = { text: "Baja 1000 is on. Your clock starts when you cross the start line.",
+                secs: 10, seq: Date.now() };
     return s;
   },
 
@@ -142,7 +146,7 @@ var SCENES = {
                mode: "wheel", laps: 2, lap: 2, gates: 30, next: 23, done: 22, circuit: true,
                penalties: 6, penaltyTime: 180, elapsed: 619.2 };
     s.lights = true;
-    s.toast = { text: "Repair: this arrives in phase 3, and it would cost 30s in this run",
+    s.toast = { text: "Repair holds the car 60s and puts 30s on this run",
                 secs: 10, seq: Date.now() };
     return s;
   },
@@ -156,11 +160,15 @@ var SCENES = {
     return s;
   },
 
+  // in, and somebody is still out there. it used to be a box pinned in the
+  // corner that never left on its own.
   waiting: function () {
     var s = base();
     s.race = { state: "finished", track: "baja-1000", trackName: "Baja 1000",
                mode: "wheel", laps: 1, lap: 1, gates: 30, next: 0, circuit: true,
                penalties: 0, waiting: 2 };
+    s.toast = { text: "You are in. Waiting on 2 drivers still on track.",
+                secs: 10, seq: Date.now() };
     return s;
   },
 

@@ -370,8 +370,27 @@
   margin: 12px 0 5px;
 }
 
+/* A pair of choices side by side is a switch, so the picked half is marked
+   with a bar under it rather than filled in. That leaves the one strong red on
+   the panel for the button that actually starts something. */
 .rm-pickrow { display: flex; gap: 5px; flex-wrap: wrap; }
-.rm-pickrow button { flex: 1 1 auto; }
+.rm-pickrow button { flex: 1 1 auto; position: relative; overflow: hidden; }
+
+.rm-pickrow button.on:not(.rm-primary):not(.rm-danger) {
+  background: rgba(168, 29, 34, 0.15);
+  border-color: rgba(200, 60, 60, 0.45);
+  color: #fff;
+}
+
+.rm-pickrow button.on:not(.rm-primary):not(.rm-danger)::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 2px;
+  background: var(--rm-red-lit);
+}
 
 .rm-picklist {
   display: flex;
@@ -381,7 +400,11 @@
   overflow-y: auto;
 }
 
+/* A row in a list is a choice, not a button you press once. Filling the whole
+   width with the badge red made the picked course read as a warning banner
+   across the panel. A rail down the edge says the same thing quietly. */
 .rm-picklist button {
+  position: relative;
   display: flex;
   justify-content: space-between;
   align-items: baseline;
@@ -390,16 +413,47 @@
   text-transform: none;
   letter-spacing: 0;
   font-size: 14px;
+  padding: 9px 12px 9px 15px;
+  background: rgba(255, 255, 255, 0.028);
+  border-color: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
 }
+
+.rm-picklist button::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: transparent;
+}
+
+.rm-picklist button:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.18);
+}
+
+.rm-picklist button.on {
+  background: rgba(168, 29, 34, 0.15);
+  border-color: rgba(200, 60, 60, 0.45);
+  color: var(--rm-text);
+}
+
+.rm-picklist button.on::before { background: var(--rm-red-lit); }
+
+.rm-pick-name { font-weight: 500; }
+.rm-picklist button.on .rm-pick-name { color: #fff; font-weight: 600; }
 
 .rm-pick-note {
   font-size: 11px;
   color: var(--rm-dim);
   text-transform: uppercase;
   letter-spacing: 0.08em;
+  white-space: nowrap;
 }
 
-.rm-picklist button.on .rm-pick-note { color: rgba(255, 255, 255, 0.75); }
+.rm-picklist button.on .rm-pick-note { color: var(--rm-orange); }
 
 .rm-crest {
   display: block;
