@@ -152,6 +152,7 @@ angular.module("beamng.apps")
       function onKey(e) {
         if (e.key !== "Escape" && e.keyCode !== 27) return;
         if ($scope.s.lights) ui("closeLights");
+        else if (($scope.s.race || {}).results) $scope.closeResults();
         else if ($scope.panel) $scope.panel = null;
         else if ($scope.s.rosterOpen) ui("setRosterOpen", false);
         else return;
@@ -192,7 +193,8 @@ angular.module("beamng.apps")
           }
 
           var race = (data && data.race) || {};
-          if (race.state === "running" && $scope.panel === "race") $scope.panel = null;
+          if ((race.state === "armed" || race.state === "running") &&
+              $scope.panel === "race") $scope.panel = null;
 
           // default the course picker to something real rather than an empty
           // select the Go button refuses to work with
@@ -207,7 +209,6 @@ angular.module("beamng.apps")
       // which phase each unfinished button lands in. the shell says so rather
       // than looking broken.
       $scope.SOON = {
-        records: "Records arrive in phase 5.",
         copilot: "CoPilot and Chase arrive in phase 6.",
         challenges: "Challenges arrive in phase 6."
       };
@@ -517,9 +518,10 @@ angular.module("beamng.apps")
         return !st || st === "idle";
       };
 
-      $scope.raceActive = function () {
-        var st = ($scope.s.race || {}).state;
-        return st === "armed" || st === "running";
+      // armed says a race exists, not that it has begun. nothing is drawn
+      // over the road until the clock is running.
+      $scope.raceRunning = function () {
+        return ($scope.s.race || {}).state === "running";
       };
 
       // A native select does not open in the game's interface layer. None of

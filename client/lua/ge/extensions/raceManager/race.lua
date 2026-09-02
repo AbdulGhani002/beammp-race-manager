@@ -169,6 +169,10 @@ local function onState(d)
     startedLocal = nil
     shownTenths = -1
     extensions.raceManager_net.send("track.get", { id = st.track })
+    -- a message, not a window. it says its piece and goes.
+    extensions.raceManager_state.notice(
+      ("%s is on. Your clock starts when you cross the start line."):format(
+        st.trackName or st.track or "The race"))
   end
 
   if st.state == "idle" or st.state == "abandoned" then
@@ -281,7 +285,13 @@ local function onLobbies(d)
 end
 
 local function onWaiting(d)
+  local was = st.waiting
   st.waiting = type(d) == "table" and d.left or nil
+  if st.waiting and st.waiting ~= was then
+    extensions.raceManager_state.notice(
+      ("You are in. Waiting on %d %s still on track."):format(
+        st.waiting, st.waiting == 1 and "driver" or "drivers"))
+  end
   push()
 end
 

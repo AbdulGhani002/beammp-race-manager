@@ -1,4 +1,4 @@
-<div class="rm-root" ng-class="{racing: raceActive()}">
+<div class="rm-root" ng-class="{racing: raceRunning()}">
   <link rel="stylesheet" type="text/css" href="/ui/modules/apps/RaceManager/app.css" />
 
   <!-- first join. no password, no signup: pick a name once. -->
@@ -436,30 +436,24 @@
       </div>
     </div>
 
-    <!-- the racing clock. on screen whenever a run is on, panel open or not,
-         counted locally from a start the server gave us. -->
-    <div class="rm-hud" ng-if="raceActive()">
-      <div class="rm-hud-arm" ng-if="s.race.state === 'armed'">
-        <span class="rm-hud-arm-big">Drive through the start line</span>
-        <span class="rm-hud-arm-sub">{{ s.race.trackName || s.race.track }}</span>
+    <!-- the racing clock. up from the moment the line is crossed until the run
+         is over, panel open or not, counted locally from a start the server
+         gave us. before that a toast says what to do and nothing sits there. -->
+    <div class="rm-hud" ng-if="raceRunning()">
+      <!-- the big number already has the penalties in it, so the total sits
+           with the cut count instead of next to the clock, where it read as
+           another ninety seconds still to come -->
+      <div class="rm-hud-clock">{{ bigClock(s.race.elapsed) }}</div>
+      <div class="rm-hud-row">
+        <span ng-if="s.race.laps > 1">Lap {{ s.race.lap }} / {{ s.race.laps }}</span>
+        <span ng-if="s.race.next">Gate {{ s.race.next }} / {{ s.race.gates }}</span>
+        <span class="rm-hud-pen" ng-if="s.race.penalties">
+          {{ s.race.penalties }} cut &middot; +{{ penaltyClock(s.race.penaltyTime) }}
+        </span>
+        <span class="rm-hud-inpit" ng-if="s.race.inPit">in the pit &middot; service is free</span>
       </div>
-
-      <div ng-if="s.race.state === 'running'">
-        <!-- the big number already has the penalties in it, so the total sits
-             with the cut count instead of next to the clock, where it read as
-             another ninety seconds still to come -->
-        <div class="rm-hud-clock">{{ bigClock(s.race.elapsed) }}</div>
-        <div class="rm-hud-row">
-          <span ng-if="s.race.laps > 1">Lap {{ s.race.lap }} / {{ s.race.laps }}</span>
-          <span ng-if="s.race.next">Gate {{ s.race.next }} / {{ s.race.gates }}</span>
-          <span class="rm-hud-pen" ng-if="s.race.penalties">
-            {{ s.race.penalties }} cut &middot; +{{ penaltyClock(s.race.penaltyTime) }}
-          </span>
-          <span class="rm-hud-inpit" ng-if="s.race.inPit">in the pit &middot; service is free</span>
-        </div>
-        <div class="rm-hud-bar" ng-if="s.race.gates">
-          <div class="rm-hud-bar-fill" style="width: {{ lapProgress() }}%"></div>
-        </div>
+      <div class="rm-hud-bar" ng-if="s.race.gates">
+        <div class="rm-hud-bar-fill" style="width: {{ lapProgress() }}%"></div>
       </div>
 
       <div class="rm-hud-split" ng-if="s.race.lastSplit">
@@ -483,13 +477,6 @@
       </div>
 
       <button class="rm-hud-end" ng-click="endRace()">End race</button>
-    </div>
-
-    <!-- finished, but somebody else is still out there -->
-    <div class="rm-waiting" ng-if="s.race.waiting && !s.race.results">
-      <span class="rm-waiting-big">You are in</span>
-      <span>Waiting on {{ s.race.waiting }}
-        {{ s.race.waiting === 1 ? "driver" : "drivers" }} still on track</span>
     </div>
 
     <!-- bottom bar. every one of these needs the car stopped. -->
