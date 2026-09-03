@@ -54,7 +54,9 @@
 \vspace{8pt}
 
 All three phases are on the server. This is what each one does, what changed
-after your testing, and the few things the game itself will not allow.
+after your testing, what the game itself will not allow, and what is still
+owed inside these three phases. That last part is a section of its own near
+the end, so nothing here reads as finished when it is not.
 
 \section{Phase 3: the bottom bar}
 
@@ -67,10 +69,11 @@ work.
 \textbf{Button} & \textbf{Hold} & \textbf{Penalty} & \textbf{What it does} \\
 \midrule
 \endhead
-Reposition & 5s & 60s  & Back on its wheels where it stands. The damage stays. \\
-Spare tire & 30s & 30s & Air back into the flat tires, in place. See section 2. \\
+Reposition & 5s & 60s  & Back onto the course, facing the way it runs. Section 2. \\
+Spare tire & 30s & 30s & A tire off the rack. Section 3. \\
 Repair     & 60s & 30s & The whole car rebuilt, in place. \\
-Fuel +25\% & 20s & none & A quarter of a tank. \\
+Fuel +25\% & 20s & none & A quarter of a tank, or a full one in the pit. \\
+Re-rack    & 30s & none & Pit only. Fills the spare rack again. \\
 Lights     & none & none & Headlights, fog, hazards, lightbar, siren, horn, flash. \\
 \bottomrule
 \end{longtable}
@@ -80,21 +83,54 @@ through buys nothing. A job the game cannot do gives the seconds back. Outside
 a run everything is instant and free. Every number lives on the server and can
 change without anyone reinstalling.
 
-After your testing, three behaviours were corrected: nothing teleports any
-more. Reposition rights the car where it is and repairs nothing. Repair fixes
-the car where it is. Both go through the game's own safe placement, so a car
-against a wall is set down beside it rather than inside it.
+Each job makes a noise while the car is held, from the files you sent, and
+only while a race is on. Spare tire is the impact driver six times, one per
+nut. Fuel is the bottle at four fifths speed. Repair drills once and then
+hammers and ratchets until the hold runs out, so it follows the hold rather
+than a fixed count. Reposition and Re-rack are quiet, as you asked.
 
-\section{The spare tire, honestly}
+\section{Reposition}
 
-You had seen a tire fixed without a full reset, and you were right. The game
-cannot mend a tire, but it can put air back in, because that is what its own
-onboard air compressors do. So Spare tire now refills every flat tire in place
-and clears the flat, touching nothing else.
+Standing the car up where it rolled leaves it nose into whatever stopped it,
+which is not what anyone means by the word. It goes back onto the leg you are
+driving instead, the line from the gate you last passed to the one you are
+going for, at the nearest point on that leg and pointing the way the course
+runs.
 
-The limit: a tire that is shredded or on a broken wheel will not come back
-from air. In that case the button falls back to the full repair and tells you
-so. Nearly every racing flat is the recoverable kind.
+Nearest is the fair one. No ground is given and none is taken, so it cannot be
+used to skip a corner. The damage still comes with you. Outside a race it
+stands the car up where it is, as before.
+
+\section{The spare tire}
+
+Your idea was the right one, and better than what was there before. Spare
+tires are real parts bolted to the car, so the rack is read off the vehicle
+rather than guessed at. A race truck carries two, a UTV one, plenty of things
+none. That is the limit, not a number in a settings file, and a car with no
+rack has no spare button at all.
+
+Which road the button takes depends on how bad the tire is.
+
+\begin{itemize}
+  \item Flat with the wheel still under it: the air goes back in where you
+        stopped and nothing else on the car is touched. This is most racing
+        flats.
+  \item Shredded, or the wheel is broken: the tires are replaced out of the
+        parts list, the same job the vehicle selector does. It is the only
+        thing the game can do for a tire that far gone.
+\end{itemize}
+
+Either way one comes off the rack. The button shows how many you have left and
+greys out at zero. Re-rack is a pit job: it fills the rack again for the wait
+and nothing on the clock.
+
+One thing to know, because it decided the design. Replacing a part rebuilds
+the whole car, not just the tires. So that road is only taken when the tire is
+genuinely destroyed. Run it on every flat and each puncture hands out a free
+repair, and nobody presses Repair again, since Repair takes twice as long for
+the same penalty. The cost of doing it this way is that on an ordinary flat
+the spares on the rack still look full on the model even though your count
+went down. The count is what the rules run on.
 
 \section{Phase 4: races you make and join}
 
@@ -163,9 +199,26 @@ The recordings you sent found real bugs, and each one led somewhere useful.
 \textbf{What you saw} & \textbf{What it was} \\
 \midrule
 \endhead
-Checkpoints only counted near the middle of the road.
-& A gate is centred on wherever the capture car drove. Gates now measure the
-  track to each side and slide to span the whole lane. \\
+Checkpoints only counted near the middle of the road, then later did not span
+it at all.
+& A gate is centred on wherever the capture car drove. Rays fired sideways to
+  find the edge touch nothing on an open dirt track, so a gate now takes its
+  width and its middle from the road the game's own driving ai uses. That is
+  measured rather than guessed. A road narrower than the width you set leaves
+  your width alone. \\
+\addlinespace
+Reposition put the car back where it had rolled to.
+& It goes back onto the leg being driven now, at the nearest point on it. See
+  section 2. \\
+\addlinespace
+The race picker opened with its heading cut off and a bar down the side.
+& A window could be dragged shorter than what was in it, and the size was
+  remembered. It cannot be now, and a size already saved heals itself the next
+  time the window opens. \\
+\addlinespace
+A window opened when a race started, and had to be closed to drive.
+& Nothing is drawn over the road before the clock exists. A message says the
+  race is on and counts itself out. \\
 \addlinespace
 Some checkpoints floated and cars passed under them.
 & The volume was centred on its base. It now stands from just below the
@@ -186,9 +239,16 @@ The clock jumped backwards thirty seconds.
 & A checkpoint charged as cut had been reached after all, and the penalty
   came back off. Correct, but silent; it now says so on screen. \\
 \addlinespace
-The light menu would not close, and popups sat around.
-& Everything closes on a click elsewhere or Escape, and messages run a ten
-  second line and go. \\
+The light menu would not close.
+& It closes on the light you picked, on reaching past it for another button,
+  and on driving off, which is the one a click never covered. Messages run a
+  ten second line and go. \\
+\addlinespace
+The spare tire button killed the interface.
+& New code was written above the part that calls it, which lua does not allow.
+  It parses and then dies on the first press. A build check now reads every
+  client file for that mistake, and another follows every button through to
+  the code behind it, which caught a second button that did nothing at all. \\
 \bottomrule
 \end{longtable}
 
@@ -199,43 +259,91 @@ The light menu would not close, and popups sat around.
 \textbf{Suite} & \textbf{Tests} \\
 \midrule
 \endhead
-Gate geometry            & 12 \\
+Gate geometry and putting back & 30 \\
 Course capture and shape & 31 \\
 Phase 1, identity        & 91 \\
 Phase 2, racing          & 131 \\
-Phase 3, the bottom bar  & 50 \\
+Phase 3, the bottom bar and the rack & 68 \\
 Phase 4, lobby, pit, zones & 56 \\
 Phase 5, the books       & 31 \\
 Results                  & 103 \\
 The clock and lap bar    & 26 \\
 \midrule
-Total                    & 531 \\
+Total                    & 567 \\
 \bottomrule
 \end{longtable}
 
-Plus 146 interface checks and 10 key bindings that fail the build when the
-screen and the code stop agreeing. The books, the bar and the lobby were also
-tested by breaking them on purpose: charging at the wrong end, letting marked
-runs into the books, losing the store. Every sabotage was caught, which is
-what says the numbers above mean something.
+Plus 163 interface checks, 10 key bindings, and a reader over every client
+file that fails the build when a name is used above where it is written. All
+of those fail the build when the screen and the code stop agreeing.
+
+The books, the bar, the rack and the gate sums were also tested by breaking
+them on purpose: charging at the wrong end, letting marked runs into the
+books, never taking a spare off the rack, re-racking out on the course,
+ignoring the road width, putting a car back where it already was. Every
+sabotage was caught, which is what says the numbers above mean something.
 
 \section{What the game will not allow}
 
 Written down so nobody goes looking for a setting that does not exist.
 
 \begin{itemize}
-  \item One tire cannot be mended by itself. Air can be put back, which
-        covers punctures; a shredded tire needs the full repair.
+  \item One tire cannot be mended on its own. Air can go back in, which covers
+        punctures. A destroyed one can only come back by rebuilding the car
+        from its parts, which is why the spare works the way section 3
+        describes.
   \item A car cannot be frozen for one player only in a way other players do
         not see. The hold freezes the car for everyone, which is correct for
         a race anyway.
+  \item Gate widths come from the road the driving ai uses. Your dirt oval has
+        one. A course built somewhere with no roads defined falls back to the
+        width you set in the capture tool.
 \end{itemize}
+
+\section{Still to come in these phases}
+
+Set down plainly so nothing is assumed finished. None of these are phase 6.
+
+\begin{longtable}{@{}p{34mm}p{10mm}>{\raggedright\arraybackslash}p{112mm}@{}}
+\toprule
+\textbf{Item} & \textbf{Phase} & \textbf{Where it stands} \\
+\midrule
+\endhead
+Team & 4 & Invite or request, same vehicle model only, breaks up when the cars
+stop matching, results saved for the team. Not built. I took the button off the
+bar and told you the race lobby covered it. It does not: the lobby is a race
+you join, and Team is two drivers paired with shared results. My mistake, and
+it is still owed. \\
+\addlinespace
+Kick, ban, grant XP & 5 & The four roles, the ranking and the permission gate
+are in, and so is promote and demote from the console. The three commands
+themselves are not written. \\
+\addlinespace
+XP and levels & 5 & The curve you asked for sits in the settings, 200 then 198
+then 196 and so on. Nothing reads it yet, so a level is shown but never
+changes. \\
+\addlinespace
+Records by class & 5 & Records sort by course and by controller or wheel.
+Sorting by class needs the class list, which is the one thing the plan asked
+you for at phase 5 and has not arrived. Say what the classes are and this is
+short work. \\
+\addlinespace
+Qualifying & 4 & A course can be marked as qualifying and it times and scores
+like any other. There is no separate qualifying procedure, such as a single
+flying lap setting the grid. Tell me if you want that and I will scope it. \\
+\bottomrule
+\end{longtable}
+
+One difference from the plan worth naming rather than hiding. Speed zones were
+written as holding the car to the limit. What is built reads your speed on the
+server, warns you, and charges thirty seconds if you stay over for three
+seconds. It does not physically slow the car. Enforcing by penalty cannot be
+cheated by a driver's own game, which is why it went that way, but it is not
+the same thing as a cap and you should know that.
 
 \section{Still open}
 
 \begin{itemize}
-  \item The tire shop sound for the spare. It needs a sound file from you, or
-        I use one of the game's.
   \item The look of the interface, which you asked about. It is a separate
         job and can start whenever you like.
   \item CoPilot and Challenges are phase 6.
@@ -245,7 +353,8 @@ Written down so nobody goes looking for a setting that does not exist.
 \hrule
 \vspace{6pt}
 
-{\small All of the above is deployed. The books start empty, so the first
-finished race on each course sets its first record.}
+{\small Everything described as built is on the server, sounds and all. The
+books start empty, so the first finished race on each course sets its first
+record.}
 
 \end{document}
