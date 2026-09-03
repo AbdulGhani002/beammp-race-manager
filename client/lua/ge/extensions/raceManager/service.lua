@@ -31,103 +31,6 @@ end
 function M.status() return st end
 function M.busy() return st.which ~= nil end
 
------------------------------------------------------------- asking
-
--- the car is the only thing that knows whether a tire is down, so it is asked
--- before the request goes out rather than after the wait
-local pendingFlat = nil
-
-function M.onFlat(flat)
-  local ask = pendingFlat
-  pendingFlat = nil
-  if not ask then return end
-  if not flat then
-    notice("Spare tire: nothing is flat")
-    return
-  end
-  extensions.raceManager_net.send("service.use",
-    { which = "spare", flat = true, spares = rackCount() })
-end
-
-local function askFlat()
-  local v = playerVehicle()
-  if not v then notice("Get in a car first") return end
-  -- caught before anything comes off, so the pit knows what to put back
-  rememberRack()
-  pendingFlat = true
-  v:queueLuaCommand([[
-    local flat = false
-    for _, w in pairs(wheels.wheels or {}) do
-      if w.isTireDeflated or w.isBroken then flat = true break end
-    end
-    obj:queueGameEngineLua("extensions.raceManager_service.onFlat(" .. tostring(flat) .. ")")
-  ]])
-end
-
--- electric cars have no tank to fill, and finding that out after a twenty
--- second wait is worse than being told now
-local function askFuel()
-  local v = playerVehicle()
-  if not v then notice("Get in a car first") return end
-  local ok = pcall(function()
-    core_vehicleBridge.requestValue(v, function(ret)
-      local tanks = ret and ret[1]
-      local room = false
-      for _, tank in ipairs(tanks or {}) do
-        if tank.energyType ~= "electricEnergy" and (tank.currentEnergy or 0) < (tank.maxEnergy or 0) then
-          room = true
-        end
-      end
-      if not room then
-        notice("Fuel: nothing on this car takes any")
-        return
-      end
-      extensions.raceManager_net.send("service.use", { which = "fuel" })
-    end, "energyStorage")
-  end)
-  if not ok then notice("Fuel: could not read the tank") end
-end
-
-function M.ask(which)
-  if st.which then
-    notice("Already busy with " .. st.which)
-    return
-  end
-  if which == "spare" then askFlat() return end
-  if which == "fuel" then askFuel() return end
-  if which == "rerack" then
-    extensions.raceManager_net.send("service.use",
-      { which = "rerack", spares = rackCount0 >= 0 and rackCount0 or rackCount() })
-    return
-  end
-  extensions.raceManager_net.send("service.use", { which = which })
-end
-
------------------------------------------------------------- doing it
-
-local function freeze(v, on)
-  pcall(function() core_vehicleBridge.executeAction(v, "setFreeze", on and true or false) end)
-end
-
--- a quarter of a tank on the road, the whole tank in the pit
-local function addFuel(v, full)
-  local share = full and 1.0 or FUEL_STEP
-  return pcall(function()
-    core_vehicleBridge.requestValue(v, function(ret)
-      for _, tank in ipairs((ret and ret[1]) or {}) do
-        if tank.energyType ~= "electricEnergy" then
-          local max = tank.maxEnergy or 0
-          local now = tank.currentEnergy or 0
-          local add = math.min(max - now, max * share)
-          if add > 0 then
-            core_vehicleBridge.executeAction(v, "setEnergyStorageEnergy", tank.name, now + add)
-          end
-        end
-      end
-    end, "energyStorage")
-  end)
-end
-
 ------------------------------------------------------------ the spare rack
 
 -- Spare tires are real parts bolted to the car, so the rack is read off the
@@ -262,6 +165,104 @@ local function reRack()
   if not fillRack(cfg) then return false, "no_rack" end
   local ok = applyTree(cfg)
   return ok, (not ok) and "swap_failed" or nil
+end
+
+
+------------------------------------------------------------ asking
+
+-- the car is the only thing that knows whether a tire is down, so it is asked
+-- before the request goes out rather than after the wait
+local pendingFlat = nil
+
+function M.onFlat(flat)
+  local ask = pendingFlat
+  pendingFlat = nil
+  if not ask then return end
+  if not flat then
+    notice("Spare tire: nothing is flat")
+    return
+  end
+  extensions.raceManager_net.send("service.use",
+    { which = "spare", flat = true, spares = rackCount() })
+end
+
+local function askFlat()
+  local v = playerVehicle()
+  if not v then notice("Get in a car first") return end
+  -- caught before anything comes off, so the pit knows what to put back
+  rememberRack()
+  pendingFlat = true
+  v:queueLuaCommand([[
+    local flat = false
+    for _, w in pairs(wheels.wheels or {}) do
+      if w.isTireDeflated or w.isBroken then flat = true break end
+    end
+    obj:queueGameEngineLua("extensions.raceManager_service.onFlat(" .. tostring(flat) .. ")")
+  ]])
+end
+
+-- electric cars have no tank to fill, and finding that out after a twenty
+-- second wait is worse than being told now
+local function askFuel()
+  local v = playerVehicle()
+  if not v then notice("Get in a car first") return end
+  local ok = pcall(function()
+    core_vehicleBridge.requestValue(v, function(ret)
+      local tanks = ret and ret[1]
+      local room = false
+      for _, tank in ipairs(tanks or {}) do
+        if tank.energyType ~= "electricEnergy" and (tank.currentEnergy or 0) < (tank.maxEnergy or 0) then
+          room = true
+        end
+      end
+      if not room then
+        notice("Fuel: nothing on this car takes any")
+        return
+      end
+      extensions.raceManager_net.send("service.use", { which = "fuel" })
+    end, "energyStorage")
+  end)
+  if not ok then notice("Fuel: could not read the tank") end
+end
+
+function M.ask(which)
+  if st.which then
+    notice("Already busy with " .. st.which)
+    return
+  end
+  if which == "spare" then askFlat() return end
+  if which == "fuel" then askFuel() return end
+  if which == "rerack" then
+    extensions.raceManager_net.send("service.use",
+      { which = "rerack", spares = rackCount0 >= 0 and rackCount0 or rackCount() })
+    return
+  end
+  extensions.raceManager_net.send("service.use", { which = which })
+end
+
+------------------------------------------------------------ doing it
+
+local function freeze(v, on)
+  pcall(function() core_vehicleBridge.executeAction(v, "setFreeze", on and true or false) end)
+end
+
+-- a quarter of a tank on the road, the whole tank in the pit
+local function addFuel(v, full)
+  local share = full and 1.0 or FUEL_STEP
+  return pcall(function()
+    core_vehicleBridge.requestValue(v, function(ret)
+      for _, tank in ipairs((ret and ret[1]) or {}) do
+        if tank.energyType ~= "electricEnergy" then
+          local max = tank.maxEnergy or 0
+          local now = tank.currentEnergy or 0
+          local add = math.min(max - now, max * share)
+          if add > 0 then
+            core_vehicleBridge.executeAction(v, "setEnergyStorageEnergy", tank.name, now + add)
+          end
+        end
+      end
+    end, "energyStorage")
+  end)
 end
 
 local UPRIGHT_LIFT = 0.6

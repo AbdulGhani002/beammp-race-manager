@@ -21,13 +21,9 @@ angular="$stage/angular.min.js"
 
 mkdir -p "$stage/ui/modules/apps/RaceManager"
 
-# the real files, not copies that can drift
-cp "$root"/client/ui/modules/apps/RaceManager/app.css \
-   "$root"/client/ui/modules/apps/RaceManager/app.html \
-   "$root"/client/ui/modules/apps/RaceManager/app.js \
-   "$root"/client/ui/modules/apps/RaceManager/logo-shield.png \
-   "$root"/client/ui/modules/apps/RaceManager/logo-round.png \
-   "$stage/ui/modules/apps/RaceManager/"
+# The whole app, not a list of files. A list drifts: the sounds folder was
+# added and the preview served 404s for it because nobody had updated the list.
+cp -r "$root"/client/ui/modules/apps/RaceManager/. "$stage/ui/modules/apps/RaceManager/"
 cp "$root/tools/preview/index.html" "$stage/index.html"
 
 # angular is the game's, not ours, so it is fetched rather than committed

@@ -161,6 +161,7 @@ angular.module("beamng.apps")
       document.addEventListener("keydown", onKey);
 
       $scope.$on("$destroy", function () {
+        stopSounds();
         StreamsManager.remove(streams);
         document.removeEventListener("keydown", onKey);
         ui("setRosterOpen", false);
@@ -178,6 +179,95 @@ angular.module("beamng.apps")
       // open the capture window once when a capture starts, and not again.
       // state arrives up to ten times a second, so reopening it whenever the
       // panel is closed means the close button can never win.
+      // ------------------------------------------------------------ sounds
+      // The bar's jobs make a noise while the car is held, and only in a race:
+      // he asked for it on the clock, not while people mess about in free roam.
+      // Steps are chained on the end of the one before rather than fired off a
+      // stopwatch, so the pattern still lines up if a clip is swapped for a
+      // longer one. The deadline cuts it off when the hold is up, which is what
+      // makes "a few times if the hold allows" follow the hold.
+      var SOUND_URL = "/ui/modules/apps/RaceManager/sounds/";
+      var soundBank = {};
+      var soundChain = null;
+
+      function clip(name) {
+        var a = soundBank[name];
+        if (!a) {
+          a = new Audio(SOUND_URL + name + ".mp3");
+          a.preload = "auto";
+          soundBank[name] = a;
+        }
+        return a;
+      }
+
+      function stopSounds() {
+        if (soundChain) { soundChain.dead = true; soundChain = null; }
+        for (var k in soundBank) {
+          try { soundBank[k].pause(); soundBank[k].currentTime = 0; } catch (e) {}
+        }
+      }
+
+      function runSounds(steps, endsAt) {
+        stopSounds();
+        if (!steps || !steps.length) return;
+        var chain = { dead: false, i: 0 };
+        soundChain = chain;
+
+        function next() {
+          if (chain.dead || chain.i >= steps.length) return;
+          if (endsAt && Date.now() >= endsAt) return;
+          var step = steps[chain.i++];
+          var a = clip(step.name);
+          try {
+            a.pause();
+            a.currentTime = 0;
+            a.playbackRate = step.rate || 1;
+            a.onended = function () {
+              if (!chain.dead) setTimeout(next, step.gap || 0);
+            };
+            var p = a.play();
+            if (p && p.catch) p.catch(function () {});
+          } catch (e) {}
+        }
+        next();
+      }
+
+      // six bursts for six wheel nuts, a bottle glugging slower than life, and
+      // a repair that drills once then hammers and ratchets until time is up
+      function jobSounds(which) {
+        var steps = [], i;
+        if (which === "spare") {
+          for (i = 0; i < 6; i++) steps.push({ name: "drill", gap: 380 });
+          return steps;
+        }
+        if (which === "fuel") return [{ name: "fuel", rate: 0.8 }];
+        if (which === "repair") {
+          steps.push({ name: "drill", gap: 300 });
+          for (i = 0; i < 8; i++) {
+            steps.push({ name: "hammer", gap: 260 });
+            steps.push({ name: "ratchet", gap: 420 });
+          }
+          return steps;
+        }
+        return null;   // reposition and re-rack are quiet for now
+      }
+
+      var soundJob = null;
+
+      function soundsForState(data) {
+        var job = (data && data.service) || {};
+        var which = job.which || null;
+        if (which === soundJob) return;
+        soundJob = which;
+
+        var racing = ((data && data.race) || {}).state === "running";
+        if (which && racing && (job.hold || 0) > 0) {
+          runSounds(jobSounds(which), Date.now() + job.hold * 1000);
+        } else {
+          stopSounds();
+        }
+      }
+
       var capturePanelShown = false;
 
       $scope.$on("rmState", function (_, data) {
@@ -191,6 +281,8 @@ angular.module("beamng.apps")
             $scope.panel = "capture";
             capturePanelShown = true;
           }
+
+          soundsForState(data);
 
           var race = (data && data.race) || {};
           if ((race.state === "armed" || race.state === "running") &&
