@@ -267,6 +267,10 @@
 .rm-root ::-webkit-scrollbar-thumb:hover { background: var(--rm-line-lit); }
 .rm-root ::-webkit-scrollbar-corner { background: transparent; }
 
+.rm-team { width: 420px; }
+.rm-team .rm-lobby-row .rm-pickrow { flex: 0 0 auto; gap: 4px; }
+.rm-team .rm-lobby-row button { font-size: 11px; padding: 4px 9px; }
+
 .rm-capture { width: 520px; }
 
 .rm-x {

@@ -21,7 +21,73 @@ local HELP = {
   "rm zones <id>          the speed zones on a course",
   "rm zone <id> <from> <to> <mph>   add one, e.g. rm zone baja-1000 12 14 37",
   "rm zoneclear <id>      remove every zone from a course",
+  "rm kick <name> [why]   remove somebody now",
+  "rm ban <name> [why]    remove them and turn them away next time",
+  "rm unban <name>        lift a ban",
+  "rm bans                who is banned, and why",
+  "rm xp <name> <amount>  hand out experience, negative takes it back",
 }
+
+-- The console is the server owner by definition, so it is not gated on a role
+-- the way the in game path is. It still refuses to act on somebody who is not
+-- there, because a typo should say so rather than do nothing quietly.
+local function keyByName(name)
+  if not name or name == "" then return nil end
+  return RM.identity.keyForName(name)
+end
+
+local WHY_NOT = {
+  not_allowed   = "you cannot do that",
+  not_yourself  = "not on yourself",
+  outranks_you  = "they rank as high as you or higher",
+  already_banned = "already banned",
+  not_here      = "they are not on the server",
+  not_banned    = "not banned",
+}
+
+local function punish(say, what, name, why)
+  local key = keyByName(name)
+  if not key then say("no stored player called " .. tostring(name)) return end
+  if why == "" then why = nil end
+
+  -- the console has no player id behind it, so it acts as the owner it is
+  local ok, got
+  if what == "ban" then ok, got = RM.mod.banFromConsole(key, why)
+  else ok, got = RM.mod.kickFromConsole(key, why) end
+
+  if ok then say(("%s %s"):format(what == "ban" and "banned" or "kicked", tostring(got)))
+  else say(WHY_NOT[got] or tostring(got)) end
+end
+
+local function unban(say, name)
+  local key = keyByName(name)
+  if not key then
+    -- a banned account may have had its name freed, so the key itself works too
+    key = name and RM.mod.isBanned(name) and name or nil
+  end
+  if not key then say("no ban on " .. tostring(name)) return end
+  local ok, got = RM.mod.unban(key)
+  say(ok and ("ban lifted on " .. tostring(got)) or (WHY_NOT[got] or tostring(got)))
+end
+
+local function banLines(say)
+  local n = 0
+  for key, b in pairs(RM.mod.all()) do
+    n = n + 1
+    say(("%s: %s (by %s)"):format(
+      tostring(b.name or key), tostring(b.why or "no reason given"),
+      tostring(b.byName or "console")))
+  end
+  if n == 0 then say("nobody is banned") end
+end
+
+local function giveXp(say, name, amount)
+  local key = keyByName(name)
+  if not key then say("no stored player called " .. tostring(name)) return end
+  local total, level = RM.xp.give(key, tonumber(amount), "granted")
+  if not total then say(WHY_NOT[level] or tostring(level)) return end
+  say(("%s now has %d xp, level %d"):format(tostring(name), total, level))
+end
 
 local function statusLines(say)
   local s = RM.bus.stats()
@@ -210,6 +276,20 @@ function RM.console.handle(input)
     forget(say, name)
   elseif cmd == "save" then
     say(("wrote %d store(s)"):format(RM.store.flushAll()))
+  elseif cmd == "kick" then
+    local name, why = rest:match("^kick%s+(%S+)%s*(.*)$")
+    punish(say, "kick", name, why)
+  elseif cmd == "ban" then
+    local name, why = rest:match("^ban%s+(%S+)%s*(.*)$")
+    punish(say, "ban", name, why)
+  elseif cmd == "unban" then
+    local name = rest:match("^unban%s+(.+)%s*$")
+    unban(say, name)
+  elseif cmd == "bans" then
+    banLines(say)
+  elseif cmd == "xp" then
+    local name, amount = rest:match("^xp%s+(%S+)%s+(-?%d+)%s*$")
+    giveXp(say, name, amount)
   elseif cmd == "zones" then
     local id = rest:match("^zones%s+(%S+)%s*$")
     local track = id and RM.tracks.get(id)

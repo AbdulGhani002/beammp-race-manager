@@ -347,6 +347,7 @@ angular.module("beamng.apps")
       $scope.buttons = [
         { key: "race",       label: "Race" },
         { key: "records",    label: "Records" },
+        { key: "team",       label: "Team" },
         { key: "copilot",    label: "CoPilot" },
         { key: "challenges", label: "Challenges" },
         { key: "options",    label: "Options" },
@@ -355,6 +356,7 @@ angular.module("beamng.apps")
 
       $scope.open = function (key) {
         $scope.panel = ($scope.panel === key) ? null : key;
+        if ($scope.panel === "team") call("raceManager_race", "teamGet");
         if ($scope.panel === "records") {
           var id = $scope.recPick.track ||
                    ($scope.s.tracks[0] && $scope.s.tracks[0].id);
@@ -575,6 +577,29 @@ angular.module("beamng.apps")
         call("raceManager_bottombar", "light", l.key);
         ui("closeLights");
       };
+
+      // ------------------------------------------------------------- team
+      // Two drivers in the same car model, one result. Every rule about it
+      // lives on the server; this only shows what it says and asks.
+      $scope.myTeam = function () { return ($scope.s.team || {}).team || null; };
+      $scope.teamOffer = function () { return ($scope.s.team || {}).offer || null; };
+
+      // anybody else on the server who is not you. the server refuses the
+      // rest, so this does not try to guess who is eligible.
+      $scope.teamable = function () {
+        var out = [], list = $scope.s.roster || [];
+        for (var i = 0; i < list.length; i++) {
+          if (list[i].id !== $scope.s.me.id) out.push(list[i]);
+        }
+        return out;
+      };
+
+      $scope.teamAsk = function (p, kind) {
+        call("raceManager_race", "teamOffer", p.id, kind);
+      };
+      $scope.teamAccept  = function () { call("raceManager_race", "teamAccept"); };
+      $scope.teamDecline = function () { call("raceManager_race", "teamDecline"); };
+      $scope.teamLeave   = function () { call("raceManager_race", "teamLeave"); };
 
       $scope.closeLights = function () { ui("closeLights"); };
 

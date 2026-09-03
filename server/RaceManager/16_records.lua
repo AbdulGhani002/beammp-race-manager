@@ -16,6 +16,44 @@ local function load()
   return data
 end
 
+-- Which class a car belongs to. His document wants the books sorted by class
+-- as well as by controller or wheel. The class list is the one thing the plan
+-- asked him for at phase 5 and it has not arrived, so until it does every car
+-- sits in one book together and nothing on screen changes. Fill in
+-- RM.config.classes and the books split themselves, including runs already on
+-- disk, because the car is stored with the run rather than the class.
+local ALL = "all"
+
+function RM.records.classOf(vehicle)
+  local list = RM.config.classes
+  if type(list) ~= "table" or not vehicle then return ALL end
+  for className, cars in pairs(list) do
+    if type(cars) == "table" then
+      for i = 1, #cars do
+        if cars[i] == vehicle then return className end
+      end
+    end
+  end
+  return ALL
+end
+
+-- every class the books on this course have anything in, so the screen only
+-- offers a choice when there is one to make
+function RM.records.classesOn(trackId)
+  local d = load()
+  local t = d.tracks[tostring(trackId or "")]
+  local seen, out = {}, {}
+  if not t then return out end
+  for _, b in pairs(t) do
+    for i = 1, #b.runs do
+      local c = RM.records.classOf(b.runs[i].vehicle)
+      if not seen[c] then seen[c] = true; out[#out + 1] = c end
+    end
+  end
+  table.sort(out)
+  return out
+end
+
 local function boardFor(trackId, mode)
   local d = load()
   d.tracks[trackId] = d.tracks[trackId] or {}
@@ -45,6 +83,7 @@ function RM.records.submit(trackId, e, at)
     corrected = e.corrected,
     clean     = e.clean,
     laps      = type(e.laps) == "table" and #e.laps or 0,
+    vehicle   = e.vehicle,
     at        = when,
   }
 
@@ -79,25 +118,41 @@ end
 
 -- what the records panel shows: the top of each board, the lap record, and
 -- where the asker sits when they are not on the part that is sent
-function RM.records.wire(trackId, key)
+function RM.records.wire(trackId, key, class)
   local d = load()
-  local out = { id = tostring(trackId or ""), modes = {} }
+  local out = { id = tostring(trackId or ""), modes = {},
+                classes = RM.records.classesOn(trackId) }
   local t = d.tracks[out.id]
   if not t then return out end
 
+  local want = class and tostring(class) or nil
+  if want == ALL then want = nil end
+  out.class = want
+
   for mode, b in pairs(t) do
-    local rows = {}
-    for i = 1, math.min(#b.runs, KEEP) do
+    -- filtered first, then placed, so positions read 1, 2, 3 inside the class
+    -- rather than keeping the gaps left by the cars that were filtered out
+    local kept = {}
+    for i = 1, #b.runs do
       local r = b.runs[i]
+      if not want or RM.records.classOf(r.vehicle) == want then
+        kept[#kept + 1] = r
+      end
+    end
+
+    local rows = {}
+    for i = 1, math.min(#kept, KEEP) do
+      local r = kept[i]
       rows[i] = { pos = i, name = r.name, corrected = r.corrected,
-                  laps = r.laps, at = r.at, me = (r.key == key) or nil }
+                  laps = r.laps, at = r.at, vehicle = r.vehicle,
+                  me = (r.key == key) or nil }
     end
 
     local mine
     if key then
-      for i = 1, #b.runs do
-        if b.runs[i].key == key then
-          mine = { pos = i, corrected = b.runs[i].corrected }
+      for i = 1, #kept do
+        if kept[i].key == key then
+          mine = { pos = i, corrected = kept[i].corrected }
           break
         end
       end
@@ -105,7 +160,7 @@ function RM.records.wire(trackId, key)
 
     out.modes[mode] = {
       top   = rows,
-      total = #b.runs,
+      total = #kept,
       lap   = b.lap and { time = b.lap.time, name = b.lap.name, at = b.lap.at } or nil,
       mine  = mine,
     }

@@ -54,9 +54,14 @@
 \vspace{8pt}
 
 All three phases are on the server. This is what each one does, what changed
-after your testing, what the game itself will not allow, and what is still
-owed inside these three phases. That last part is a section of its own near
-the end, so nothing here reads as finished when it is not.
+after your testing, and what the game itself will not allow.
+
+Your build plan was also read back line by line against what was running. Five
+things it listed for phases 1 to 5 had never been written: Team, experience and
+levels, kick and ban and granting XP, records that split by class, and a
+qualifying session that sets the grid. They are written now and they have a
+section of their own near the end. One of them, Team, I had wrongly told you
+was covered by the race lobby. It was not, and it is built properly now.
 
 \section{Phase 3: the bottom bar}
 
@@ -266,14 +271,15 @@ Phase 2, racing          & 131 \\
 Phase 3, the bottom bar and the rack & 68 \\
 Phase 4, lobby, pit, zones & 56 \\
 Phase 5, the books       & 31 \\
+Teams, xp, bans, classes, qualifying & 60 \\
 Results                  & 103 \\
 The clock and lap bar    & 26 \\
 \midrule
-Total                    & 567 \\
+Total                    & 627 \\
 \bottomrule
 \end{longtable}
 
-Plus 163 interface checks, 10 key bindings, and a reader over every client
+Plus 185 interface checks, 10 key bindings, and a reader over every client
 file that fails the build when a name is used above where it is written. All
 of those fail the build when the screen and the code stop agreeing.
 
@@ -300,46 +306,75 @@ Written down so nobody goes looking for a setting that does not exist.
         width you set in the capture tool.
 \end{itemize}
 
-\section{Still to come in these phases}
+\section{The rest of what the plan promised}
 
-Set down plainly so nothing is assumed finished. None of these are phase 6.
+Your build plan was read back line by line against what was on the server.
+Five things it listed for phases 1 to 5 had not been written. They are written
+now, and this is what each one does.
 
-\begin{longtable}{@{}p{34mm}p{10mm}>{\raggedright\arraybackslash}p{112mm}@{}}
-\toprule
-\textbf{Item} & \textbf{Phase} & \textbf{Where it stands} \\
-\midrule
-\endhead
-Team & 4 & Invite or request, same vehicle model only, breaks up when the cars
-stop matching, results saved for the team. Not built. I took the button off the
-bar and told you the race lobby covered it. It does not: the lobby is a race
-you join, and Team is two drivers paired with shared results. My mistake, and
-it is still owed. \\
-\addlinespace
-Kick, ban, grant XP & 5 & The four roles, the ranking and the permission gate
-are in, and so is promote and demote from the console. The three commands
-themselves are not written. \\
-\addlinespace
-XP and levels & 5 & The curve you asked for sits in the settings, 200 then 198
-then 196 and so on. Nothing reads it yet, so a level is shown but never
-changes. \\
-\addlinespace
-Records by class & 5 & Records sort by course and by controller or wheel.
-Sorting by class needs the class list, which is the one thing the plan asked
-you for at phase 5 and has not arrived. Say what the classes are and this is
-short work. \\
-\addlinespace
-Qualifying & 4 & A course can be marked as qualifying and it times and scores
-like any other. There is no separate qualifying procedure, such as a single
-flying lap setting the grid. Tell me if you want that and I will scope it. \\
-\bottomrule
-\end{longtable}
+\subsection*{Team}
 
-One difference from the plan worth naming rather than hiding. Speed zones were
-written as holding the car to the limit. What is built reads your speed on the
-server, warns you, and charges thirty seconds if you stay over for three
-seconds. It does not physically slow the car. Enforcing by penalty cannot be
-cheated by a driver's own game, which is why it went that way, but it is not
-the same thing as a cap and you should know that.
+Invite somebody into your car, or ask to get into theirs. You both have to be
+in the same vehicle model: it is checked when the offer goes out and again when
+it is taken up, because cars change while an offer sits waiting. Swap to
+another car afterwards and the team ends on its own and says why. So does one
+of you leaving the server.
+
+The results screen keeps both of your rows, because that is where the splits
+and the penalties live, and puts a team standing beside them. Both of you have
+to finish, and the team's time is your two corrected times added together, so a
+team is only as quick as the pair of you.
+
+\subsection*{Experience and levels}
+
+Finishing pays by where you came: two hundred for the win, two less for each
+place after it, never below twenty. That is your ladder, and the numbers are in
+the settings file rather than the code, so they move without anyone
+reinstalling. A level is a thousand points.
+
+A run the clock could not vouch for pays nothing, the same rule the record
+books use. Guests earn nothing either, having no record on disk to put it in.
+XP sits beside the name, so it survives a restart for the same reason the name
+does.
+
+\subsection*{Kick, ban and granting XP}
+
+Four commands in the console: \code{rm kick}, \code{rm ban}, \code{rm unban}
+and \code{rm xp}. There is a \code{rm bans} to see who is on the list and why.
+
+A ban follows the account rather than a name, which can be changed, or a
+session, which is handed out fresh every join. It is on disk, so a restart does
+not quietly let everybody back in. Somebody banned is turned away as they knock,
+before anything is written down for them. In game nobody can act on somebody who
+ranks as high as they do, or on themselves.
+
+\subsection*{Records by class}
+
+Every run now records the car it was set in. Name the classes in the settings
+file and the books split themselves, including runs already on disk, because
+the car is stored with the run rather than the class. The screen only offers a
+class to pick when there is more than one to pick from.
+
+This is the one item the plan asked you for at phase 5 and has not arrived.
+Until it does, every car shares one book and nothing on screen changes. Send
+the class list and it starts working with no further work from me.
+
+\subsection*{Qualifying}
+
+A course marked as qualifying now sets the grid. Whoever was quickest in the
+qualifying session starts at the front of the next race on that course, and
+anyone who was not in it lines up behind those who were, in the order they
+joined, so a late arrival starts at the back rather than being turned away. The
+order lasts the session: a grid earned this evening should not still be deciding
+places next week.
+
+\subsection*{One difference from the plan, named rather than hidden}
+
+Speed zones were written as holding the car to the limit. What is built reads
+your speed on the server, warns you, and charges thirty seconds if you stay over
+for three. It does not physically slow the car. Enforcing by penalty cannot be
+cheated by a driver's own game, which is why it went that way, but it is not the
+same thing as a cap and you should know that.
 
 \section{Still open}
 

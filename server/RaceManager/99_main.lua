@@ -18,6 +18,9 @@ local function onTick()
 
   RM.players.tick()
 
+  -- a team whose cars stopped matching, and offers nobody answered
+  if ticks % rosterEvery == 0 then RM.team.tick() end
+
   -- a hold that has run its course, so the game can do the job
   RM.service.tick(RM.now())
 
@@ -58,6 +61,10 @@ local function onTick()
 end
 
 local function onPlayerJoining(pid)
+  -- checked before anything is written down for them, so a banned account
+  -- does not get a fresh record every time it knocks
+  if RM.mod.turnAway(pid) then return end
+
   local s = RM.identity.onJoin(pid)
   RM.players.onJoin(pid)
   RM.info(("player %d joining: %s / role %s / %s"):format(
@@ -69,6 +76,7 @@ local function onPlayerDisconnect(pid)
   -- track waits forever for somebody who is not coming back
   RM.race.onLeave(pid)
   RM.results.onRunEnded(pid)
+  RM.team.forget(pid)
   RM.race.clear(pid)
   RM.results.forget(pid)
   RM.service.forget(pid)
@@ -84,9 +92,13 @@ end
 
 -- the speed reading needs to know which vehicle to look at, and BeamMP has no
 -- currently-driving flag. the newest one they touched is the best available.
-local function onVehicleSpawn(pid, vid)   RM.players.onVehicle(pid, vid) end
-local function onVehicleReset(pid, vid)   RM.players.onVehicle(pid, vid) end
-local function onVehicleEdited(pid, vid)  RM.players.onVehicle(pid, vid) end
+local function onVehicleSpawn(pid, vid, data)  RM.players.onVehicle(pid, vid, data) end
+local function onVehicleReset(pid, vid, data) RM.players.onVehicle(pid, vid, data) end
+local function onVehicleEdited(pid, vid, data)
+  RM.players.onVehicle(pid, vid, data)
+  -- swapping the car out from under a team is how a team stops matching
+  if RM.team then RM.team.recheck(pid) end
+end
 local function onVehicleDeleted(pid, vid) RM.players.onVehicleGone(pid, vid) end
 
 local function wireChannels()
@@ -302,6 +314,11 @@ local function wireChannels()
     end
 
     local track = RM.tracks.get(result.track)
+
+    -- Whoever qualified quickest starts at the front. Without a qualifying
+    -- session on this course the order is the order they joined, as before.
+    order = RM.lobby.gridOrder(result.track, order)
+
     for i, member in ipairs(order) do
       RM.results.forget(member)
       local armed = RM.race.arm(member,
@@ -360,10 +377,42 @@ local function wireChannels()
     end
   end)
 
+  -- Team. Invite somebody into your car, or ask to get into theirs. The rule
+  -- that both are in the same model is checked when it is offered and again
+  -- when it is taken up, because cars change while an offer sits waiting.
+  RM.bus.on("team.offer", function(pid, d)
+    if type(d) ~= "table" then return end
+    local target = math.floor(tonumber(d.who) or -1)
+    if not RM.identity.session(target) then
+      RM.bus.queue(pid, "team.failed", { why = "not_here" })
+      return
+    end
+    local ok, why = RM.team.offer(pid, target, d.kind)
+    if not ok then RM.bus.queue(pid, "team.failed", { why = why }) end
+  end)
+
+  RM.bus.on("team.accept", function(pid)
+    local ok, why = RM.team.accept(pid)
+    if not ok then RM.bus.queue(pid, "team.failed", { why = why }) end
+  end)
+
+  RM.bus.on("team.decline", function(pid) RM.team.decline(pid) end)
+
+  RM.bus.on("team.leave", function(pid)
+    local ok, why = RM.team.leave(pid)
+    if not ok then RM.bus.queue(pid, "team.failed", { why = why }) end
+  end)
+
+  RM.bus.on("team.get", function(pid)
+    local s = RM.identity.session(pid)
+    RM.bus.queue(pid, "team.state", RM.team.wire(s and s.key or nil))
+  end)
+
   RM.bus.on("records.get", function(pid, d)
     local id = type(d) == "table" and (d.id or "") or (d or "")
     local s = RM.identity.session(pid)
-    RM.bus.queue(pid, "records.data", RM.records.wire(id, s and s.key or nil))
+    local class = type(d) == "table" and d.class or nil
+    RM.bus.queue(pid, "records.data", RM.records.wire(id, s and s.key or nil, class))
   end)
 
   -- the FPS baseline every later delivery is measured against
@@ -404,6 +453,7 @@ local function onInit()
   RM.util.startClock()
 
   RM.identity.init()
+  RM.mod.init()
   RM.tracks.init()
   RM.store.load("perf", { runs = {} })
 

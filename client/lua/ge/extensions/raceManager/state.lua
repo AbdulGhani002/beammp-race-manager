@@ -17,6 +17,7 @@ local S = {
   serverTime = 0,
   toast      = nil,
   lights     = false,
+  team       = nil,         -- { team = {...} } or { offer = {...} }
 }
 
 function M.get() return S end
@@ -189,6 +190,55 @@ local function onOptionsResult(d)
   changed()
 end
 
+-- Team. The server owns it, so this only mirrors what it says, the same as
+-- everything else here.
+local function onTeamState(d)
+  S.team = type(d) == "table" and d or nil
+  changed()
+end
+
+local TEAM_GONE = {
+  declined                      = "They said no",
+  left                          = "Team broken up",
+  ["the cars stopped matching"] = "Team broken up: the cars stopped matching",
+  ["a driver left the server"]  = "Team broken up: the other driver left",
+  ["a driver has no car"]       = "Team broken up: the other driver has no car",
+}
+
+local function onTeamGone(d)
+  local why = type(d) == "table" and tostring(d.why or "") or ""
+  M.notice(TEAM_GONE[why] or ("Team broken up: " .. why))
+end
+
+local TEAM_NO = {
+  no_session       = "The server has not finished recognising you",
+  not_yourself     = "Pick somebody else",
+  already_teamed   = "You are already in a team",
+  they_are_teamed  = "They are already in a team",
+  no_vehicle       = "Both of you need to be in a car",
+  different_cars   = "You both have to be in the same car",
+  nothing_to_accept = "Nothing to accept",
+  they_left        = "They left",
+  not_here         = "They are not on the server",
+  no_team          = "You are not in a team",
+}
+
+local function onTeamFailed(d)
+  local why = type(d) == "table" and tostring(d.why or "") or ""
+  M.notice(TEAM_NO[why] or ("That did not work: " .. why))
+end
+
+local function onXpGain(d)
+  if type(d) ~= "table" then return end
+  S.me.level = d.level or S.me.level
+  if d.levelled then
+    M.notice(("Level %d. %d xp for that one."):format(d.level or 0, d.amount or 0))
+  else
+    M.notice(("%d xp"):format(d.amount or 0))
+  end
+  changed()
+end
+
 local function onExtensionLoaded()
   local net = extensions.raceManager_net
   net.on("welcome",        onWelcome)
@@ -204,6 +254,10 @@ local function onExtensionLoaded()
   net.on("capture.result", onCaptureResult)
   net.on("records.data",   onRecords)
   net.on("options.result", onOptionsResult)
+  net.on("team.state",     onTeamState)
+  net.on("team.gone",      onTeamGone)
+  net.on("team.failed",    onTeamFailed)
+  net.on("xp.gain",        onXpGain)
 end
 
 M.onExtensionLoaded = onExtensionLoaded

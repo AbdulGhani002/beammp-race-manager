@@ -167,6 +167,31 @@ local function send(h, payload)
   return sent
 end
 
+-- A qualifying session is a race whose job is to set the grid for the next one
+-- on that course. Kept for the session only: a grid earned this evening should
+-- not still be deciding who starts where next week.
+local quali = {}
+
+function RM.results.qualifyingOrder(trackId)
+  return quali[tostring(trackId or "")]
+end
+
+function RM.results.clearQualifying(trackId)
+  quali[tostring(trackId or "")] = nil
+end
+
+local function rememberQualifying(trackId, payload)
+  local track = RM.tracks.get(trackId)
+  if not track or track.kind ~= "qualifying" then return end
+  local order = {}
+  for i = 1, #payload.finished do
+    order[#order + 1] = payload.finished[i].key
+  end
+  if #order == 0 then return end
+  quali[tostring(trackId)] = order
+  RM.info(("%s qualifying order set, %d driver(s)"):format(tostring(trackId), #order))
+end
+
 -- everybody on this course is off track, so the whole thing can be worked out
 -- and sent in one go and then forgotten about
 local function close(trackId)
@@ -190,6 +215,14 @@ local function close(trackId)
     end
   end
 
+  -- paid before it goes out, so the row can carry what it earned
+  if RM.xp then RM.xp.forRace(payload) end
+
+  -- and the team standing beside the rows, both drivers added together
+  if RM.team then payload.teams = RM.team.standings(payload.finished) end
+
+  rememberQualifying(trackId, payload)
+
   local sent = send(h, payload)
   heats[trackId] = nil
 
@@ -212,6 +245,9 @@ function RM.results.onRunEnded(pid)
     local entry = RM.race.results(pid)
     if entry then
       entry.gates = r.gates
+      -- what they drove, so records can be sorted by class once there is a
+      -- class list to sort them by
+      entry.vehicle = RM.players.modelOf(pid)
       h.done[#h.done + 1] = entry
     end
   else

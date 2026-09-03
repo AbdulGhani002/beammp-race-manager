@@ -31,6 +31,7 @@ local function build()
   -- meant the list opened on the click and vanished on the next push.
   snap.rosterOpen = S.rosterOpen and true or false
   snap.lights     = S.lights and true or false
+  snap.team       = S.team
   snap.myCode     = S.myCode
   snap.recovered  = S.recovered and true or false
 

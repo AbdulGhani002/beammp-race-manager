@@ -105,6 +105,18 @@ function M.inviteLobby(pid)
   extensions.raceManager_net.send("race.invite", { who = math.floor(tonumber(pid) or -1) })
 end
 
+-- Team. Two drivers in the same car model, one result. The server owns every
+-- rule about it, so these only ask.
+function M.teamOffer(pid, kind)
+  extensions.raceManager_net.send("team.offer",
+    { who = math.floor(tonumber(pid) or -1), kind = tostring(kind or "invite") })
+end
+
+function M.teamAccept()  extensions.raceManager_net.send("team.accept", {}) end
+function M.teamDecline() extensions.raceManager_net.send("team.decline", {}) end
+function M.teamLeave()   extensions.raceManager_net.send("team.leave", {}) end
+function M.teamGet()     extensions.raceManager_net.send("team.get", {}) end
+
 ------------------------------------------------------------ from the server
 
 local function teleport(start)

@@ -82,18 +82,55 @@ end
 
 -- which vehicle to read the speed off. BeamMP has no "currently driving" flag,
 -- so the newest one the player touched is the best guess available.
-function RM.players.onVehicle(pid, vid)
+-- BeamMP hands the vehicle's own description along with the spawn. The model
+-- name is in it under jbm, which is what the game calls the folder the car
+-- comes out of, and it is the only thing on the server that can answer
+-- "are these two in the same car".
+local function modelFrom(data)
+  if type(data) ~= "string" or data == "" then return nil end
+  local body = data:match("^%s*[%w_]+%s*:%s*(.*)$") or data
+  local ok, tbl = pcall(Util.JsonDecode, body)
+  if ok and type(tbl) == "table" then
+    local m = tbl.jbm or tbl.vcf and tbl.vcf.model or tbl.model
+    if type(m) == "string" and m ~= "" then return m end
+  end
+  -- not json, or json we do not recognise. the leading name is still a model.
+  local lead = data:match("^%s*([%w_]+)%s*:")
+  if lead and lead ~= "" then return lead end
+  return nil
+end
+
+function RM.players.onVehicle(pid, vid, data)
   local s = RM.identity.session(pid)
   if not s then return end
   s.vehicles = s.vehicles or {}
   s.vehicles[vid] = true
   s.activeVid = vid
+
+  local model = modelFrom(data)
+  if model then
+    s.models = s.models or {}
+    s.models[vid] = model
+    s.model = model
+  end
+end
+
+-- what the player is sitting in, as far as the server can tell
+function RM.players.modelOf(pid)
+  local s = RM.identity.session(pid)
+  if not s then return nil end
+  if s.activeVid and s.models then
+    local m = s.models[s.activeVid]
+    if m then return m end
+  end
+  return s.model
 end
 
 function RM.players.onVehicleGone(pid, vid)
   local s = RM.identity.session(pid)
   if not s or not s.vehicles then return end
   s.vehicles[vid] = nil
+  if s.models then s.models[vid] = nil end
   if s.activeVid == vid then
     s.activeVid = nil
     for other in pairs(s.vehicles) do s.activeVid = other break end

@@ -277,9 +277,59 @@
       </div>
     </div>
 
+    <!-- team. two drivers, same car model, one result. -->
+    <div class="rm-card rm-panel rm-team" rm-drag="team" ng-if="panel === 'team'">
+      <button class="rm-x" ng-click="close()">close</button>
+      <h2>Team</h2>
+
+      <div ng-if="myTeam()">
+        <div class="rm-field">In a {{ myTeam().model || 'car' }} together</div>
+        <div class="rm-lobby-row" ng-repeat="m in myTeam().members">
+          <span>{{ m.name }}</span>
+          <em ng-if="m.me">you</em>
+        </div>
+        <p class="rm-hint">Both of you have to stay in the same car. Swap to
+          another one and the team breaks up on its own. Your two corrected
+          times are added together for the team result.</p>
+        <button class="rm-danger" ng-click="teamLeave()">Break up the team</button>
+      </div>
+
+      <div ng-if="!myTeam() && teamOffer()">
+        <div class="rm-field">{{ teamOffer().from }}
+          {{ teamOffer().kind === 'request' ? 'wants to team up with you' : 'invited you to team up' }}</div>
+        <p class="rm-hint">You both need to be in the same car for this to work.</p>
+        <div class="rm-pickrow">
+          <button class="rm-primary" ng-click="teamAccept()">Accept</button>
+          <button ng-click="teamDecline()">No thanks</button>
+        </div>
+      </div>
+
+      <div ng-if="!myTeam() && !teamOffer()">
+        <p class="rm-hint">Team up with one other driver. You both have to be in
+          the same car model, and the team ends by itself if that stops being
+          true. Results are kept for the team as well as for each of you.</p>
+
+        <div class="rm-empty" ng-if="!teamable().length">
+          Nobody else is on the server yet.
+        </div>
+
+        <div ng-if="teamable().length">
+          <div class="rm-field">Ask somebody</div>
+          <div class="rm-lobby-row" ng-repeat="p in teamable()">
+            <span>{{ p.name }}</span>
+            <span class="rm-pickrow">
+              <button ng-click="teamAsk(p, 'invite')">Invite</button>
+              <button ng-click="teamAsk(p, 'request')">Ask to join</button>
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <div class="rm-card rm-panel" rm-drag="info"
          ng-if="panel && panel !== 'options' && panel !== 'capture'
-                && panel !== 'discord' && panel !== 'race' && panel !== 'records'">
+                && panel !== 'discord' && panel !== 'race' && panel !== 'records'
+                && panel !== 'team'">
       <button class="rm-x" ng-click="close()">close</button>
       <h2>{{ panel === 'bottom' ? 'Recovery' : (buttons | filter:{key: panel})[0].label }}</h2>
       <p class="rm-soon">{{ SOON[panel] }}</p>

@@ -142,6 +142,33 @@ function RM.lobby.start(pid)
   return true, l, order
 end
 
+-- The grid, quickest qualifier first. Anyone who did not qualify keeps their
+-- place behind those who did, in the order they joined, so a late arrival
+-- starts at the back rather than being turned away.
+function RM.lobby.gridOrder(trackId, joined)
+  local order = RM.results and RM.results.qualifyingOrder(trackId)
+  if type(order) ~= "table" or #order == 0 then return joined end
+
+  local rank = {}
+  for i = 1, #order do rank[order[i]] = i end
+
+  local front, back = {}, {}
+  for i = 1, #joined do
+    local pid = joined[i]
+    local s = RM.identity.session(pid)
+    local place = s and s.key and rank[s.key]
+    if place then front[#front + 1] = { pid = pid, place = place }
+    else back[#back + 1] = pid end
+  end
+
+  table.sort(front, function(a, b) return a.place < b.place end)
+
+  local out = {}
+  for i = 1, #front do out[#out + 1] = front[i].pid end
+  for i = 1, #back do out[#out + 1] = back[i] end
+  return out
+end
+
 function RM.lobby.forget(pid)
   RM.lobby.leave(pid)
 end

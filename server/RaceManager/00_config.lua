@@ -80,7 +80,17 @@ RM.config = {
   -- stay over it before it costs you. one bump over a crest is free.
   speedZoneMph   = 37,
   speedGraceSec  = 3.0,
+  -- what a finish pays by place, and how much a level costs. two hundred
+  -- for the win, two less each place after, never under the floor.
   xpCurve      = { first = 200, step = 2, floor = 20 },
+  xpPerLevel   = 1000,
+
+  -- Which car counts as which class, for sorting the record books. His
+  -- document asked for records sorted by class and the plan asked him for the
+  -- class list, which has not arrived. Leave it empty and every car sits in
+  -- one book together. Fill it in like this and the books split themselves:
+  --   classes = { ["Trophy Truck"] = { "bigrig", "pickup" } },
+  classes      = {},
 
   maxCheckpoints = 200,
   maxTracks      = 64,
