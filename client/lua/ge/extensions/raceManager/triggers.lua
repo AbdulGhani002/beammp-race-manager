@@ -99,6 +99,52 @@ function M.fitSpan(w, left, right)
   return across, (l - r) * 0.5
 end
 
+-- The road the game's own ai drives on knows how wide it is and where its
+-- middle runs, which is exactly what a gate needs. Rays fired sideways into
+-- open desert touch nothing, so they left gates at the width they were marked
+-- with and sitting wherever the capture car happened to be. This is the same
+-- question hotlapping asks when it sizes its own checkpoints.
+local ROAD_NEAR   = 22.0   -- a gate further than this from any road is on its own
+local ROAD_MARGIN = 4.0    -- a little past the edge, so clipping it still counts
+-- A road width is measured, not guessed at, so it is allowed to be wider than
+-- anything a sideways ray is trusted with.
+local ROAD_MOST   = 45.0
+
+-- where the road's middle is beside this point, and how wide it is there
+local function roadAt(pos)
+  if type(map) ~= "table" or type(map.findClosestRoad) ~= "function" then return nil end
+  local ok, n1, n2, dsq = pcall(map.findClosestRoad, pos, 120)
+  if not ok or not n1 or not n2 then return nil end
+  if type(dsq) == "number" and dsq > ROAD_NEAR * ROAD_NEAR then return nil end
+
+  local okm, m = pcall(map.getMap)
+  if not okm or type(m) ~= "table" or type(m.nodes) ~= "table" then return nil end
+  local a, b = m.nodes[n1], m.nodes[n2]
+  if type(a) ~= "table" or type(b) ~= "table" or not a.pos or not b.pos then return nil end
+
+  local t = 0.5
+  local okx, x = pcall(function() return pos:xnormOnLine(a.pos, b.pos) end)
+  if okx and type(x) == "number" then t = math.max(0, math.min(1, x)) end
+
+  local ra, rb = tonumber(a.radius) or 0, tonumber(b.radius) or 0
+  return a.pos.x + (b.pos.x - a.pos.x) * t,
+         a.pos.y + (b.pos.y - a.pos.y) * t,
+         (ra + (rb - ra) * t) * 2
+end
+
+-- The sums for that, on their own so they can be argued with without a game.
+-- Only ever widens: a road narrower than the width the course was marked with
+-- keeps the marked one, so nobody loses a gate they set on purpose.
+function M.fitRoad(w, yaw, gx, gy, cx, cy, roadWide)
+  w = tonumber(w) or 0
+  yaw = tonumber(yaw) or 0
+  local ax, ay = -math.sin(yaw), math.cos(yaw)
+  local off = (cx - gx) * ax + (cy - gy) * ay
+  local across = math.max(w, (tonumber(roadWide) or 0) + ROAD_MARGIN)
+  if across > ROAD_MOST then across = ROAD_MOST end
+  return across, off
+end
+
 -- Static geometry only, so another car cannot shrink a gate. Nil means the ray
 -- found nothing, which is not the same as finding open ground far away.
 local function probe(pos, dx, dy)
@@ -116,8 +162,16 @@ local function fitSpans(cps)
       local yaw = tonumber(cp.yaw) or 0
       local rx, ry = -math.sin(yaw), math.cos(yaw)
       local w = gateOf(cp)
-      cp.rmAcross, cp.rmOff = M.fitSpan(w,
-        probe(cp.pos, rx, ry), probe(cp.pos, -rx, -ry))
+
+      -- the road first, because it is the only one of the two that knows
+      -- anything out in the open
+      local cx, cy, wide = roadAt(cp.pos)
+      if cx then
+        cp.rmAcross, cp.rmOff = M.fitRoad(w, yaw, cp.pos.x, cp.pos.y, cx, cy, wide)
+      else
+        cp.rmAcross, cp.rmOff = M.fitSpan(w,
+          probe(cp.pos, rx, ry), probe(cp.pos, -rx, -ry))
+      end
     end
   end
 end
@@ -277,6 +331,47 @@ end
 
 function M.setNextGate(i)
   nextGate = tonumber(i) or nextGate
+end
+
+-- Where the car belongs if it has to be put back: the leg it is on, from the
+-- gate it last passed to the one it is going for. Only while a race is up,
+-- because outside one there is no line to be on.
+function M.leg()
+  if not racing or type(course) ~= "table" then return nil end
+  local cps = course.checkpoints
+  if type(cps) ~= "table" then return nil end
+  local n = #cps
+  if n < 2 then return nil end
+
+  local ni = tonumber(nextGate) or 1
+  if ni < 1 then ni = 1 end
+  if ni > n then ni = n end
+
+  -- before the first gate on a lap the leg behind you is the last one, but
+  -- only on a circuit. on a point to point the start is as far back as it goes.
+  local pi = ni - 1
+  if pi < 1 then pi = course.circuit and n or ni end
+  if pi == ni then pi = (ni == 1) and n or (ni - 1) end
+  if pi < 1 or pi > n or pi == ni then return nil end
+
+  local a, b = cps[pi], cps[ni]
+  if type(a) ~= "table" or type(b) ~= "table" or not a.pos or not b.pos then return nil end
+  return a.pos, b.pos
+end
+
+-- The nearest point on that leg, and which way it runs. Kept apart from the
+-- game so the sums can be checked: putting a car back in the wrong place is
+-- worse than leaving it where it rolled.
+function M.legPoint(px, py, a, b)
+  local abx, aby = b.x - a.x, b.y - a.y
+  local len2 = abx * abx + aby * aby
+  local t = 0
+  if len2 > 0 then
+    t = ((px - a.x) * abx + (py - a.y) * aby) / len2
+    if t < 0 then t = 0 elseif t > 1 then t = 1 end
+  end
+  local yaw = (math.atan2 or math.atan)(aby, abx)
+  return a.x + abx * t, a.y + aby * t, a.z + ((b.z or 0) - (a.z or 0)) * t, yaw, t
 end
 
 function M.isRacing() return racing end

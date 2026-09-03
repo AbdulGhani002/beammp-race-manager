@@ -63,6 +63,60 @@ span(20, nil, 4, 20, 3, "a close wall on the right slides the gate away from it"
 span(20, 4, nil, 20, -3, "and the same on the left")
 span(nil, nil, nil, 0, 0, "nothing at all falls back to zero width, not a crash")
 
+-- ---------------------------------------------------------------- the road
+
+-- The width and the middle now come off the road the game's own ai drives on,
+-- because a ray fired sideways across open desert touches nothing and left
+-- gates at their marked width, sitting wherever the capture car happened to be.
+local function road(w, yaw, gx, gy, cx, cy, wide, wantAcross, wantOff, what)
+  local across, off = T.fitRoad(w, yaw, gx, gy, cx, cy, wide)
+  local fine = math.abs(across - wantAcross) < 1e-6 and math.abs(off - wantOff) < 1e-6
+  ok(fine, ("%s (got %s, %s wanted %s, %s)"):format(
+    what, tostring(across), tostring(off), tostring(wantAcross), tostring(wantOff)))
+end
+
+section("a gate takes the width of the road it is on")
+road(20, 0, 100, 50, 100, 50, 24, 28, 0, "a wider road widens the gate, margin and all")
+road(30, 0, 0, 0, 0, 0, 8, 30, 0, "a road narrower than the marked width leaves it alone")
+road(20, 0, 0, 0, 0, 0, 60, 45, 0, "and a huge one still stops at the ceiling")
+
+section("and slides onto the middle of it")
+-- yaw 0 means the gate faces along x, so across is y and the offset is the y gap
+road(20, 0, 100, 50, 100, 53, 10, 20, 3, "the road's middle three metres to one side")
+road(20, 0, 100, 50, 100, 46, 10, 20, -4, "and four the other way")
+-- facing along y, across is x, and the sign turns over
+road(20, math.pi / 2, 100, 50, 96, 50, 10, 20, 4, "the same gate turned a quarter turn")
+road(20, 0, 100, 50, 100, 50, 10, 20, 0, "a gate already on the middle does not move")
+
+-- ------------------------------------------------------------ putting back
+
+section("reposition finds the nearest point on the leg being driven")
+local A = { x = 0, y = 0, z = 0 }
+local B = { x = 100, y = 0, z = 0 }
+
+local function leg(px, py, a, b, wx, wy, wz, what)
+  local x, y, z = T.legPoint(px, py, a, b)
+  local fine = math.abs(x - wx) < 1e-6 and math.abs(y - wy) < 1e-6
+               and math.abs(z - wz) < 1e-6
+  ok(fine, ("%s (got %s,%s,%s wanted %s,%s,%s)"):format(
+    what, tostring(x), tostring(y), tostring(z), tostring(wx), tostring(wy), tostring(wz)))
+end
+
+leg(50, 20, A, B, 50, 0, 0, "off the side of the leg comes straight back onto it")
+leg(50, -20, A, B, 50, 0, 0, "from either side")
+leg(-30, 5, A, B, 0, 0, 0, "behind the leg stops at the gate you came from")
+leg(130, 5, A, B, 100, 0, 0, "past it stops at the one you are going for")
+leg(50, 0, A, { x = 100, y = 0, z = 10 }, 50, 0, 5, "a climbing leg lands at the right height")
+
+local _, _, _, yaw = T.legPoint(50, 5, A, B)
+ok(math.abs(yaw) < 1e-6, "and points along the leg")
+local _, _, _, yaw2 = T.legPoint(5, 50, A, { x = 0, y = 100, z = 0 })
+ok(math.abs(yaw2 - math.pi / 2) < 1e-6, "whichever way the leg runs")
+
+-- no ground is given and none taken, which is what stops it skipping a corner
+local _, _, _, _, t = T.legPoint(25, 40, A, B)
+ok(math.abs(t - 0.25) < 1e-6, "a quarter along the leg stays a quarter along it")
+
 print("")
 print(("%d passed, %d failed"):format(pass, fail))
 for _, f in ipairs(failures) do print("  - " .. f) end

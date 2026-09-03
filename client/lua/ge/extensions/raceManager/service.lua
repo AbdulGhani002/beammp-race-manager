@@ -293,7 +293,31 @@ local function placeHere(v, mend)
   end)
 end
 
+-- Standing the car up where it rolled leaves it in the scenery, nose into a
+-- bank, which is not what anyone means by reposition. Back onto the leg being
+-- driven instead, at the nearest point on it and pointing the way the course
+-- goes. The nearest point is the fair one: no ground is given and none is
+-- taken, so it cannot be used to skip a corner. Damage comes with it.
 local function putBack(v)
+  local okPos, pos = pcall(function() return v:getPosition() end)
+  if not okPos or not pos then return placeHere(v, false) end
+
+  local ok, a, b = pcall(function() return extensions.raceManager_triggers.leg() end)
+  if not ok or type(a) ~= "table" or type(b) ~= "table" then
+    return placeHere(v, false)     -- no race on, so where it stands is all there is
+  end
+
+  local okp, x, y, z, yaw = pcall(function()
+    return extensions.raceManager_triggers.legPoint(pos.x, pos.y, a, b)
+  end)
+  if not okp or type(x) ~= "number" then return placeHere(v, false) end
+
+  local fwd = vec3(math.cos(yaw), math.sin(yaw), 0)
+  local moved = pcall(function()
+    spawn.safeTeleport(v, vec3(x, y, z + UPRIGHT_LIFT),
+      quatFromDir(fwd, vec3(0, 0, 1)), nil, nil, nil, nil, false)
+  end)
+  if moved then return true end
   return placeHere(v, false)
 end
 
