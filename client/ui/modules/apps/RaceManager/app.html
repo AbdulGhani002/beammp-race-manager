@@ -484,9 +484,9 @@
       <div class="rm-lightmenu" ng-if="s.lights">
         <button ng-repeat="l in lightItems" ng-click="lightPick(l)">{{ l.label }}</button>
       </div>
-      <button ng-repeat="b in bottom" ng-click="bottomClick(b)"
-              ng-disabled="b.key !== 'lights' && (!stopped() || holding())"
-              title="{{ bottomNote(b) }}">{{ b.label }}</button>
+      <button ng-repeat="b in barButtons() track by b.key" ng-click="bottomClick(b)"
+              ng-disabled="b.key !== 'lights' && (!stopped() || holding() || outOfSpares(b))"
+              title="{{ bottomNote(b) }}">{{ bottomLabel(b) }}</button>
       <span class="rm-moving" ng-if="holding()">{{ holdLabel() }} {{ holdLeft() }}s</span>
       <span class="rm-moving" ng-if="!holding() && !stopped()">stop the car to use these</span>
     </div>

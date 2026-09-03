@@ -13,10 +13,41 @@ local sent = {}   -- told the client to do it, waiting to hear how it went
 
 local ACTIONS = {
   reposition = { hold = "reposition", penalty = "recovery" },
-  spare      = { hold = "spareTire",  penalty = "flatTire", needsFlat = true },
+  spare      = { hold = "spareTire",  penalty = "flatTire", needsFlat = true,
+                 takesSpare = true },
   repair     = { hold = "repair",     penalty = "repair" },
   fuel       = { hold = "fuel",       penalty = nil },
+  -- filling the rack again is a pit job. it costs the wait and nothing else,
+  -- which is the point of driving in rather than fixing it where you stopped.
+  rerack     = { hold = "rerack",     penalty = nil, pitOnly = true,
+                 fillsRack = true },
 }
+
+-- The rack is the limit. A car carries what it carries: two on a race truck,
+-- one on a UTV, none on plenty of things. The client counts what is actually
+-- bolted to the car and the count is seeded from that the first time the
+-- button is pressed, so nobody has to keep a table of every vehicle.
+local function spareCap(reported)
+  local cap = tonumber(RM.config.spareChanges)
+  local have = tonumber(reported)
+  if not have or have < 0 then have = 0 end
+  if cap and cap >= 0 and cap < have then return cap end
+  return have
+end
+
+-- How many changes are left, seeded the first time the car tells us. A car
+-- that says nothing is unknown rather than empty, so an old client or a
+-- vehicle whose parts could not be read keeps its button instead of losing it.
+local function sparesLeft(r, reported)
+  if not r then return nil end
+  if r.spares == nil and reported ~= nil then r.spares = spareCap(reported) end
+  return r.spares
+end
+
+function RM.service.spares(pid)
+  local r = RM.race.get(pid)
+  return r and r.spares or nil
+end
 
 function RM.service.get(pid) return jobs[pid] end
 
@@ -40,6 +71,22 @@ function RM.service.use(pid, d)
   if action.needsFlat and racing and not inPitNow
      and not (type(d) == "table" and d.flat == true) then
     return false, "no_flat_tire"
+  end
+
+  if action.pitOnly and racing and not inPitNow then
+    return false, "pit_only"
+  end
+
+  -- The rack empties as it is used and only the pit fills it again. Outside a
+  -- run there is nothing to ration, so it is not counted.
+  local reported = type(d) == "table" and d.spares or nil
+  if racing and action.takesSpare then
+    local left = sparesLeft(r, reported)
+    if left ~= nil and left <= 0 then return false, "no_spares_left" end
+  end
+  if racing and action.fillsRack then
+    r.spares = spareCap(reported)
+    if r.spares <= 0 then return false, "no_rack" end
   end
 
   -- free driving costs nothing and waits for nothing. neither does the pit:
@@ -67,6 +114,7 @@ function RM.service.use(pid, d)
     reason = action.penalty,
     lap    = r and r.currentLap or nil,
     full   = inPit,
+    takes  = action.takesSpare and racing or false,
   }
 
   RM.info(("%s: %s%s"):format(RM.identity.displayName(pid), which,
@@ -90,7 +138,8 @@ function RM.service.tick(now)
     sent[pid] = jobs[pid]
     jobs[pid] = nil
     RM.bus.queue(pid, "service.run", {
-      which = sent[pid].which, full = sent[pid].full and true or false })
+      which = sent[pid].which, full = sent[pid].full and true or false,
+      takes = sent[pid].takes and true or false })
   end
   return ready
 end
@@ -100,7 +149,21 @@ function RM.service.report(pid, d)
   local job = sent[pid]
   sent[pid] = nil
   if not job then return false, "nothing_pending" end
-  if type(d) == "table" and d.ok then return true, job end
+
+  if type(d) == "table" and d.ok then
+    -- A change is a change however the game managed it. Letting air back into
+    -- a punctured tire and bolting a fresh one on both cost the driver one off
+    -- the rack, because that is the rule he wanted, not an engine detail.
+    if job.takes then
+      local r = RM.race.get(pid)
+      if r and type(r.spares) == "number" and r.spares > 0 then
+        r.spares = r.spares - 1
+        RM.info(("%s: spare used, %d left before the pit"):format(
+          RM.identity.displayName(pid), r.spares))
+      end
+    end
+    return true, job
+  end
 
   if job.cost and job.reason then
     RM.race.dropPenalty(pid, job.reason, job.lap)
@@ -116,13 +179,16 @@ function RM.service.forget(pid)
 end
 
 function RM.service.wire(pid)
+  local r = RM.race.get(pid)
+  local spares = r and r.spares or nil
   local job = jobs[pid]
-  if not job then return { which = nil } end
+  if not job then return { which = nil, spares = spares } end
   return {
-    which = job.which,
-    hold  = job.hold,
-    left  = RM.util.round(math.max(0, job.endsAt - RM.now()), 2),
-    cost  = job.cost,
+    which  = job.which,
+    hold   = job.hold,
+    left   = RM.util.round(math.max(0, job.endsAt - RM.now()), 2),
+    cost   = job.cost,
+    spares = spares,
   }
 end
 

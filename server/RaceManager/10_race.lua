@@ -95,6 +95,10 @@ function RM.race.arm(pid, d)
     penalties  = {},
     suspect    = false,
     inPit      = false,
+    -- how many spare changes are left. seeded from what is really on the
+    -- car's rack the first time the button is pressed, because the server
+    -- has no way of knowing what the driver turned up in.
+    spares     = nil,
   }
 
   RM.info(("%s armed %s, %s, %d lap(s)"):format(

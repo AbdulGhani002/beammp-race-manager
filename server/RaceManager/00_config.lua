@@ -65,7 +65,13 @@ RM.config = {
   -- how far a client stamp may sit outside what the server believes
   clockTrustMs = 2000,
   -- how long the car is held still while each job is done. only inside a run.
-  holds     = { reposition = 5.0, spareTire = 30.0, repair = 60.0, fuel = 20.0 },
+  holds     = { reposition = 5.0, spareTire = 30.0, repair = 60.0, fuel = 20.0,
+                rerack = 30.0 },
+
+  -- how many spare changes a car gets before it has to pit. nil means
+  -- however many tires are actually on its rack, which is what he asked
+  -- for: a truck with two spares gets two, one with none gets none.
+  spareChanges = nil,
 
   -- a quarter of a tank per press
   fuelStep  = 0.25,

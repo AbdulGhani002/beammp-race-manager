@@ -350,18 +350,53 @@ angular.module("beamng.apps")
         { key: "spare",      label: "Spare tire", hold: "spareTire",  pen: "flatTire" },
         { key: "repair",     label: "Repair",     hold: "repair",     pen: "repair" },
         { key: "fuel",       label: "Fuel +25%",  hold: "fuel",       pen: null },
+        { key: "rerack",     label: "Re-rack",    hold: "rerack",     pen: null, pit: true },
         { key: "lights",     label: "Lights",     hold: null,         pen: null }
       ];
+
+      // Re-rack is only worth offering where it works, so the bar grows a
+      // button in the pit and loses it on the way out. The list is cached
+      // because ng-repeat compares what it is handed and a fresh array every
+      // digest never settles.
+      var barCache = null, barPit = null;
+      $scope.barButtons = function () {
+        var pit = (($scope.s.race || {}).inPit) ? 1 : 0;
+        if (pit !== barPit || !barCache) {
+          barPit = pit;
+          barCache = $scope.bottom.filter(function (b) { return !b.pit || pit === 1; });
+        }
+        return barCache;
+      };
+
+      // how many changes are left before the pit. the server counts them, so
+      // an empty rack is known before the button is pressed rather than after
+      // a thirty second wait.
+      $scope.sparesLeft = function () {
+        var n = ($scope.s.service || {}).spares;
+        return typeof n === "number" ? n : null;
+      };
+
+      $scope.bottomLabel = function (b) {
+        if (b.key !== "spare") return b.label;
+        var n = $scope.sparesLeft();
+        return n === null ? b.label : b.label + " " + n;
+      };
+
+      $scope.outOfSpares = function (b) {
+        return b.key === "spare" && $scope.sparesLeft() === 0;
+      };
 
       // the host can change any of these on the server without anybody
       // reinstalling, so the button reads them rather than stating them
       $scope.bottomNote = function (b) {
+        if ($scope.outOfSpares(b)) return "The rack is empty. Pit and re-rack.";
         var c = $scope.s.config || {};
         var h = (c.holds || {})[b.hold];
         var p = b.pen && (c.penalties || {})[b.pen];
         var bits = [];
         if (h) bits.push(h + " sec hold");
         if (p) bits.push(p + " sec penalty");
+        if (b.key === "rerack") bits.push("fills the rack");
         return bits.length ? bits.join(", ") + ", in a run" : "";
       };
 
@@ -369,7 +404,7 @@ angular.module("beamng.apps")
 
       var HOLD_LABEL = {
         reposition: "Repositioning", spare: "Fitting the spare",
-        repair: "Repairing", fuel: "Fuelling"
+        repair: "Repairing", fuel: "Fuelling", rerack: "Re-racking"
       };
 
       $scope.holding = function () {

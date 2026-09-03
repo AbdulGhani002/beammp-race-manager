@@ -161,6 +161,81 @@ RM.service.forget(0)
 local freeSpare = use("spare")
 ok(freeSpare ~= nil, "and free driving needs no flat at all")
 
+section("the rack is what limits a spare change")
+-- a car carries what it carries: two on a race truck, one on a UTV, none on
+-- plenty of things. the client counts what is bolted on and the run is seeded
+-- from that the first time the button is pressed.
+local function spareRun(spares)
+  M.clearOutbox(0)
+  M.clientSend(0, "service.use", { which = "spare", flat = true, spares = spares })
+  tick(1)
+  local hold = M.lastMessage(0, "service.hold")
+  local failed = M.lastMessage(0, "service.failed")
+  if not hold then return nil, failed end
+  M.advance(HOLD.spareTire + 1)
+  tick(1)
+  M.clientSend(0, "service.done", { which = "spare", ok = true })
+  tick(1)
+  return hold, nil
+end
+
+startRun()
+spareRun(2)
+eq(RM.service.spares(0), 1, "a truck with two spares has one left after a change")
+spareRun(2)
+eq(RM.service.spares(0), 0, "and none after the second")
+
+local _, empty = spareRun(2)
+ok(empty ~= nil, "the third is refused")
+eq(empty.why, "no_spares_left", "because the rack is empty")
+
+section("what the car says only seeds the count once")
+startRun()
+spareRun(1)
+eq(RM.service.spares(0), 0, "one spare, one change")
+local _, gone = spareRun(9)
+ok(gone ~= nil, "claiming nine later does not refill it")
+eq(gone.why, "no_spares_left", "the rack is still empty")
+
+section("a car with no rack gets no change at all")
+startRun()
+local _, none = spareRun(0)
+ok(none ~= nil, "nothing on the rack, nothing to fit")
+eq(none.why, "no_spares_left", "and says so")
+
+section("a spare the game could not fit costs nothing off the rack")
+startRun()
+M.clientSend(0, "service.use", { which = "spare", flat = true, spares = 2 })
+tick(1)
+M.advance(HOLD.spareTire + 1)
+tick(1)
+M.clientSend(0, "service.done", { which = "spare", ok = false, why = "swap_failed" })
+tick(1)
+eq(RM.service.spares(0), 2, "the rack is untouched when the job failed")
+near(RM.race.penaltyTotal(RM.race.get(0)), 0, 0.01, "and the seconds come back")
+
+section("re-racking is a pit job and fills it again")
+startRun()
+spareRun(2)
+spareRun(2)
+eq(RM.service.spares(0), 0, "run dry")
+
+local _, notInPit = use("rerack", { spares = 2 })
+ok(notInPit ~= nil, "out on the course it is refused")
+eq(notInPit.why, "pit_only", "because it belongs in the pit")
+
+RM.race.setPit(0, true)
+local racked = use("rerack", { spares = 2 })
+ok(racked ~= nil, "in the pit it is allowed")
+eq(racked.penalty, nil, "and costs nothing on the clock")
+eq(RM.service.spares(0), 2, "the rack is full again")
+M.advance(HOLD.rerack + 1)
+tick(1)
+M.clientSend(0, "service.done", { which = "rerack", ok = true })
+tick(1)
+eq(RM.service.spares(0), 2, "and re-racking is not itself a spare change")
+RM.race.setPit(0, false)
+
 section("fuel waits but costs nothing")
 startRun()
 local fuel = use("fuel")

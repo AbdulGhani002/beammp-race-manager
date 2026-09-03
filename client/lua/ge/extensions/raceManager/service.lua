@@ -45,17 +45,20 @@ function M.onFlat(flat)
     notice("Spare tire: nothing is flat")
     return
   end
-  extensions.raceManager_net.send("service.use", { which = "spare", flat = true })
+  extensions.raceManager_net.send("service.use",
+    { which = "spare", flat = true, spares = rackCount() })
 end
 
 local function askFlat()
   local v = playerVehicle()
   if not v then notice("Get in a car first") return end
+  -- caught before anything comes off, so the pit knows what to put back
+  rememberRack()
   pendingFlat = true
   v:queueLuaCommand([[
     local flat = false
     for _, w in pairs(wheels.wheels or {}) do
-      if w.isTireDeflated then flat = true break end
+      if w.isTireDeflated or w.isBroken then flat = true break end
     end
     obj:queueGameEngineLua("extensions.raceManager_service.onFlat(" .. tostring(flat) .. ")")
   ]])
@@ -92,6 +95,11 @@ function M.ask(which)
   end
   if which == "spare" then askFlat() return end
   if which == "fuel" then askFuel() return end
+  if which == "rerack" then
+    extensions.raceManager_net.send("service.use",
+      { which = "rerack", spares = rackCount0 >= 0 and rackCount0 or rackCount() })
+    return
+  end
   extensions.raceManager_net.send("service.use", { which = which })
 end
 
@@ -118,6 +126,142 @@ local function addFuel(v, full)
       end
     end, "energyStorage")
   end)
+end
+
+------------------------------------------------------------ the spare rack
+
+-- Spare tires are real parts bolted to the car, so the rack is read off the
+-- vehicle rather than guessed at. Slot names differ per vehicle
+-- (racetruck_sparetire_L, utv_sparetire_14x7, sunburst2_sparetire_R_offroad),
+-- so the slot type is matched on shape, and the mounts, holders and covers
+-- that live beside them are left alone.
+local SPARE_WORDS = { "sparetire", "sparewheel", "spare_tire", "spare_wheel" }
+local NOT_A_TIRE  = { "mount", "holder", "cover", "case", "rack", "bracket", "carrier" }
+
+local function isSpareSlot(id)
+  id = tostring(id or ""):lower()
+  local looks = false
+  for i = 1, #SPARE_WORDS do
+    if id:find(SPARE_WORDS[i], 1, true) then looks = true break end
+  end
+  if not looks then return false end
+  for i = 1, #NOT_A_TIRE do
+    if id:find(NOT_A_TIRE[i], 1, true) then return false end
+  end
+  return true
+end
+
+local function vehicleConfig()
+  local ok, data = pcall(function()
+    return extensions.core_vehicle_manager.getPlayerVehicleData()
+  end)
+  if not ok or type(data) ~= "table" then return nil end
+  return data.config, tostring(data.model or "")
+end
+
+-- A tire slot carries its wheel underneath it, so once a slot matches we stop
+-- going down: taking the tire takes the wheel with it.
+local function spareSlots(cfg)
+  local found = {}
+  local function walk(node, depth)
+    if type(node) ~= "table" then return end
+    for _, child in pairs(node.children or {}) do
+      if type(child) == "table" then
+        if isSpareSlot(child.id) then
+          found[#found + 1] = { node = child, depth = depth,
+                                key = tostring(child.path or child.id or "") }
+        else
+          walk(child, depth + 1)
+        end
+      end
+    end
+  end
+  walk(cfg and cfg.partsTree, 0)
+  table.sort(found, function(a, b)
+    if a.depth ~= b.depth then return a.depth < b.depth end
+    return a.key < b.key
+  end)
+  return found
+end
+
+local function rackCount()
+  local cfg = vehicleConfig()
+  if not cfg then return 0 end
+  local n = 0
+  local slots = spareSlots(cfg)
+  for i = 1, #slots do
+    if tostring(slots[i].node.chosenPartName or "") ~= "" then n = n + 1 end
+  end
+  return n
+end
+
+-- What was on the rack when it was last seen fullest, so the pit can put it
+-- back. Kept per model, because swapping car throws the old rack away.
+local rackMemory, rackCount0, rackModel = nil, -1, nil
+
+local function rememberRack()
+  local cfg, model = vehicleConfig()
+  if not cfg then return end
+  if model ~= rackModel then rackMemory, rackCount0, rackModel = nil, -1, model end
+  local mem, n = {}, 0
+  local slots = spareSlots(cfg)
+  for i = 1, #slots do
+    local name = tostring(slots[i].node.chosenPartName or "")
+    if name ~= "" then mem[slots[i].key] = name; n = n + 1 end
+  end
+  if n >= rackCount0 then rackMemory, rackCount0 = mem, n end
+end
+
+local function takeOneSpare(cfg)
+  local slots = spareSlots(cfg)
+  for i = 1, #slots do
+    if tostring(slots[i].node.chosenPartName or "") ~= "" then
+      slots[i].node.chosenPartName = ""
+      return true
+    end
+  end
+  return false
+end
+
+local function fillRack(cfg)
+  if not rackMemory then return false end
+  local filled = false
+  local slots = spareSlots(cfg)
+  for i = 1, #slots do
+    local want = rackMemory[slots[i].key]
+    if want and tostring(slots[i].node.chosenPartName or "") == "" then
+      slots[i].node.chosenPartName = want
+      filled = true
+    end
+  end
+  return filled
+end
+
+-- Rebuilding the car from its parts is the only thing that puts a destroyed
+-- tire back, and it is what the vehicle selector does. It leaves the car
+-- exactly where it stands: the game's own editor has a line calling respawn
+-- "bad, not resetting the pos/rot", which is the behaviour we want.
+local function applyTree(cfg)
+  return pcall(function()
+    extensions.core_vehicle_partmgmt.setPartsTreeConfig(cfg.partsTree, true)
+  end)
+end
+
+-- takes one off the rack and rebuilds, which brings every tire back new
+local function fitSpare(consume)
+  local cfg = vehicleConfig()
+  if not cfg or not cfg.partsTree then return false, "no_config" end
+  if consume and not takeOneSpare(cfg) then return false, "no_spares_left" end
+  local ok = applyTree(cfg)
+  return ok, (not ok) and "swap_failed" or nil
+end
+
+local function reRack()
+  local cfg = vehicleConfig()
+  if not cfg or not cfg.partsTree then return false, "no_config" end
+  if not fillRack(cfg) then return false, "no_rack" end
+  local ok = applyTree(cfg)
+  return ok, (not ok) and "swap_failed" or nil
 end
 
 local UPRIGHT_LIFT = 0.6
@@ -175,23 +319,30 @@ local SPARE_FIX = [[
   obj:queueGameEngineLua("extensions.raceManager_service.onSpareFixed(" .. tostring(allFixed) .. ")")
 ]]
 
--- the vehicle answers on its own frame, so the spare reports back late
+-- whether this job is meant to cost a tire off the rack
+local takesSpare = false
+
+-- The vehicle answers on its own frame, so the spare reports back late.
+--
+-- Air first. A puncture with the wheel still under it goes back up where it
+-- stands and nothing else on the car is touched, which is most racing flats.
+-- Only a tire that is past saving takes the other road, because that one has
+-- to rebuild the car and would otherwise hand out a free repair every time.
 function M.onSpareFixed(allFixed)
   if allFixed then
     st.which = "spare"
     report(true, nil)
     st.which = nil
-    notice("Spare tire on")
+    notice("Air back in. One off the rack.")
     return
   end
 
-  local v = playerVehicle()
-  local ok = v and repairAll(v) or false
+  local ok, why = fitSpare(takesSpare)
   st.which = "spare"
-  report(ok and true or false, (not ok) and "repair_failed" or nil)
+  report(ok and true or false, (not ok) and (why or "swap_failed") or nil)
   st.which = nil
-  notice(ok and "That tire was too far gone, so the whole car was repaired"
-            or "The tire could not be fixed")
+  notice(ok and "That one was past saving, so a spare went on"
+            or "No spare would go on")
 end
 
 local function doJob(which, full)
@@ -207,6 +358,9 @@ local function doJob(which, full)
   if which == "repair" then
     local ok = repairAll(v)
     return ok, (not ok) and "repair_failed" or nil
+  end
+  if which == "rerack" then
+    return reRack()
   end
   if which == "fuel" then
     local ok = addFuel(v, full)
@@ -243,6 +397,7 @@ end
 local function onRun(d)
   local which = type(d) == "table" and tostring(d.which or "") or st.which
   local full = type(d) == "table" and d.full == true
+  takesSpare = type(d) == "table" and d.takes == true
   local v = playerVehicle()
   if v then freeze(v, false) end
 
@@ -268,6 +423,11 @@ local WHY = {
   no_vehicle      = "Get in a car first",
   no_tank         = "Nothing on this car takes fuel",
   repair_failed   = "The car could not be reset",
+  no_spares_left  = "The rack is empty. Pit and re-rack.",
+  pit_only        = "That one is a pit job",
+  no_rack         = "This car carries no spares",
+  no_config       = "The car's parts could not be read",
+  swap_failed     = "The spare would not go on",
 }
 
 local function onFailed(d)
