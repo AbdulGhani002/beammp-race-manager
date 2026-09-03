@@ -85,6 +85,7 @@ function M.spareTire()  press("spare") end
 function M.repair()     press("repair") end
 function M.fuel()       press("fuel") end
 function M.lights()     press("lights") end
+function M.rerack()     press("rerack") end
 
 -- The rows in the light menu. All of these are the game's own electrics
 -- calls: a vehicle without the part just does nothing, same as the game's

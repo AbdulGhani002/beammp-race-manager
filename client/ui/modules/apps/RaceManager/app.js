@@ -18,6 +18,17 @@ angular.module("beamng.apps")
 
       function clamp(v, lo, hi) { return v < lo ? lo : (v > hi ? hi : v); }
 
+      // How tall this window would be if nothing was holding it in. Measured
+      // by letting it go and reading it back, because the content changes as
+      // courses are added and a number written down here would go stale.
+      function contentHeight() {
+        var was = node.style.height;
+        node.style.height = "auto";
+        var h = node.scrollHeight;
+        node.style.height = was;
+        return h;
+      }
+
       function place(box) {
         var maxX = window.innerWidth - EDGE;
         var maxY = window.innerHeight - EDGE;
@@ -27,7 +38,16 @@ angular.module("beamng.apps")
         node.style.right = "auto";
         node.style.bottom = "auto";
         if (box.w) node.style.width = Math.max(MIN_W, box.w) + "px";
-        if (box.h) node.style.height = Math.max(MIN_H, box.h) + "px";
+
+        // A window dragged shorter than its content is not a smaller window,
+        // it is the same window with the heading scrolled off the top and a
+        // bar down the side. That is what he saw on the race picker, and it
+        // came back every time because the size was remembered. Pulling the
+        // corner up now stops where the content ends. The css max-height still
+        // has the last word on a genuinely long list.
+        if (box.h) {
+          node.style.height = Math.max(MIN_H, contentHeight(), box.h) + "px";
+        }
       }
 
       function remember(box) {
@@ -37,6 +57,22 @@ angular.module("beamng.apps")
       var saved = null;
       try { saved = JSON.parse(localStorage.getItem(key)); } catch (e) { }
       if (saved && typeof saved.x === "number") place(saved);
+
+      // What is in a window arrives after it is built: courses land when the
+      // server answers, lobby rows come and go. So the fit is checked on every
+      // digest rather than once, and a window that would clip grows instead.
+      // Nothing is written back, so a bad size on disk heals every time it
+      // opens rather than being made permanent by a measurement taken early.
+      function unclip() {
+        if (!node.style.height) return;
+        var room = window.innerHeight * 0.72;
+        if (room < MIN_H) return;              // no viewport to measure against
+        var need = contentHeight();
+        if (need > node.clientHeight + 1) {
+          node.style.height = Math.min(Math.max(need, MIN_H), room) + "px";
+        }
+      }
+      scope.$watch(function () { return node.scrollHeight; }, unclip);
 
       function beginDrag(startEvent, mode) {
         startEvent.preventDefault();
@@ -172,6 +208,9 @@ angular.module("beamng.apps")
         var mph = Math.round(Math.abs(s.electrics.wheelspeed || 0) * 2.2369363);
         if (mph !== $scope.speed) {
           $scope.speed = mph;
+          // Nobody clicks anything while they are driving, so the menu just
+          // rode along over the road. Moving off is the answer to it.
+          if (mph >= 1 && $scope.s.lights) ui("closeLights");
           $scope.$applyAsync();
         }
       });
@@ -529,10 +568,12 @@ angular.module("beamng.apps")
         { key: "flash",      label: "Flash" }
       ];
 
-      // the menu stays open: lights get flicked in pairs, and the scrim or
-      // Escape is how it goes away
+      // It used to stay open so lights could be flicked in pairs, and it read
+      // as a menu that would not go away. It shuts on the one you picked; the
+      // button opens it again if you want another.
       $scope.lightPick = function (l) {
         call("raceManager_bottombar", "light", l.key);
+        ui("closeLights");
       };
 
       $scope.closeLights = function () { ui("closeLights"); };
@@ -551,9 +592,12 @@ angular.module("beamng.apps")
       // the key and the button go through the same lua, so the two cannot
       // disagree about whether the submenu is open
       $scope.bottomClick = function (b) {
+        // reaching past the open menu for another button means you are done
+        // with it, so it goes rather than sitting there over the road
+        if (b.key !== "lights" && $scope.s.lights) ui("closeLights");
         var fn = {
           reposition: "reposition", spare: "spareTire", repair: "repair",
-          fuel: "fuel", lights: "lights"
+          fuel: "fuel", rerack: "rerack", lights: "lights"
         }[b.key];
         if (fn) call("raceManager_bottombar", fn);
       };

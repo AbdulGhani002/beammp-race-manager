@@ -254,6 +254,19 @@
    was a choice. */
 .rm-root.racing .rm-panel { top: 208px; }
 
+/* The game's interface is chromium, and its default bar is a wide pale slab
+   that lands on a dark panel like a stripe of paint. A window should not need
+   one at all now that it cannot be dragged shorter than its content, but a
+   long list of courses still can. */
+.rm-root ::-webkit-scrollbar { width: 8px; height: 8px; }
+.rm-root ::-webkit-scrollbar-track { background: transparent; }
+.rm-root ::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.14);
+  border-radius: 4px;
+}
+.rm-root ::-webkit-scrollbar-thumb:hover { background: var(--rm-line-lit); }
+.rm-root ::-webkit-scrollbar-corner { background: transparent; }
+
 .rm-capture { width: 520px; }
 
 .rm-x {

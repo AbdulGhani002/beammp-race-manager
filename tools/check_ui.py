@@ -222,6 +222,37 @@ def main():
               "%s does not build its gate from gateBox, so the volume and the "
               "posts can drift apart again" % fn)
 
+    # Every call("raceManager_x", "fn") in the interface has to land on a
+    # function that exists. The re-rack button called one that was never
+    # written and did nothing at all when pressed, which no test could see:
+    # the lua suites load the server plugin and never touch client lua.
+    targets = set(re.findall(
+        r'call\(\s*"(raceManager_[a-z]+)"\s*,\s*"([A-Za-z_]\w*)"', js))
+
+    # The bar does not name its function inline, it looks one up by button, so
+    # the names in that table have to be read out of it. That table is exactly
+    # where the missing one hid.
+    table = re.search(
+        r'var fn = \{(.*?)\}\[b\.key\];\s*if \(fn\) call\("(raceManager_[a-z]+)"',
+        js, re.S)
+    if table:
+        for name in re.findall(r':\s*"([A-Za-z_]\w*)"', table.group(1)):
+            targets.add((table.group(2), name))
+    check(table is not None,
+          "the bottom bar's button to lua table could not be read, so the "
+          "names in it are no longer being checked")
+
+    for mod, fn in sorted(targets):
+        path = "client/lua/ge/extensions/raceManager/%s.lua" % mod.split("_", 1)[1]
+        if not os.path.exists(path):
+            check(False, "%s is called but there is no %s" % (mod, path))
+            continue
+        lua = io.open(path, encoding="utf-8").read()
+        has = (re.search(r"function\s+M\.%s(?![A-Za-z0-9_])" % re.escape(fn), lua) or
+               re.search(r"M\.%s\s*=" % re.escape(fn), lua))
+        check(has is not None,
+              "app.js calls %s.%s, which the lua does not define" % (mod, fn))
+
     print("%d checks" % checks[0])
     if problems:
         for p in problems:
