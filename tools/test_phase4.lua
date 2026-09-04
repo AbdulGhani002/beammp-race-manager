@@ -67,6 +67,30 @@ eq(#track.checkpoints, 5, "five gates on the lap")
 eq(#track.pits, 1, "and one pit beside it")
 eq(track.checkpoints[3].i, 3, "the gates kept their numbers")
 
+-- Out in the open desert the game cannot prove which road a gate is on, so the
+-- gate keeps the width it was captured with. On a wide course that is too
+-- narrow to span it, and re-driving thirteen gates to fix that is not a fix.
+section("one width across every gate on a saved course, from the console")
+do
+  local t = RM.tracks.get("loop")
+  local was = t.checkpoints[1].size and t.checkpoints[1].size.w
+  ok(type(was) == "number", "the gates start at the width they were marked with")
+
+  local out = RM.console.handle("rm gatewidth loop 34")
+  ok(out:find("34 metres across"), "the console says what it did")
+  eq(t.checkpoints[1].size.w, 34, "the first gate is wider")
+  eq(t.checkpoints[#t.checkpoints].size.w, 34, "and so is the last")
+
+  ok(RM.console.handle("rm gatewidth loop 900"):find("bad_width"),
+     "a silly width is refused rather than saved")
+  ok(RM.console.handle("rm gatewidth nope 34"):find("no_such_track"),
+     "and a course that is not there is too")
+  ok(RM.console.handle("rm gatewidth"):find("usage"), "half a command prints the usage")
+
+  RM.tracks.setWidthDirect("loop", was)
+  eq(t.checkpoints[1].size.w, was, "and it can be put back")
+end
+
 section("the lobby: make, join, start")
 local okL, lobby = RM.lobby.create(0, { track = "loop", laps = 1, mode = "controller", open = true })
 ok(okL, "the host makes a public race")
