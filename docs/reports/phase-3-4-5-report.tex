@@ -269,24 +269,27 @@ Course capture and shape & 31 \\
 Phase 1, identity        & 91 \\
 Phase 2, racing          & 131 \\
 Phase 3, the bottom bar and the rack & 68 \\
-Phase 4, lobby, pit, zones & 56 \\
+Phase 4, lobby, pit, zones & 63 \\
 Phase 5, the books       & 31 \\
-Teams, xp, bans, classes, qualifying & 60 \\
-Results                  & 103 \\
+Teams, xp, bans, classes, qualifying & 84 \\
+Results                  & 120 \\
 The clock and lap bar    & 26 \\
 \midrule
-Total                    & 627 \\
+Total                    & 675 \\
 \bottomrule
 \end{longtable}
 
-Plus 185 interface checks, 10 key bindings, and a reader over every client
+Plus 190 interface checks, 10 key bindings, and a reader over every client
 file that fails the build when a name is used above where it is written. All
 of those fail the build when the screen and the code stop agreeing.
 
 The books, the bar, the rack and the gate sums were also tested by breaking
 them on purpose: charging at the wrong end, letting marked runs into the
 books, never taking a spare off the rack, re-racking out on the course,
-ignoring the road width, putting a car back where it already was. Every
+ignoring the road width, putting a car back where it already was, ignoring
+the class a driver entered, letting a made up class through, keeping one best
+per course instead of one per class, dropping the class off the line your bot
+reads, and starting a grid without the class its race was made in. Every
 sabotage was caught, which is what says the numbers above mean something.
 
 \section{What the game will not allow}
@@ -350,14 +353,33 @@ ranks as high as they do, or on themselves.
 
 \subsection*{Records by class}
 
-Every run now records the car it was set in. Name the classes in the settings
-file and the books split themselves, including runs already on disk, because
-the car is stored with the run rather than the class. The screen only offers a
-class to pick when there is more than one to pick from.
+Your seventeen classes are in, as you wrote them, in your order, under the two
+divisions you grouped them under. They are on the race screen as a row of
+buttons under Limited and Unlimited.
 
-This is the one item the plan asked you for at phase 5 and has not arrived.
-Until it does, every car shares one book and nothing on screen changes. Send
-the class list and it starts working with no further work from me.
+A class is entered rather than worked out from the car. You allow every
+vehicle, and two drivers in the same truck can be running different classes, so
+the car cannot tell the server which book a run belongs in. The driver picks
+one before they set off, or whoever makes the race picks one for the whole
+grid, which is the way your bot announces them. Picking nothing is allowed: the
+run still counts, it just sits outside the class books.
+
+Your best is kept once per class, not once per course. A slower run in a second
+class is that class's first entry rather than a run that failed to beat you.
+Top of your own class earns a record of its own on the results screen, beside
+the outright course record.
+
+The record screen has a filter across the top: every class, or one of them. It
+only offers the classes that have actually been raced on that course, so it
+stays short.
+
+One thing to check. Your list had a bullet reading Class 5/1600, 1600 and Class
+9. I put that in as one class exactly as you wrote it. If those are meant to be
+three separate books, say so and I will split them.
+
+A class can also be pinned to particular vehicles later, which would refuse the
+wrong car at the line. Nothing is pinned today, because you said every vehicle
+is allowed for now.
 
 \subsection*{Qualifying}
 
@@ -389,7 +411,7 @@ same thing as a cap and you should know that.
 \vspace{6pt}
 
 {\small Everything described here is on the server, sounds and all. The build
-is \textbf{0.5.5-phases1-5}, and the console says so on every restart, so you
+is \textbf{0.5.6-classes}, and the console says so on every restart, so you
 can always tell which one you are running.
 
 The record books start empty, so the first finished race on each course sets
