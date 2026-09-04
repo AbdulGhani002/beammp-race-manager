@@ -134,10 +134,33 @@ eq(r2.penalties[1].reason, "missed_gate", "with a reason that can be argued with
 eq(r2.penalties[1].gate, 3, "against the gate it belongs to")
 near(RM.race.penaltyTotal(r2), 60, 0.01, "two thirty second penalties")
 
+-- The screen was handed one count and called every one of them a cut, so a
+-- driver who cut one corner and then pressed Reposition was told he had cut
+-- twice. The kinds are counted apart so the words on the clock can be true.
+section("the clock is told what each penalty was for")
+do
+  local by = RM.race.penaltyBy(r2)
+  eq(type(by), "table", "there is a breakdown")
+  eq(by.missed_gate, 2, "two cuts")
+  eq(by.recovery, nil, "and nothing else yet")
+
+  RM.race.penalty(0, 60, "recovery")
+  by = RM.race.penaltyBy(r2)
+  eq(by.missed_gate, 2, "the cuts are still two after a reposition")
+  eq(by.recovery, 1, "which is counted on its own")
+  eq(#r2.penalties, 3, "three penalties in total")
+  near(RM.race.penaltyTotal(r2), 120, 0.01, "worth two minutes between them")
+
+  local wire = RM.race.wire(0)
+  eq(wire.penalties, 3, "the screen is told how many")
+  eq(wire.penaltyBy.missed_gate, 2, "and how many were cuts")
+  eq(wire.penaltyBy.recovery, 1, "and how many were not")
+end
+
 cross(1, 10)
 local done2 = RM.race.get(0)
 eq(done2.state, "finished", "the run still finishes")
-near(done2.corrected - done2.clean, 60, 0.01, "corrected carries the penalties")
+near(done2.corrected - done2.clean, 120, 0.01, "corrected carries the penalties")
 
 section("the same gate twice, and going backwards")
 RM.race.clear(0)

@@ -218,9 +218,34 @@ def main():
 
     for fn in ("spawnGate", "drawGate"):
         body = re.search(r"local function %s\(.*?\n(.*?)\nend\n" % fn, triggers, re.S)
-        check(body is not None and "gateBox(cp)" in body.group(1),
+        check(body is not None and "gateBox(cp" in body.group(1),
               "%s does not build its gate from gateBox, so the volume and the "
               "posts can drift apart again" % fn)
+
+    # A pit is a place you sit in for the length of a repair, not a line you
+    # cross. Built to a gate's three metres it fired enter and exit in the same
+    # tenth of a second, so parking in one registered nothing at all.
+    pit_d = re.search(r"DEFAULT_PIT\s*=\s*\{[^}]*d\s*=\s*(\d+)", triggers)
+    check(pit_d is not None,
+          "triggers.lua has no pit size of its own, so a pit is a gate again")
+    check(pit_d is None or int(pit_d.group(1)) >= 15,
+          "the pit box is too short to stop inside, so being in the pit flickers")
+    check('spawnGate(pits[i], i, PIT_PREFIX, "pit")' in triggers,
+          "pits are spawned without their own kind, so they get a gate's depth")
+
+    # Leaving one pit box while still inside another used to report the car out
+    # of the pit, so a lane with a box at each end never held.
+    check("inPits" in triggers and "M.pitCrossed(" in triggers,
+          "triggers.lua tracks the pit with a flag again, so overlapping pit "
+          "boxes cancel each other")
+
+    # The gate has to cover the line the capture car drove. Sliding it onto the
+    # road's middle and leaving it there put gates beside the course.
+    fitroad = re.search(r"function M\.fitRoad\(.*?\n(.*?)\nend\n", triggers, re.S)
+    check(fitroad is not None and "math.min(0," in fitroad.group(1)
+          and "math.max(0," in fitroad.group(1),
+          "fitRoad no longer grows around the line that was driven, so a gate "
+          "can end up beside the course again")
 
     # Every call("raceManager_x", "fn") in the interface has to land on a
     # function that exists. The re-rack button called one that was never

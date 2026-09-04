@@ -182,7 +182,8 @@ var SCENES = {
     var s = base();
     s.race = { state: "running", track: "baja-1000", trackName: "Baja 1000",
                mode: "wheel", laps: 2, lap: 1, gates: 30, next: 14, done: 13, circuit: true,
-               penalties: 1, penaltyTime: 30, elapsed: 477.3,
+               penalties: 1, penaltyTime: 30,
+               penaltyBy: { missed_gate: 1 }, elapsed: 477.3,
                lastSplit: { gate: 13, lap: 1, split: 421.882 } };
     return s;
   },
@@ -193,7 +194,9 @@ var SCENES = {
     var s = base();
     s.race = { state: "running", track: "baja-1000", trackName: "Baja 1000",
                mode: "wheel", laps: 2, lap: 2, gates: 30, next: 23, done: 22, circuit: true,
-               penalties: 6, penaltyTime: 180, elapsed: 619.2 };
+               penalties: 3, penaltyTime: 120,
+               penaltyBy: { missed_gate: 1, recovery: 1, repair: 1 },
+               elapsed: 619.2 };
     s.lights = true;
     s.toast = { text: "Repair holds the car 60s and puts 30s on this run",
                 secs: 10, seq: Date.now() };

@@ -21,6 +21,7 @@ local st = {
   lastSplit = nil,
   penalties = 0,
   penaltyTime = 0,
+  penaltyBy = nil,
   waiting   = nil,
   results   = nil,
   why       = nil,
@@ -168,6 +169,7 @@ local function onState(d)
   st.circuit   = d.circuit and true or false
   st.penalties = d.penalties or 0
   st.penaltyTime = d.penaltyTime or 0
+  st.penaltyBy = d.penaltyBy
   st.inPit     = d.inPit and true or false
   st.waiting   = d.waiting
   st.why       = d.why
@@ -232,6 +234,7 @@ local function onSplit(d)
 
   if d.penalties then st.penalties = d.penalties end
   if d.penaltyTime then st.penaltyTime = d.penaltyTime end
+  if d.penalties then st.penaltyBy = d.penaltyBy end
 
   if d.lap then st.lap = d.lap end
   if d.lapDone then startedLocal = extensions.raceManager_clock.now() - (d.split or 0) end

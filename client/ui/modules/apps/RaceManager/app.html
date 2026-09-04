@@ -522,7 +522,7 @@
         <span ng-if="s.race.laps > 1">Lap {{ s.race.lap }} / {{ s.race.laps }}</span>
         <span ng-if="s.race.next">Gate {{ s.race.next }} / {{ s.race.gates }}</span>
         <span class="rm-hud-pen" ng-if="s.race.penalties">
-          {{ s.race.penalties }} cut &middot; +{{ penaltyClock(s.race.penaltyTime) }}
+          {{ penaltyWords() }} &middot; +{{ penaltyClock(s.race.penaltyTime) }}
         </span>
         <span class="rm-hud-inpit" ng-if="s.race.inPit">in the pit &middot; service is free</span>
       </div>

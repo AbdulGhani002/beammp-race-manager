@@ -23,6 +23,10 @@ local function ok(cond, what)
   end
 end
 
+local function eq(got, want, what)
+  ok(got == want, ("%s (got %s, wanted %s)"):format(what, tostring(got), tostring(want)))
+end
+
 -- a multi return in the middle of an argument list collapses to one value,
 -- so the two results are taken here and compared after
 local function span(w, l, r, wantAcross, wantOff, what)
@@ -76,17 +80,85 @@ local function road(w, yaw, gx, gy, cx, cy, wide, wantAcross, wantOff, what)
 end
 
 section("a gate takes the width of the road it is on")
-road(20, 0, 100, 50, 100, 50, 24, 28, 0, "a wider road widens the gate, margin and all")
+road(20, 0, 100, 50, 100, 50, 24, 32, 0, "a wider road widens the gate, margin each side")
 road(30, 0, 0, 0, 0, 0, 8, 30, 0, "a road narrower than the marked width leaves it alone")
 road(20, 0, 0, 0, 0, 0, 60, 45, 0, "and a huge one still stops at the ceiling")
 
-section("and slides onto the middle of it")
+section("and reaches the middle of it without leaving the line that was driven")
 -- yaw 0 means the gate faces along x, so across is y and the offset is the y gap
 road(20, 0, 100, 50, 100, 53, 10, 20, 3, "the road's middle three metres to one side")
 road(20, 0, 100, 50, 100, 46, 10, 20, -4, "and four the other way")
 -- facing along y, across is x, and the sign turns over
 road(20, math.pi / 2, 100, 50, 96, 50, 10, 20, 4, "the same gate turned a quarter turn")
 road(20, 0, 100, 50, 100, 50, 10, 20, 0, "a gate already on the middle does not move")
+
+-- The gate used to be slid onto the road's middle and left there, so a road
+-- whose middle was further off than the gate was wide put the gate beside the
+-- course with the racing line outside it. That is what was on screen: a gate
+-- off to the left while the car drove past on the right.
+section("the line the capture car drove is always inside its own gate")
+local function covers(w, yaw, gx, gy, cx, cy, wide, what)
+  local across, off = T.fitRoad(w, yaw, gx, gy, cx, cy, wide)
+  local lo, hi = off - across * 0.5, off + across * 0.5
+  ok(lo <= -3.9 and hi >= 3.9,
+     ("%s (gate runs %s to %s, and zero is where the car was)")
+       :format(what, tostring(lo), tostring(hi)))
+end
+
+covers(20, 0, 100, 50, 100, 65, 10, "a road fifteen metres off does not take the gate with it")
+covers(20, 0, 100, 50, 100, 35, 10, "nor fifteen the other way")
+covers(20, 0, 100, 50, 100, 90, 30, "nor a wide one forty off, once the ceiling has trimmed it")
+covers(20, math.pi / 2, 0, 0, 25, 0, 12, "and the same turned a quarter turn")
+covers(8, 0, 0, 0, 0, 22, 6, "a narrow gate beside a narrow road as well")
+
+section("it still reaches the road it was told about")
+road(20, 0, 100, 50, 100, 65, 10, 28, 10,
+     "fifteen off with a ten wide road spans from the line out past the far edge")
+
+-- ------------------------------------------------------------------- the pit
+
+-- A pit is a place you sit in while a repair runs, not a line you cross. Built
+-- to a gate's three metres it fired enter and exit in the same tenth of a
+-- second, so driving through showed "in the pit" for a blink and parking in
+-- one showed nothing at all.
+section("a pit is long enough to stop in, a gate is not")
+do
+  local here = { pos = { x = 0, y = 0, z = 10 }, yaw = 0 }
+  local _, gateLong = T.boxOf(here)
+  local _, pitLong  = T.boxOf(here, "pit")
+  ok(gateLong <= 6, ("a gate is a line to cross, %s deep"):format(tostring(gateLong)))
+  ok(pitLong >= 15, ("a pit is a place to sit, %s long"):format(tostring(pitLong)))
+  ok(pitLong > gateLong * 3, "and the two are not the same shape")
+
+  -- the capture screen only ever offered a gate's depth, so a pit keeps its
+  -- own length whatever was written against it
+  local marked = { pos = { x = 0, y = 0, z = 10 }, yaw = 0, size = { w = 20, h = 8, d = 3 } }
+  local _, stillLong = T.boxOf(marked, "pit")
+  ok(stillLong >= 15, "even one captured with a gate's three metres against it")
+end
+
+section("a pit is somewhere you are, not something you cross")
+T.pitsForgotten()
+eq(T.pitCrossed("1", "enter"), true, "driving in says so")
+eq(T.pitCrossed("1", "enter"), nil, "and says nothing the second time, sitting still")
+eq(T.pitCrossed("1", "exit"), false, "driving out says so too")
+eq(T.pitCrossed("1", "exit"), nil, "and only once")
+
+section("a lane with a box at each end still holds")
+T.pitsForgotten()
+eq(T.pitCrossed("1", "enter"), true, "into the first")
+eq(T.pitCrossed("2", "enter"), nil, "into the second while still in the first, no change")
+eq(T.pitCrossed("1", "exit"), nil,
+   "and out of the first is not out of the pit, which is the bug this had")
+eq(T.pitCrossed("2", "exit"), false, "out of the last one is")
+
+section("the boxes going away takes you out of the pit")
+T.pitsForgotten()
+T.pitCrossed("1", "enter")
+T.pitsForgotten()
+eq(T.pitCrossed("1", "exit"), nil,
+   "a car that was in a pit when the course changed is not in it for ever")
+eq(T.pitCrossed("1", "enter"), true, "and can enter one again")
 
 -- ------------------------------------------------------------ putting back
 

@@ -17,9 +17,20 @@ local PREFIX = "rm_cp_"
 local PIT_PREFIX = "rm_pit_"
 local DEFAULT_GATE = { w = 20, h = 8, d = 3 }
 
+-- A pit is a place you sit in, not a line you cross. Built to a gate's three
+-- metres it fired enter and exit in the same tenth of a second, so driving
+-- through one showed "in the pit" for a blink and parking in one showed
+-- nothing at all. It is a box you can stop inside.
+local DEFAULT_PIT = { w = 20, h = 8, d = 30 }
+
 local spawned = {}
 local course  = nil
 local visible = false
+
+-- Which pit boxes the car is standing in. A set rather than a flag, because
+-- leaving one box while still inside another used to report the car out of
+-- the pit, and a course with a pit either end of the lane does that every time.
+local inPits = {}
 
 -- a race has the same volumes up but a different job for them: the debug box
 -- stays off and the gate you are being scored on is drawn differently to the
@@ -42,13 +53,19 @@ function M.clear()
   spawned = {}
   course = nil
   visible = false
+  -- the boxes are gone, so nobody is standing in one. without this a car that
+  -- was in the pit when the course changed stays in it for ever.
+  M.pitsForgotten()
 end
 
-local function gateOf(cp)
-  local s = cp.size or DEFAULT_GATE
-  return tonumber(s.w) or DEFAULT_GATE.w,
-         tonumber(s.h) or DEFAULT_GATE.h,
-         tonumber(s.d) or DEFAULT_GATE.d
+local function gateOf(cp, kind)
+  local base = (kind == "pit") and DEFAULT_PIT or DEFAULT_GATE
+  local s = cp.size or base
+  return tonumber(s.w) or base.w,
+         tonumber(s.h) or base.h,
+         -- a pit keeps its length whatever the capture wrote, because the
+         -- capture screen only ever offered a gate's depth
+         (kind == "pit") and base.d or (tonumber(s.d) or base.d)
 end
 
 -- The one place a gate's shape is worked out. The volume and the posts you see
@@ -104,18 +121,24 @@ end
 -- open desert touch nothing, so they left gates at the width they were marked
 -- with and sitting wherever the capture car happened to be. This is the same
 -- question hotlapping asks when it sizes its own checkpoints.
-local ROAD_NEAR   = 22.0   -- a gate further than this from any road is on its own
 local ROAD_MARGIN = 4.0    -- a little past the edge, so clipping it still counts
 -- A road width is measured, not guessed at, so it is allowed to be wider than
 -- anything a sideways ray is trusted with.
 local ROAD_MOST   = 45.0
+-- How far off a road's own line the capture car may have been and still be
+-- called on it. Further than this is a different road, and sizing a gate to
+-- somebody else's road is what put gates across the desert beside the course.
+local ROAD_OFF    = 6.0
+-- and it has to run roughly the way the gate faces. a road crossing at right
+-- angles tells you nothing about how wide the one you are on is.
+local ROAD_ALIGN  = 0.5
 
--- where the road's middle is beside this point, and how wide it is there
-local function roadAt(pos)
+-- where the road's middle is beside this point, and how wide it is there.
+-- nil unless this really is the road the gate was marked on.
+local function roadAt(pos, yaw)
   if type(map) ~= "table" or type(map.findClosestRoad) ~= "function" then return nil end
   local ok, n1, n2, dsq = pcall(map.findClosestRoad, pos, 120)
   if not ok or not n1 or not n2 then return nil end
-  if type(dsq) == "number" and dsq > ROAD_NEAR * ROAD_NEAR then return nil end
 
   local okm, m = pcall(map.getMap)
   if not okm or type(m) ~= "table" or type(m.nodes) ~= "table" then return nil end
@@ -127,22 +150,74 @@ local function roadAt(pos)
   if okx and type(x) == "number" then t = math.max(0, math.min(1, x)) end
 
   local ra, rb = tonumber(a.radius) or 0, tonumber(b.radius) or 0
+  local half = ra + (rb - ra) * t
+  local wide = half * 2
+
+  -- On it, rather than merely near it. dsq is to the road's line, so this asks
+  -- whether the capture car was inside the road plus a little.
+  if type(dsq) == "number" and dsq > (half + ROAD_OFF) * (half + ROAD_OFF) then
+    return nil
+  end
+
+  -- and running the same way the gate faces
+  local dx, dy = b.pos.x - a.pos.x, b.pos.y - a.pos.y
+  local len = math.sqrt(dx * dx + dy * dy)
+  if len < 0.01 then return nil end
+  local fx, fy = math.cos(tonumber(yaw) or 0), math.sin(tonumber(yaw) or 0)
+  if math.abs((dx / len) * fx + (dy / len) * fy) < ROAD_ALIGN then return nil end
+
   return a.pos.x + (b.pos.x - a.pos.x) * t,
          a.pos.y + (b.pos.y - a.pos.y) * t,
-         (ra + (rb - ra) * t) * 2
+         wide
 end
 
 -- The sums for that, on their own so they can be argued with without a game.
--- Only ever widens: a road narrower than the width the course was marked with
--- keeps the marked one, so nobody loses a gate they set on purpose.
+--
+-- The gate grows around the line the capture car drove and is never slid off
+-- it. Sliding it to the road's middle is what put a gate beside the course
+-- with the racing line outside it: the capture car was on the course by
+-- definition, so whatever else the gate covers, it has to cover that.
 function M.fitRoad(w, yaw, gx, gy, cx, cy, roadWide)
   w = tonumber(w) or 0
   yaw = tonumber(yaw) or 0
   local ax, ay = -math.sin(yaw), math.cos(yaw)
-  local off = (cx - gx) * ax + (cy - gy) * ay
-  local across = math.max(w, (tonumber(roadWide) or 0) + ROAD_MARGIN)
-  if across > ROAD_MOST then across = ROAD_MOST end
-  return across, off
+
+  -- everything below is in metres across the gate, with the captured line at
+  -- zero and the road's middle at off
+  local off  = (cx - gx) * ax + (cy - gy) * ay
+  local half = (tonumber(roadWide) or 0) * 0.5 + ROAD_MARGIN
+
+  -- reach both road edges, and the captured line, whichever is further
+  local lo = math.min(0, off - half)
+  local hi = math.max(0, off + half)
+
+  -- never leave the captured line on the very edge of its own gate
+  if -lo < ROAD_MARGIN then lo = -ROAD_MARGIN end
+  if  hi < ROAD_MARGIN then hi =  ROAD_MARGIN end
+
+  -- and never narrower than the width the course was marked with
+  if hi - lo < w then
+    local grow = (w - (hi - lo)) * 0.5
+    lo, hi = lo - grow, hi + grow
+  end
+
+  -- Too wide to be a gate. Both ends come in together so a gate that was
+  -- centred stays centred, and then the whole thing slides if that shaved the
+  -- margin off the side the car was actually on.
+  local across = hi - lo
+  if across > ROAD_MOST then
+    local k = ROAD_MOST / across
+    lo, hi, across = lo * k, hi * k, ROAD_MOST
+    if -lo < ROAD_MARGIN then
+      local need = ROAD_MARGIN + lo
+      lo, hi = lo - need, hi - need
+    elseif hi < ROAD_MARGIN then
+      local need = ROAD_MARGIN - hi
+      lo, hi = lo + need, hi + need
+    end
+  end
+
+  return across, (lo + hi) * 0.5
 end
 
 -- Static geometry only, so another car cannot shrink a gate. Nil means the ray
@@ -155,17 +230,17 @@ local function probe(pos, dx, dy)
   return nil
 end
 
-local function fitSpans(cps)
+local function fitSpans(cps, kind)
   for i = 1, #cps do
     local cp = cps[i]
     if type(cp) == "table" and cp.pos then
       local yaw = tonumber(cp.yaw) or 0
       local rx, ry = -math.sin(yaw), math.cos(yaw)
-      local w = gateOf(cp)
+      local w = gateOf(cp, kind)
 
       -- the road first, because it is the only one of the two that knows
       -- anything out in the open
-      local cx, cy, wide = roadAt(cp.pos)
+      local cx, cy, wide = roadAt(cp.pos, yaw)
       if cx then
         cp.rmAcross, cp.rmOff = M.fitRoad(w, yaw, cp.pos.x, cp.pos.y, cx, cy, wide)
       else
@@ -176,12 +251,17 @@ local function fitSpans(cps)
   end
 end
 
-local function gateBox(cp)
-  local w, h, d = gateOf(cp)
+local function gateBox(cp, kind)
+  local w, h, d = gateOf(cp, kind)
   return cp.rmAcross or w, d, cp.pos.z - BASE_SINK, cp.pos.z + h, cp.rmOff or 0
 end
 
-local function spawnGate(cp, index, prefix)
+-- the shape one volume ends up with, out where it can be argued with. a pit
+-- and a gate differ only in how long they are, and that difference is the
+-- whole reason parking in a pit used to register nothing.
+M.boxOf = gateBox
+
+local function spawnGate(cp, index, prefix, kind)
   local name = (prefix or PREFIX) .. index
   removeOne(name)
 
@@ -218,7 +298,7 @@ local function spawnGate(cp, index, prefix)
     -- because it is the exact volume you have to drive through
     obj.debug = visible
 
-    local across, along, bottom, top, off = gateBox(cp)
+    local across, along, bottom, top, off = gateBox(cp, kind)
     local yaw = tonumber(cp.yaw) or 0
     local rx, ry = -math.sin(yaw), math.cos(yaw)
 
@@ -276,9 +356,9 @@ function M.build(track, showBoxes)
   -- pits are volumes too, under their own names, so the crossing handler can
   -- tell a pit from a gate without guessing
   local pits = type(track.pits) == "table" and track.pits or {}
-  fitSpans(pits)
+  fitSpans(pits, "pit")
   for i = 1, #pits do
-    local name = spawnGate(pits[i], i, PIT_PREFIX)
+    local name = spawnGate(pits[i], i, PIT_PREFIX, "pit")
     if name then spawned[#spawned + 1] = name end
   end
 
@@ -401,6 +481,23 @@ local function localVehicleId()
   return nil
 end
 
+-- Which pit boxes the car is in, and whether that answer just changed.
+-- Returns nil when it did not. This is a set rather than a flag because
+-- leaving one box while still inside another used to report the car out of
+-- the pit, and a lane with a box at each end does that on every visit.
+function M.pitCrossed(id, event)
+  local was = next(inPits) ~= nil
+  if event == "enter" then inPits[tostring(id)] = true
+  else inPits[tostring(id)] = nil end
+  local now = next(inPits) ~= nil
+  if now == was then return nil end
+  return now
+end
+
+function M.pitsForgotten()
+  inPits = {}
+end
+
 local function onBeamNGTrigger(data)
   if type(data) ~= "table" or not course then return end
 
@@ -413,7 +510,12 @@ local function onBeamNGTrigger(data)
   -- a pit is a place, so leaving it matters as much as entering
   local pit = name:match("^" .. PIT_PREFIX .. "(%d+)$")
   if pit then
-    extensions.raceManager_net.send("pit.state", { inside = data.event == "enter" })
+    local now = M.pitCrossed(pit, data.event)
+    -- nil means nothing changed, and standing still in a pit re-tests the
+    -- overlap often enough that saying so every time would be a flood
+    if now ~= nil then
+      extensions.raceManager_net.send("pit.state", { inside = now })
+    end
     return
   end
 

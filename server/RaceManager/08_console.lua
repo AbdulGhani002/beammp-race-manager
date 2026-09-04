@@ -27,6 +27,7 @@ local HELP = {
   "rm bans                who is banned, and why",
   "rm xp <name> <amount>  hand out experience, negative takes it back",
   "rm classes             the race classes, by division",
+  "rm gatewidth <course> <metres>   widen every gate on a course",
   "rm records <id> [class]  the board for a course, whole or one class",
 }
 
@@ -367,6 +368,19 @@ function RM.console.handle(input)
       local ok, why = RM.tracks.setZonesDirect(track.id, zones)
       if ok then say(("zone added: gates %s to %s at %s mph"):format(from, to, mph))
       else say("could not add it: " .. tostring(why)) end
+    end
+  elseif cmd == "gatewidth" then
+    local id, w = rest:match("^gatewidth%s+(%S+)%s+([%d%.]+)%s*$")
+    if not id then
+      say("  usage: rm gatewidth <course> <metres>, e.g. rm gatewidth baja-1000 34")
+    else
+      local ok, got = RM.tracks.setWidthDirect(id, w)
+      if ok then
+        say(("%d gate(s) on %s are now %s metres across"):format(got.gates, got.id, got.w))
+        say("drivers pick it up when they next open the course")
+      else
+        say("could not do it: " .. tostring(got))
+      end
     end
   elseif cmd == "zoneclear" then
     local id = rest:match("^zoneclear%s+(%S+)%s*$")

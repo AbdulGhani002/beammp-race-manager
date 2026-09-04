@@ -387,6 +387,29 @@ end
 -- This exists so the courses captured before gates were fitted do not have to
 -- be driven again. A 20 metre gate on a narrow stretch stands with its posts
 -- through the barrier, and on a wide one you can drive round the end of it.
+-- One width across every gate on a saved course, from the console.
+--
+-- The fitting in the game only widens a gate when it can prove which road it
+-- is on. Out in the open desert it cannot, and the gate keeps whatever width
+-- it was captured with, which on a wide course is too narrow to span it. This
+-- is the lever for that, and it does not need the course driven again.
+function RM.tracks.setWidthDirect(id, w)
+  local track = tracks[tostring(id or "")]
+  if not track then return false, "no_such_track" end
+
+  local width = tonumber(w)
+  if not width or width < 2 or width > 200 then return false, "bad_width" end
+
+  for i = 1, #track.checkpoints do
+    local cp = track.checkpoints[i]
+    cp.size = gateFrom({ w = width, h = cp.size and cp.size.h, d = cp.size and cp.size.d })
+  end
+
+  RM.store.markDirty(STORE)
+  RM.store.flushNow(STORE)
+  return true, { id = track.id, gates = #track.checkpoints, w = width }
+end
+
 function RM.tracks.refit(pid, d)
   if not RM.roles.atLeast(pid, "admin") then return false, "not_allowed" end
   if type(d) ~= "table" or type(d.widths) ~= "table" then return false, "bad_request" end

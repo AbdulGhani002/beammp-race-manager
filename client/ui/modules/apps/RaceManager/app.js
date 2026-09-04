@@ -746,6 +746,44 @@ angular.module("beamng.apps")
       // penalties are whole seconds, so no decimals
       $scope.penaltyClock = function (sec) { return fmt(sec, 0); };
 
+      // What each penalty was for. The clock used to be handed one number and
+      // call all of them cuts, so pressing Reposition once read as a second
+      // cut. Kept in this order because a cut is the one you argue about.
+      var PENALTY_WORD = {
+        missed_gate: ["cut", "cuts"],
+        speeding:    ["speeding", "speeding"],
+        recovery:    ["reposition", "repositions"],
+        flatTire:    ["tire change", "tire changes"],
+        repair:      ["repair", "repairs"]
+      };
+      var PENALTY_ORDER = ["missed_gate", "speeding", "recovery", "flatTire", "repair"];
+
+      var penFrom = null, penText = "";
+
+      $scope.penaltyWords = function () {
+        var r = $scope.s.race || {};
+        var by = r.penaltyBy;
+        if (!r.penalties) return "";
+        if (by === penFrom) return penText;
+        penFrom = by;
+
+        var parts = [], counted = 0, i, k, n;
+        for (i = 0; i < PENALTY_ORDER.length; i++) {
+          k = PENALTY_ORDER[i];
+          n = by && by[k];
+          if (n) {
+            counted += n;
+            parts.push(n + " " + PENALTY_WORD[k][n === 1 ? 0 : 1]);
+          }
+        }
+        // anything the server started charging that this build has no word for
+        var rest = r.penalties - counted;
+        if (rest > 0) parts.push(rest + (rest === 1 ? " penalty" : " penalties"));
+
+        penText = parts.join(", ");
+        return penText;
+      };
+
       // ------------------------------------------------------------- lobby
 
       $scope.lobbyCreate = function (open) {

@@ -1,6 +1,6 @@
 RM = RM or {}
 
-RM.VERSION = "0.5.6-classes"
+RM.VERSION = "0.5.7-gates-pit-penalties"
 
 RM.config = {
   nameMinLen  = 3,

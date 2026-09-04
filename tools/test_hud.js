@@ -25,6 +25,19 @@ const lapProgress = new Function("race",
   lift(/\$scope\.lapProgress = function \(\) \{[\s\S]*?\n      \};/, "lapProgress") +
   "return $scope.lapProgress();");
 
+// penaltyWords reads the scope too, and it caches on the breakdown it was
+// given, so each call gets a fresh copy of the whole thing
+function penaltyWords(race) {
+  const build = new Function("race",
+    "var $scope = { s: { race: race } };" +
+    lift(/var PENALTY_WORD = \{[\s\S]*?\n      \};/, "PENALTY_WORD") +
+    lift(/var PENALTY_ORDER = \[[\s\S]*?\];/, "PENALTY_ORDER") +
+    "var penFrom = null, penText = '';" +
+    lift(/\$scope\.penaltyWords = function \(\) \{[\s\S]*?\n      \};/, "penaltyWords") +
+    "return $scope.penaltyWords();");
+  return build(race);
+}
+
 let pass = 0, fail = 0;
 function eq(got, want, what) {
   if (got === want) { pass++; return; }
@@ -73,6 +86,26 @@ eq(lapProgress({ gates: 30, done: 30, next: 1 }), 100, "every gate done, heading
 eq(lapProgress({ gates: 0 }), 0, "no course, no bar");
 eq(lapProgress({}), 0, "nothing at all");
 eq(lapProgress({ gates: 30, done: 44 }), 100, "never past the end");
+
+console.log("\n== what the clock calls a penalty");
+// It used to be handed one count and call every one of them a cut, so a driver
+// who cut one corner and then pressed Reposition was told he had cut twice.
+eq(penaltyWords({ penalties: 0 }), "", "a clean run says nothing");
+eq(penaltyWords({ penalties: 1, penaltyBy: { missed_gate: 1 } }),
+   "1 cut", "one cut is one cut");
+eq(penaltyWords({ penalties: 2, penaltyBy: { missed_gate: 2 } }),
+   "2 cuts", "two of them read as a plural");
+eq(penaltyWords({ penalties: 2, penaltyBy: { missed_gate: 1, recovery: 1 } }),
+   "1 cut, 1 reposition", "a reposition is not a second cut, which is the bug this had");
+eq(penaltyWords({ penalties: 3, penaltyBy: { recovery: 1, repair: 1, flatTire: 1 } }),
+   "1 reposition, 1 tire change, 1 repair", "each kind gets its own name");
+eq(penaltyWords({ penalties: 2, penaltyBy: { speeding: 2 } }),
+   "2 speeding", "speeding reads the same either way");
+// the server can start charging for something this build has no word for
+eq(penaltyWords({ penalties: 2, penaltyBy: { missed_gate: 1, jumpstart: 1 } }),
+   "1 cut, 1 penalty", "anything unknown is still counted, just not named");
+eq(penaltyWords({ penalties: 2 }),
+   "2 penalties", "and an older server that sends no breakdown still says how many");
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail === 0 ? 0 : 1);

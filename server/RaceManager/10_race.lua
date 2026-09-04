@@ -171,6 +171,28 @@ function RM.race.penaltyTotal(r)
   return total
 end
 
+-- How many of each kind, so the screen can name them. It used to be handed a
+-- single count and called every one of them a cut, so pressing Reposition
+-- once turned "1 cut" into "2 cut" and a driver who had cut one corner was
+-- told he had cut two.
+function RM.race.penaltyBy(r)
+  local by, any = {}, false
+  for i = 1, #r.penalties do
+    local why = tostring(r.penalties[i].reason or "penalty")
+    by[why] = (by[why] or 0) + 1
+    any = true
+  end
+  return any and by or nil
+end
+
+-- every message that carries a penalty count carries the same three things
+local function withPenalties(r, msg)
+  msg.penalties   = #r.penalties
+  msg.penaltyTime = RM.race.penaltyTotal(r)
+  msg.penaltyBy   = RM.race.penaltyBy(r)
+  return msg
+end
+
 -- nextGate runs one past the last gate while a lap waits on the line, which is
 -- the state the run is in for the whole drive back to it. Both of these say so
 -- plainly rather than leaving the screen to work it out: the bar counted that
@@ -312,11 +334,9 @@ function RM.race.gate(pid, index, clientTime)
 
     if r.currentLap >= r.laps then
       finish(pid, r, t)
-      return true, { lap = r.currentLap, gate = 1, split = elapsed,
+      return true, withPenalties(r, { lap = r.currentLap, gate = 1, split = elapsed,
                      lapTime = r.lapTime[r.currentLap], lapTimeLap = r.currentLap,
-                     finished = true, next = 0, done = r.gates,
-                     penalties = #r.penalties,
-                     penaltyTime = RM.race.penaltyTotal(r) }
+                     finished = true, next = 0, done = r.gates })
     end
 
     local doneLap = r.currentLap
@@ -324,10 +344,9 @@ function RM.race.gate(pid, index, clientTime)
     r.splits[r.currentLap][1] = elapsed
     r.lapStart[r.currentLap] = elapsed
     r.nextGate = 2
-    return true, { lap = r.currentLap, gate = 1, split = elapsed,
+    return true, withPenalties(r, { lap = r.currentLap, gate = 1, split = elapsed,
                    lapTime = r.lapTime[doneLap], lapTimeLap = doneLap,
-                   lapDone = true, next = 2, done = 1, penalties = #r.penalties,
-                     penaltyTime = RM.race.penaltyTotal(r) }
+                   lapDone = true, next = 2, done = 1 })
   end
 
   local expected = r.nextGate
@@ -352,10 +371,9 @@ function RM.race.gate(pid, index, clientTime)
         r.splits[r.currentLap][index] = elapsed
         RM.info(("%s reached gate %d after all, penalty refunded"):format(
           RM.identity.displayName(pid), index))
-        return true, { lap = r.currentLap, gate = index, split = elapsed,
-                       refunded = true, next = nextShown(r), done = gatesDone(r),
-                       penalties = #r.penalties,
-                       penaltyTime = RM.race.penaltyTotal(r) }
+        return true, withPenalties(r, { lap = r.currentLap, gate = index,
+                       split = elapsed, refunded = true,
+                       next = nextShown(r), done = gatesDone(r) })
       end
     end
 
@@ -409,11 +427,9 @@ function RM.race.gate(pid, index, clientTime)
   if not r.circuit and index == r.gates then
     r.lapTime[r.currentLap] = RM.util.round(elapsed - (r.lapStart[r.currentLap] or 0), 3)
     finish(pid, r, t)
-    return true, { lap = r.currentLap, gate = index, split = elapsed,
+    return true, withPenalties(r, { lap = r.currentLap, gate = index, split = elapsed,
                    lapTime = r.lapTime[r.currentLap], lapTimeLap = r.currentLap,
-                   finished = true, next = 0, done = r.gates,
-                   penalties = #r.penalties,
-                     penaltyTime = RM.race.penaltyTotal(r) }
+                   finished = true, next = 0, done = r.gates })
   end
 
   return true, {
@@ -510,6 +526,9 @@ function RM.race.wire(pid)
     -- a penalty that does not move the time reads as free until the results
     -- come up, which is far too late to change how you are driving.
     penaltyTime = RM.race.penaltyTotal(r),
+
+    -- and what they were for, so a reposition is not read out as a cut
+    penaltyBy = RM.race.penaltyBy(r),
     inPit    = r.inPit and true or false,
     why      = r.why,
 
