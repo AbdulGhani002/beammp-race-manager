@@ -16,29 +16,96 @@ local function load()
   return data
 end
 
--- Which class a car belongs to. His document wants the books sorted by class
--- as well as by controller or wheel. The class list is the one thing the plan
--- asked him for at phase 5 and it has not arrived, so until it does every car
--- sits in one book together and nothing on screen changes. Fill in
--- RM.config.classes and the books split themselves, including runs already on
--- disk, because the car is stored with the run rather than the class.
+-- Classes. He sent the list on 2026-09-04 and it lives in config.
+--
+-- A class is entered rather than worked out. He allows every vehicle, and two
+-- drivers in the same truck can be running different classes, so the car
+-- cannot tell you which book a run belongs in. The driver says when they arm
+-- and the run carries it from there.
+--
+-- The car is still stored with the run, so a class that later gets a cars
+-- list can also be recognised from the vehicle. That is what classOf is for,
+-- and it is what makes runs already on disk sortable the day he wants it.
 local ALL = "all"
+
+-- the list in his order, divisions kept, so the picker reads the way his
+-- announcements do
+function RM.records.classList()
+  local list = RM.config.classes
+  if type(list) ~= "table" then return {} end
+  local out = {}
+  for i = 1, #list do
+    local c = list[i]
+    if type(c) == "table" and type(c.name) == "string" and c.name ~= "" then
+      out[#out + 1] = { name = c.name, division = c.division }
+    end
+  end
+  return out
+end
+
+-- the name back if it is really one of his, nil if it is not. everything that
+-- takes a class from a client goes through here first.
+function RM.records.isClass(name)
+  if type(name) ~= "string" or name == "" or name == ALL then return nil end
+  local list = RM.config.classes
+  if type(list) ~= "table" then return nil end
+  for i = 1, #list do
+    if type(list[i]) == "table" and list[i].name == name then return list[i].name end
+  end
+  return nil
+end
+
+-- Which cars a class is open to. Empty or missing means anybody, which is
+-- every class today because he allows every vehicle for now.
+function RM.records.carsFor(name)
+  local list = RM.config.classes
+  if type(list) ~= "table" then return nil end
+  for i = 1, #list do
+    local c = list[i]
+    if type(c) == "table" and c.name == name then
+      if type(c.cars) == "table" and #c.cars > 0 then return c.cars end
+      return nil
+    end
+  end
+  return nil
+end
+
+function RM.records.carAllowed(className, vehicle)
+  local cars = RM.records.carsFor(className)
+  if not cars then return true end
+  if not vehicle then return false end
+  for i = 1, #cars do
+    if cars[i] == vehicle then return true end
+  end
+  return false
+end
 
 function RM.records.classOf(vehicle)
   local list = RM.config.classes
   if type(list) ~= "table" or not vehicle then return ALL end
-  for className, cars in pairs(list) do
-    if type(cars) == "table" then
-      for i = 1, #cars do
-        if cars[i] == vehicle then return className end
+  for i = 1, #list do
+    local c = list[i]
+    if type(c) == "table" and type(c.cars) == "table" then
+      for j = 1, #c.cars do
+        if c.cars[j] == vehicle then return c.name end
       end
     end
   end
   return ALL
 end
 
+-- What book one run belongs in: what the driver entered, or failing that what
+-- the car says, or the one book everybody shares.
+function RM.records.classFor(run)
+  if type(run) ~= "table" then return ALL end
+  local entered = RM.records.isClass(run.class)
+  if entered then return entered end
+  return RM.records.classOf(run.vehicle)
+end
+
 -- every class the books on this course have anything in, so the screen only
--- offers a choice when there is one to make
+-- offers a choice when there is one to make. kept in his order, with anything
+-- unentered last.
 function RM.records.classesOn(trackId)
   local d = load()
   local t = d.tracks[tostring(trackId or "")]
@@ -46,11 +113,23 @@ function RM.records.classesOn(trackId)
   if not t then return out end
   for _, b in pairs(t) do
     for i = 1, #b.runs do
-      local c = RM.records.classOf(b.runs[i].vehicle)
-      if not seen[c] then seen[c] = true; out[#out + 1] = c end
+      seen[RM.records.classFor(b.runs[i])] = true
     end
   end
-  table.sort(out)
+  -- a run nobody entered in a class is not a class, it just lives on the
+  -- board everybody shares
+  seen[ALL] = nil
+  local list = RM.records.classList()
+  for i = 1, #list do
+    if seen[list[i].name] then
+      out[#out + 1] = list[i].name
+      seen[list[i].name] = nil
+    end
+  end
+  local rest = {}
+  for name in pairs(seen) do rest[#rest + 1] = name end
+  table.sort(rest)
+  for i = 1, #rest do out[#out + 1] = rest[i] end
   return out
 end
 
@@ -71,10 +150,17 @@ function RM.records.submit(trackId, e, at)
   local b = boardFor(tostring(trackId), tostring(e.mode or "controller"))
   local when = at or os.time()
   local got = {}
+  local class = RM.records.isClass(e.class)
 
+  -- Your best is kept once per class, not once per course. A Trophy Truck and
+  -- a Class 11 car are not the same lap, so a slower run in a second class is
+  -- still that class's first entry rather than a run that failed to beat you.
   local mine
   for i = 1, #b.runs do
-    if b.runs[i].key == e.key then mine = i break end
+    if b.runs[i].key == e.key and RM.records.classFor(b.runs[i]) == (class or ALL) then
+      mine = i
+      break
+    end
   end
 
   local run = {
@@ -84,6 +170,7 @@ function RM.records.submit(trackId, e, at)
     clean     = e.clean,
     laps      = type(e.laps) == "table" and #e.laps or 0,
     vehicle   = e.vehicle,
+    class     = class,
     at        = when,
   }
 
@@ -100,6 +187,17 @@ function RM.records.submit(trackId, e, at)
   -- a personal best that lands on top of the pile is the course record
   if got.personal and b.runs[1].key == e.key then
     got.track = true
+  end
+
+  -- and on top of its own class it is that class's record, which is the one
+  -- most people are actually racing for
+  if got.personal and class then
+    for i = 1, #b.runs do
+      if RM.records.classFor(b.runs[i]) == class then
+        if b.runs[i].key == e.key then got.class = class end
+        break
+      end
+    end
   end
 
   if e.bestLap and RM.util.isNum(e.bestLap.time) then
@@ -135,7 +233,7 @@ function RM.records.wire(trackId, key, class)
     local kept = {}
     for i = 1, #b.runs do
       local r = b.runs[i]
-      if not want or RM.records.classOf(r.vehicle) == want then
+      if not want or RM.records.classFor(r) == want then
         kept[#kept + 1] = r
       end
     end
@@ -143,8 +241,10 @@ function RM.records.wire(trackId, key, class)
     local rows = {}
     for i = 1, math.min(#kept, KEEP) do
       local r = kept[i]
+      local ran = RM.records.classFor(r)
       rows[i] = { pos = i, name = r.name, corrected = r.corrected,
                   laps = r.laps, at = r.at, vehicle = r.vehicle,
+                  class = ran ~= ALL and ran or nil,
                   me = (r.key == key) or nil }
     end
 

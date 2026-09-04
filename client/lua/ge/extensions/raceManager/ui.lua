@@ -174,8 +174,11 @@ function M.exitServer()
   end
 end
 
-function M.getRecords(id)
-  extensions.raceManager_net.send("records.get", { id = tostring(id or "") })
+function M.getRecords(id, class)
+  extensions.raceManager_net.send("records.get", {
+    id    = tostring(id or ""),
+    class = type(class) == "string" and class ~= "" and class or nil,
+  })
 end
 
 function M.clearToast()
@@ -183,8 +186,8 @@ function M.clearToast()
   M.push()
 end
 
-function M.armRace(id, mode, laps)
-  extensions.raceManager_race.arm(id, mode, laps)
+function M.armRace(id, mode, laps, class)
+  extensions.raceManager_race.arm(id, mode, laps, class)
 end
 
 function M.endRace()

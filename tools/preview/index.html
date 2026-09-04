@@ -45,6 +45,30 @@ angular.module("beamng.apps", []);
 <script src="ui/modules/apps/RaceManager/app.js"></script>
 
 <script>
+var NOW = Math.floor(Date.now() / 1000);
+
+// his classes, the same list the server sends, so the picker here is the
+// picker in the game
+var CLASSES = [
+  { division: "Limited",   name: "Class 10" },
+  { division: "Limited",   name: "Class 12" },
+  { division: "Limited",   name: "Class 5" },
+  { division: "Limited",   name: "Class 7 Stock" },
+  { division: "Limited",   name: "UTV Pro Turbo" },
+  { division: "Limited",   name: "UTV Pro NA" },
+  { division: "Limited",   name: "UTV Pro Open" },
+  { division: "Limited",   name: "Class 5/1600, 1600 & Class 9" },
+  { division: "Limited",   name: "Class 11" },
+  { division: "Limited",   name: "Trophy Truck Spec" },
+  { division: "Limited",   name: "1450" },
+  { division: "Limited",   name: "Class 2000" },
+  { division: "Unlimited", name: "Class 1" },
+  { division: "Unlimited", name: "Class 6200" },
+  { division: "Unlimited", name: "Class 7 Unlimited" },
+  { division: "Unlimited", name: "Class 8" },
+  { division: "Unlimited", name: "Trophy Truck" }
+];
+
 var TRACKS = [
   { id: "baja-1000", name: "Baja 1000", kind: "race", level: "utah_sc", circuit: true, count: 30 },
   { id: "sprint", name: "Airfield sprint", kind: "timeattack", level: "utah_sc", circuit: false, count: 12 }
@@ -65,7 +89,32 @@ function base() {
     capture: { active: false, gate: { w: 20, h: 8, d: 3 } },
     perf: {},
     config: { discordUrl: "https://discord.gg/7JHKJbHNt", nameMinLen: 3, nameMaxLen: 20,
+              classes: CLASSES,
               penalties: { recovery: 60, flatTire: 30, repair: 30, missedGate: 30 } },
+    records: {
+      id: "baja-1000",
+      classes: ["UTV Pro NA", "Class 11", "Trophy Truck"],
+      modes: {
+        controller: {
+          total: 4,
+          lap: { time: 402.118, name: "Dard", at: NOW - 86400 * 2 },
+          top: [
+            { pos: 1, name: "Dard",  corrected: 402.118, laps: 1,
+              class: "Trophy Truck", at: NOW - 86400 * 2 },
+            { pos: 2, name: "abd",   corrected: 441.902, laps: 1,
+              class: "Class 11", at: NOW - 86400, me: true },
+            { pos: 3, name: "Rico",  corrected: 468.5,   laps: 1,
+              class: "UTV Pro NA", at: NOW - 86400 * 9 },
+            { pos: 4, name: "Colt",  corrected: 512.04,  laps: 1, at: NOW }
+          ]
+        },
+        wheel: {
+          total: 1,
+          top: [ { pos: 1, name: "Dard", corrected: 399.004, laps: 1,
+                   class: "Trophy Truck", at: NOW - 86400 * 30 } ]
+        }
+      }
+    },
     race: { state: "idle" }
   };
 }

@@ -58,6 +58,14 @@ function RM.lobby.create(pid, d)
   if laps < 1 or laps > 99 then return false, "bad_laps" end
   if not track.circuit and laps > 1 then return false, "not_a_circuit" end
 
+  -- One class for the race, set by whoever made it, the way his bot announces
+  -- them. Everybody who joins is armed in it, so nobody has to be told twice.
+  local class = nil
+  if d.class ~= nil and d.class ~= "" then
+    class = RM.records and RM.records.isClass(d.class)
+    if not class then return false, "no_such_class" end
+  end
+
   local id = shortId()
   lobbies[id] = {
     id      = id,
@@ -65,6 +73,7 @@ function RM.lobby.create(pid, d)
     track   = track.id,
     laps    = laps,
     mode    = tostring(d.mode or "controller"),
+    class   = class,
     open    = d.open and true or false,
     state   = "waiting",
     members = { [pid] = true },
@@ -186,6 +195,7 @@ function RM.lobby.list()
       name    = track and track.name or l.track,
       host    = RM.identity.displayName(l.host),
       laps    = l.laps,
+      class   = l.class,
       open    = l.open,
       drivers = n,
     }
@@ -215,6 +225,7 @@ function RM.lobby.wire(pid)
     name    = track and track.name or l.track,
     laps    = l.laps,
     mode    = l.mode,
+    class   = l.class,
     open    = l.open,
     host    = l.host == pid,
     members = members,

@@ -143,7 +143,7 @@ angular.module("beamng.apps")
       $scope.recovering = false;
       $scope.speed = 0;
       $scope.newTrack = { name: "", kind: "race", circuit: true, overwrite: false };
-      $scope.entry = { track: null, mode: "controller", laps: 1 };
+      $scope.entry = { track: null, mode: "controller", laps: 1, raceClass: null };
       $scope.opened = null;
       $scope.openedLap = null;
       $scope.sectors = [];
@@ -364,13 +364,59 @@ angular.module("beamng.apps")
         }
       };
 
+      // ------------------------------------------------------------ classes
+
+      // His classes, grouped into the two divisions he announces them under.
+      // Built once off the list the server sent: ng-repeat over a freshly
+      // made array every digest never settles.
+      var classFrom = null, classGroups = [];
+
+      $scope.classGroups = function () {
+        var list = ($scope.s.config && $scope.s.config.classes) || [];
+        if (list !== classFrom) {
+          classFrom = list;
+          var groups = [], seen = {};
+          for (var i = 0; i < list.length; i++) {
+            var name = list[i] && list[i].name;
+            if (!name) continue;
+            var div = list[i].division || "Other";
+            if (!seen[div]) {
+              seen[div] = { name: div, classes: [] };
+              groups.push(seen[div]);
+            }
+            seen[div].classes.push(name);
+          }
+          classGroups = groups;
+        }
+        return classGroups;
+      };
+
+      $scope.anyClasses = function () { return $scope.classGroups().length > 0; };
+
+      // pressing the one you are already in takes you back out of it
+      $scope.pickClass = function (name) {
+        $scope.entry.raceClass = ($scope.entry.raceClass === name) ? null : name;
+      };
+
       // ------------------------------------------------------------ records
 
-      $scope.recPick = { track: null };
+      $scope.recPick = { track: null, raceClass: null };
 
       $scope.recordsFor = function (id) {
+        if (id !== $scope.recPick.track) $scope.recPick.raceClass = null;
         $scope.recPick.track = id;
-        ui("getRecords", id);
+        ui("getRecords", [id, $scope.recPick.raceClass]);
+      };
+
+      // the board only offers a class once somebody has raced one here
+      $scope.recordsClassFilter = function (name) {
+        $scope.recPick.raceClass = ($scope.recPick.raceClass === name) ? null : name;
+        ui("getRecords", [$scope.recPick.track, $scope.recPick.raceClass]);
+      };
+
+      $scope.recordClasses = function () {
+        var r = $scope.s.records;
+        return (r && r.classes) || [];
       };
 
       $scope.recordsReady = function () {
@@ -380,17 +426,26 @@ angular.module("beamng.apps")
 
       var MODE_LABEL = { controller: "Controller", wheel: "Wheel" };
 
+      // Built once per payload. Handing ng-repeat a new array of new objects
+      // every digest never settles: angular gives up after ten passes and
+      // leaves whatever it had not reached showing raw braces.
+      var modesFrom = null, modesCache = [];
+
       $scope.recordModes = function () {
         var r = $scope.s.records;
         if (!r || !r.modes) return [];
-        var out = [];
-        for (var k in r.modes) {
-          if (Object.prototype.hasOwnProperty.call(r.modes, k)) {
-            out.push({ key: k, label: MODE_LABEL[k] || k, board: r.modes[k] });
+        if (r !== modesFrom) {
+          modesFrom = r;
+          var out = [];
+          for (var k in r.modes) {
+            if (Object.prototype.hasOwnProperty.call(r.modes, k)) {
+              out.push({ key: k, label: MODE_LABEL[k] || k, board: r.modes[k] });
+            }
           }
+          out.sort(function (a, b) { return a.key < b.key ? -1 : 1; });
+          modesCache = out;
         }
-        out.sort(function (a, b) { return a.key < b.key ? -1 : 1; });
-        return out;
+        return modesCache;
       };
 
       $scope.recordsAny = function () {
@@ -652,6 +707,8 @@ angular.module("beamng.apps")
         bad_laps:        "Between one and ninety nine laps.",
         not_a_circuit:   "That course is point to point, so it is one lap.",
         already_running: "You are already on a run. End it first.",
+        no_such_class:   "That class is not on the list. Pick another.",
+        wrong_car_for_class: "Your car is not allowed in that class.",
         no_session:      "The server has not finished recognising you yet."
       };
 
@@ -693,7 +750,8 @@ angular.module("beamng.apps")
 
       $scope.lobbyCreate = function (open) {
         call("raceManager_race", "createLobby",
-          [$scope.entry.track, $scope.entry.mode, $scope.entry.laps, !!open]);
+          [$scope.entry.track, $scope.entry.mode, $scope.entry.laps, !!open,
+           $scope.entry.raceClass]);
       };
       $scope.lobbyJoin  = function (id) { call("raceManager_race", "joinLobby", id); };
       $scope.lobbyLeave = function () { call("raceManager_race", "leaveLobby"); };
@@ -757,7 +815,8 @@ angular.module("beamng.apps")
         if (!$scope.entry.track) return;
         var t = $scope.chosen();
         var laps = (t && !t.circuit) ? 1 : Math.max(1, parseInt($scope.entry.laps, 10) || 1);
-        ui("armRace", [$scope.entry.track, $scope.entry.mode, laps]);
+        ui("armRace", [$scope.entry.track, $scope.entry.mode, laps,
+                       $scope.entry.raceClass]);
       };
 
       $scope.endRace = function () { ui("endRace"); };

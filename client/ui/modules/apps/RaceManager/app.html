@@ -180,6 +180,23 @@
                     ng-class="{on: entry.mode === 'wheel'}">Wheel</button>
           </div>
 
+          <div ng-if="anyClasses()">
+            <div class="rm-field">Class
+              <em class="rm-field-note" ng-if="!entry.raceClass">optional</em>
+            </div>
+            <div class="rm-classgroup" ng-repeat="g in classGroups()">
+              <div class="rm-subfield">{{ g.name }}</div>
+              <div class="rm-classgrid">
+                <button ng-repeat="c in g.classes" ng-click="pickClass(c)"
+                        ng-class="{on: entry.raceClass === c}">{{ c }}</button>
+              </div>
+            </div>
+            <p class="rm-hint" ng-if="!entry.raceClass">
+              Pick the class you are entered in and your time goes on that
+              board. Leave it alone and the run still counts, it just is not
+              in a class.</p>
+          </div>
+
           <label ng-if="chosen().circuit">Laps
             <input type="number" min="1" max="99" ng-model="entry.laps" />
           </label>
@@ -243,6 +260,13 @@
           </button>
         </div>
 
+        <div class="rm-classgrid rm-recfilter" ng-if="recordsReady() && recordClasses().length">
+          <button ng-click="recordsClassFilter(null)"
+                  ng-class="{on: !recPick.raceClass}">Every class</button>
+          <button ng-repeat="c in recordClasses()" ng-click="recordsClassFilter(c)"
+                  ng-class="{on: recPick.raceClass === c}">{{ c }}</button>
+        </div>
+
         <div ng-if="recordsReady()">
           <div class="rm-empty" ng-if="!recordsAny()">
             Nobody has finished a race here yet. The first one to do it owns
@@ -263,7 +287,8 @@
             <div class="rm-rec-row" ng-repeat="r in m.board.top"
                  ng-class="{me: r.me}">
               <span class="rm-pos">{{ r.pos }}</span>
-              <span class="rm-rname">{{ r.name }}</span>
+              <span class="rm-rname">{{ r.name }}<em class="rm-rclass"
+                    ng-if="r.class && !recPick.raceClass">{{ r.class }}</em></span>
               <span class="rm-rtime">{{ clock(r.corrected) }}</span>
               <span class="rm-rwhen">{{ ago(r.at) }}</span>
             </div>
@@ -566,7 +591,9 @@
             <span class="rm-rname">{{ e.name }}<em ng-if="e.suspect"
               title="The clock could not vouch for part of this run">marked</em><em
               class="rm-rec-chip" ng-if="e.record === 'track'">course record</em><em
-              class="rm-rec-chip" ng-if="e.record === 'personal'">personal best</em></span>
+              class="rm-rec-chip" ng-if="e.classRecord">{{ e.classRecord }} record</em><em
+              class="rm-rec-chip" ng-if="e.record === 'personal' && !e.classRecord"
+              >personal best</em></span>
             <span class="rm-time">{{ clock(e.corrected) }}</span>
             <span class="rm-pen-col" ng-class="{clean: !penaltySeconds(e)}"
                   title="{{ e.penalties.length }} penalt{{ e.penalties.length === 1 ? 'y' : 'ies' }}">{{

@@ -211,6 +211,7 @@ local function close(trackId)
     local got = RM.records and RM.records.submit(trackId, e)
     if got then
       e.record = got.track and "track" or (got.personal and "personal" or nil)
+      e.classRecord = got.class
       e.lapRecord = got.lap and true or nil
     end
   end
@@ -245,9 +246,10 @@ function RM.results.onRunEnded(pid)
     local entry = RM.race.results(pid)
     if entry then
       entry.gates = r.gates
-      -- what they drove, so records can be sorted by class once there is a
-      -- class list to sort them by
+      -- what they drove and what they entered, so the books can be sorted by
+      -- class and the discord bot can read a class off the log
       entry.vehicle = RM.players.modelOf(pid)
+      entry.class   = r.class
       h.done[#h.done + 1] = entry
     end
   else

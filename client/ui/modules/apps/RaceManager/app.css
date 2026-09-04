@@ -472,6 +472,75 @@
 
 .rm-picklist button.on .rm-pick-note { color: var(--rm-orange); }
 
+/* Seventeen classes will not fit a list one to a row, so they wrap as chips
+   under their division. Same picked look as the switches above them. */
+.rm-field-note {
+  font-style: normal;
+  margin-left: 6px;
+  color: var(--rm-dim);
+  opacity: 0.7;
+}
+
+.rm-subfield {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--rm-dim);
+  opacity: 0.75;
+  margin: 8px 0 4px;
+}
+
+.rm-classgroup:first-child .rm-subfield { margin-top: 2px; }
+
+.rm-classgrid { display: flex; flex-wrap: wrap; gap: 4px; }
+
+.rm-classgrid button {
+  flex: 0 1 auto;
+  position: relative;
+  overflow: hidden;
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 12px;
+  padding: 5px 9px;
+  background: rgba(255, 255, 255, 0.028);
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+.rm-classgrid button:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.18);
+}
+
+.rm-classgrid button.on {
+  background: rgba(168, 29, 34, 0.15);
+  border-color: rgba(200, 60, 60, 0.45);
+  color: #fff;
+}
+
+.rm-classgrid button.on::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 2px;
+  background: var(--rm-red-lit);
+}
+
+.rm-recfilter { margin: 10px 0 4px; }
+
+/* Which class a run was entered in, only worth saying when the board is
+   showing all of them at once. Written over .rm-rname em, which is the amber
+   badge that means a run was flagged. A class is not a warning. */
+.rm-rname em.rm-rclass {
+  margin-left: 7px;
+  padding: 1px 5px;
+  color: var(--rm-dim);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.rm-rec-row.me .rm-rclass { color: var(--rm-orange); }
+
 .rm-crest {
   display: block;
   width: 96px;

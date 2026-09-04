@@ -322,7 +322,8 @@ local function wireChannels()
     for i, member in ipairs(order) do
       RM.results.forget(member)
       local armed = RM.race.arm(member,
-        { id = result.track, mode = result.mode, laps = result.laps })
+        { id = result.track, mode = result.mode, laps = result.laps,
+          class = result.class })
       if armed then
         RM.results.join(member, result.track)
         RM.bus.queue(member, "race.lobby", nil)

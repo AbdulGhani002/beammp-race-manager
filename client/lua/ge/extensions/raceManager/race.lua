@@ -43,13 +43,14 @@ end
 
 ------------------------------------------------------------ asked from html
 
-function M.arm(trackId, mode, laps)
+function M.arm(trackId, mode, laps, class)
   if type(trackId) ~= "string" or trackId == "" then return end
   st.problem = nil
   extensions.raceManager_net.send("race.arm", {
-    id   = trackId,
-    mode = tostring(mode or "controller"),
-    laps = math.floor(tonumber(laps) or 1),
+    id    = trackId,
+    mode  = tostring(mode or "controller"),
+    laps  = math.floor(tonumber(laps) or 1),
+    class = type(class) == "string" and class ~= "" and class or nil,
   })
 end
 
@@ -76,7 +77,7 @@ function M.restart()
 end
 
 -- the race you make and the ones you can join
-function M.createLobby(trackId, mode, laps, open)
+function M.createLobby(trackId, mode, laps, open, class)
   if type(trackId) ~= "string" or trackId == "" then return end
   st.problem = nil
   extensions.raceManager_net.send("race.create", {
@@ -84,6 +85,7 @@ function M.createLobby(trackId, mode, laps, open)
     mode  = tostring(mode or "controller"),
     laps  = math.floor(tonumber(laps) or 1),
     open  = open and true or false,
+    class = type(class) == "string" and class ~= "" and class or nil,
   })
 end
 

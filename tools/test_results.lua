@@ -346,7 +346,7 @@ do
 
   local rec = lines[1] and Util.JsonDecode(lines[1])
   ok(type(rec) == "table", "and the line is json a bot can read")
-  eq(rec.v, 1, "carrying a schema version, so it can be changed later safely")
+  eq(rec.v, 2, "carrying a schema version, so it can be changed later safely")
   eq(rec.track, "loop", "the course it was run on")
   ok(type(rec.at) == "number" and rec.at > 0, "and when")
   eq(#rec.finished, 3, "everybody who finished")
@@ -369,6 +369,92 @@ do
   eq(cut.bestLap, nil, "a cut lap still holds no record here either")
 
   ok(RM.racelog.stats().written >= 1, "and the plugin counts what it wrote")
+end
+
+-- ============================================================  entered class
+
+-- The class he announces has to survive the whole way: the driver enters it,
+-- the run carries it, the books sort on it, and his bot reads it off the log.
+section("the class a driver enters follows the run all the way out")
+
+local wrote = RM.racelog.stats().written
+
+for _, d in ipairs(DRIVERS) do
+  M.clearOutbox(d.pid)
+  RM.results.forget(d.pid)
+  RM.race.clear(d.pid)
+end
+
+M.clientSend(0, "race.arm",
+  { id = "loop", mode = "controller", laps = 1, class = "Trophy Truck" })
+M.clientSend(1, "race.arm",
+  { id = "loop", mode = "controller", laps = 1, class = "Class 8" })
+M.clientSend(2, "race.arm", { id = "loop", mode = "controller", laps = 1 })
+tick(1)
+eq(RM.race.state(0), "armed", "one driver armed in Trophy Truck")
+eq(RM.race.get(0).class, "Trophy Truck", "and the run knows it")
+eq(RM.race.get(2).class, nil, "the one who picked nothing is armed all the same")
+
+RM.race.clear(0)
+M.clearOutbox(0)
+M.clientSend(0, "race.arm", { id = "loop", mode = "controller", laps = 1,
+                              class = "Class 4" })
+tick(1)
+do
+  local said = M.lastMessage(0, "race.result")
+  eq(said and said.reason, "no_such_class", "a class he never sent is turned down")
+  eq(RM.race.state(0), "idle", "and nobody is armed on it")
+end
+
+M.clientSend(0, "race.arm",
+  { id = "loop", mode = "controller", laps = 1, class = "Trophy Truck" })
+tick(1)
+
+for i, d in ipairs(DRIVERS) do
+  for g = 1, 5 do crossAfter(d, g, 10 + i) end
+  crossAfter(d, 1, 10 + i)
+end
+
+do
+  local out = M.lastMessage(0, "race.results")
+  ok(out ~= nil, "everybody is home and the results go out")
+  local mine
+  for _, e in ipairs(out.finished or {}) do if e.name == "Alfa" then mine = e end end
+  eq(mine and mine.class, "Trophy Truck", "the row carries what was entered")
+end
+
+do
+  -- Alfa already had a quicker run on this course from the race above, set
+  -- without a class. A slower run in a class is still that class's first
+  -- entry, which is the whole reason a best is kept per class.
+  local w = RM.records.wire("loop", nil, "Trophy Truck")
+  eq(w.modes.controller.total, 1, "the truck board holds only the truck driver")
+  eq(w.modes.controller.top[1].name, "Alfa", "and it is them")
+  eq(w.class, "Trophy Truck", "the board says which class it is showing")
+
+  local every = RM.records.wire("loop")
+  ok(every.modes.controller.total >= 4,
+     "the shared board holds the classed runs beside the unclassed ones")
+  local seen = {}
+  for _, c in ipairs(every.classes) do seen[c] = true end
+  ok(seen["Trophy Truck"] and seen["Class 8"], "both classes raced here are offered")
+  eq(seen["all"], nil, "and the driver who entered nothing is not a class")
+end
+
+do
+  eq(RM.racelog.stats().written, wrote + 1, "one more line on disk for the bot")
+  local f = io.open("Resources/Server/RaceManager/data/results.jsonl", "rb")
+  local last
+  if f then
+    for l in f:lines() do if l ~= "" then last = l end end
+    f:close()
+  end
+  local rec = last and Util.JsonDecode(last)
+  ok(type(rec) == "table", "the newest line reads back")
+  eq(rec.v, 2, "on the schema that carries a class")
+  local mine
+  for _, e in ipairs(rec.finished or {}) do if e.name == "Alfa" then mine = e end end
+  eq(mine and mine.class, "Trophy Truck", "with the class his bot announced")
 end
 
 print("")

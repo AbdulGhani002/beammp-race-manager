@@ -26,6 +26,8 @@ local HELP = {
   "rm unban <name>        lift a ban",
   "rm bans                who is banned, and why",
   "rm xp <name> <amount>  hand out experience, negative takes it back",
+  "rm classes             the race classes, by division",
+  "rm records <id> [class]  the board for a course, whole or one class",
 }
 
 -- The console is the server owner by definition, so it is not gated on a role
@@ -241,6 +243,52 @@ local function forget(say, name)
   end
 end
 
+-- The classes his bot announces. Printed here so whoever is running the
+-- server can read the exact spelling the race screen wants.
+local function classLines(say)
+  local list = RM.records.classList()
+  if #list == 0 then say("no classes are set") return end
+  local division = nil
+  for i = 1, #list do
+    local c = list[i]
+    if c.division ~= division then
+      division = c.division
+      say((division and tostring(division) or "Other") .. " division")
+    end
+    say("  " .. c.name)
+  end
+  say(("%d class(es)"):format(#list))
+end
+
+local function recordLines(say, id, class)
+  if not id then say("  usage: rm records <course> [class]") return end
+  local track = RM.tracks.get(id)
+  if not track then say("no course called " .. tostring(id)) return end
+
+  if class and class ~= "" and not RM.records.isClass(class) then
+    say("no class called " .. class .. ". try rm classes")
+    return
+  end
+
+  local w = RM.records.wire(track.id, nil, class)
+  local shown = false
+  for mode, board in pairs(w.modes) do
+    if #board.top > 0 then
+      shown = true
+      say(("%s%s, %d run(s)"):format(mode, class and (" in " .. class) or "", board.total))
+      for i = 1, #board.top do
+        local r = board.top[i]
+        say(("  %d. %-20s %8.3f%s"):format(
+          r.pos, tostring(r.name), r.corrected, r.class and ("  " .. r.class) or ""))
+      end
+    end
+  end
+  if not shown then say("nothing on the board yet") end
+  if #w.classes > 0 then
+    say("classes raced here: " .. table.concat(w.classes, ", "))
+  end
+end
+
 function RM.console.handle(input)
   if type(input) ~= "string" then return end
   local rest = input:match("^%s*rm%s+(.*)$")
@@ -290,6 +338,11 @@ function RM.console.handle(input)
   elseif cmd == "xp" then
     local name, amount = rest:match("^xp%s+(%S+)%s+(-?%d+)%s*$")
     giveXp(say, name, amount)
+  elseif cmd == "classes" then
+    classLines(say)
+  elseif cmd == "records" then
+    local id, class = rest:match("^records%s+(%S+)%s*(.*)$")
+    recordLines(say, id, class ~= "" and class or nil)
   elseif cmd == "zones" then
     local id = rest:match("^zones%s+(%S+)%s*$")
     local track = id and RM.tracks.get(id)

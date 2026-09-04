@@ -1,6 +1,6 @@
 RM = RM or {}
 
-RM.VERSION = "0.5.5-phases1-5"
+RM.VERSION = "0.5.6-classes"
 
 RM.config = {
   nameMinLen  = 3,
@@ -85,12 +85,35 @@ RM.config = {
   xpCurve      = { first = 200, step = 2, floor = 20 },
   xpPerLevel   = 1000,
 
-  -- Which car counts as which class, for sorting the record books. His
-  -- document asked for records sorted by class and the plan asked him for the
-  -- class list, which has not arrived. Leave it empty and every car sits in
-  -- one book together. Fill it in like this and the books split themselves:
-  --   classes = { ["Trophy Truck"] = { "bigrig", "pickup" } },
-  classes      = {},
+  -- The race classes, as he sent them on 2026-09-04, in his order.
+  --
+  -- A class is entered, not worked out from the car: he runs every vehicle,
+  -- and two people in the same truck can be in different classes. So the
+  -- driver picks one when they arm, and the books sort on what was entered.
+  --
+  -- The optional cars list is the other way round, for the day he wants a
+  -- class pinned to particular vehicles. Empty means anybody may enter it.
+  --   { division = "Unlimited", name = "Trophy Truck", cars = { "pickup" } }
+  classes = {
+    { division = "Limited",   name = "Class 10" },
+    { division = "Limited",   name = "Class 12" },
+    { division = "Limited",   name = "Class 5" },
+    { division = "Limited",   name = "Class 7 Stock" },
+    { division = "Limited",   name = "UTV Pro Turbo" },
+    { division = "Limited",   name = "UTV Pro NA" },
+    { division = "Limited",   name = "UTV Pro Open" },
+    { division = "Limited",   name = "Class 5/1600, 1600 & Class 9" },
+    { division = "Limited",   name = "Class 11" },
+    { division = "Limited",   name = "Trophy Truck Spec" },
+    { division = "Limited",   name = "1450" },
+    { division = "Limited",   name = "Class 2000" },
+    { division = "Unlimited", name = "Class 1" },
+    { division = "Unlimited", name = "Class 6200" },
+    { division = "Unlimited", name = "Class 7 Unlimited" },
+    { division = "Unlimited", name = "Class 8" },
+    { division = "Unlimited", name = "Trophy Truck" },
+  },
+
 
   maxCheckpoints = 200,
   maxTracks      = 64,
@@ -116,4 +139,5 @@ RM.config.public = {
   nameMinLen    = RM.config.nameMinLen,
   nameMaxLen    = RM.config.nameMaxLen,
   maxCheckpoints = RM.config.maxCheckpoints,
+  classes       = RM.config.classes,
 }

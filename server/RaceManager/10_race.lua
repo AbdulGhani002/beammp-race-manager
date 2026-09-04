@@ -73,12 +73,25 @@ function RM.race.arm(pid, d)
   if laps < 1 or laps > 99 then return false, "bad_laps" end
   if not track.circuit and laps > 1 then return false, "not_a_circuit" end
 
+  -- The class is entered, not read off the car, because he allows every
+  -- vehicle. Nothing is refused for not naming one: practice runs and anyone
+  -- who has not picked yet still race, they just sit outside the class books.
+  local class = nil
+  if d.class ~= nil and d.class ~= "" then
+    class = RM.records and RM.records.isClass(d.class)
+    if not class then return false, "no_such_class" end
+    if not RM.records.carAllowed(class, RM.players.modelOf(pid)) then
+      return false, "wrong_car_for_class"
+    end
+  end
+
   runs[pid] = {
     key        = s.key,
     track      = track.id,
     kind       = track.kind,
     circuit    = track.circuit and true or false,
     mode       = mode,
+    class      = class,
     laps       = laps,
     gates      = gates,
     dist       = gateDistances(track),
@@ -101,8 +114,9 @@ function RM.race.arm(pid, d)
     spares     = nil,
   }
 
-  RM.info(("%s armed %s, %s, %d lap(s)"):format(
-    RM.identity.displayName(pid), track.id, mode, laps))
+  RM.info(("%s armed %s, %s, %d lap(s)%s"):format(
+    RM.identity.displayName(pid), track.id, mode, laps,
+    class and (", " .. class) or ""))
   return true, runs[pid]
 end
 

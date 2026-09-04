@@ -86,6 +86,31 @@ eq(#order, 2, "with both drivers in it")
 eq(order[1], 0, "the host has the first grid spot")
 eq(RM.lobby.of(0), nil, "the lobby is gone once it starts")
 
+section("the host sets the class once and everybody is armed in it")
+-- his bot announces a race with a class, so the race carries one rather than
+-- every driver being told to pick the same thing
+eq(select(2, RM.lobby.create(0, { track = "loop", laps = 1, class = "Class 4" })),
+   "no_such_class", "a class he never sent is refused when the race is made")
+
+local okC, withClass =
+  RM.lobby.create(0, { track = "loop", laps = 1, open = true,
+                       class = "Trophy Truck" })
+ok(okC, "a real one is taken")
+eq(withClass.class, "Trophy Truck", "and the race holds it")
+eq(RM.lobby.wire(0).class, "Trophy Truck", "so the lobby card can show it")
+ok(RM.lobby.join(1, withClass.id), "somebody joins")
+
+M.clientSend(0, "race.start", {})
+tick(1)
+eq(RM.race.get(0) and RM.race.get(0).class, "Trophy Truck",
+   "the host is armed in it")
+eq(RM.race.get(1) and RM.race.get(1).class, "Trophy Truck",
+   "and so is the driver who only joined, without being asked")
+RM.race.clear(0)
+RM.race.clear(1)
+RM.results.forget(0)
+RM.results.forget(1)
+
 section("an invite only race")
 local okI, inv = RM.lobby.create(1, { track = "loop", laps = 1, open = false })
 ok(okI, "Second makes an invite race")

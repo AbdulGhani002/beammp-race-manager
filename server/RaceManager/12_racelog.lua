@@ -9,7 +9,7 @@ RM.racelog = {}
 
 local DIR  = "Resources/Server/RaceManager/data"
 local PATH = DIR .. "/results.jsonl"
-local SCHEMA = 1
+local SCHEMA = 2
 
 local written = 0
 local failed = 0
@@ -36,6 +36,8 @@ local function driverLine(e)
     toAhead        = e.toAhead,
     laps           = e.laps and #e.laps or 0,
     mode           = e.mode,
+    class          = e.class,
+    vehicle        = e.vehicle,
     marked         = e.suspect and true or false,
   }
 end

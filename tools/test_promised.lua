@@ -178,33 +178,88 @@ RM.team.leave(1)
 
 -- =================================================================  records
 
-section("with no class list every car shares one book")
-eq(RM.records.classOf("pickup"), "all", "a car nobody sorted is in the one book")
+section("his class list is the one the server knows")
+local names = RM.records.classList()
+eq(#names, 17, "all seventeen he sent")
+eq(names[1].name, "Class 10", "in his order, starting where his list starts")
+eq(names[1].division, "Limited", "with the division he put it in")
+eq(names[#names].name, "Trophy Truck", "and ending where his ends")
+eq(RM.records.isClass("Trophy Truck Spec"), "Trophy Truck Spec", "a real one is known")
+eq(RM.records.isClass("Class 4"), nil, "one he never sent is not")
+eq(RM.records.isClass("trophy truck"), nil, "and the spelling has to match")
 
-RM.config.classes = { ["Trophy Truck"] = { "pickup" }, ["Buggy"] = { "utv" } }
-eq(RM.records.classOf("pickup"), "Trophy Truck", "once there is a list it is used")
-eq(RM.records.classOf("utv"), "Buggy", "for each of them")
-eq(RM.records.classOf("covet"), "all", "and anything left out stays in the one book")
+section("a class is entered, not guessed from the car")
+eq(RM.records.classOf("pickup"), "all",
+   "he allows every vehicle, so no car belongs to a class on its own")
+eq(RM.records.classFor({ vehicle = "pickup", class = "Class 8" }), "Class 8",
+   "what the driver entered is what counts")
+eq(RM.records.classFor({ vehicle = "pickup", class = "Class 4" }), "all",
+   "and a class nobody has heard of counts for nothing")
+eq(RM.records.classFor({ vehicle = "pickup" }), "all",
+   "a run with no class sits on the board everybody shares")
+
+section("a class can still be pinned to cars, for the day he wants that")
+local hisClasses = RM.config.classes
+RM.config.classes = {
+  { division = "Unlimited", name = "Trophy Truck", cars = { "pickup" } },
+  { division = "Limited",   name = "UTV Pro NA",   cars = { "utv" } },
+}
+eq(RM.records.classOf("pickup"), "Trophy Truck", "the car finds its class")
+eq(RM.records.classOf("covet"), "all", "and a car left off every list finds none")
+eq(RM.records.carAllowed("Trophy Truck", "pickup"), true, "the right car may enter")
+eq(RM.records.carAllowed("Trophy Truck", "covet"), false, "the wrong one may not")
+RM.config.classes = hisClasses
 
 section("the books split by class when asked")
 RM.records.submit("loop", { key = "beammp:1", name = "A", mode = "controller",
-  corrected = 90, clean = 90, laps = {}, vehicle = "pickup" })
+  corrected = 90, clean = 90, laps = {}, vehicle = "pickup", class = "Trophy Truck" })
 RM.records.submit("loop", { key = "beammp:2", name = "B", mode = "controller",
-  corrected = 80, clean = 80, laps = {}, vehicle = "utv" })
+  corrected = 80, clean = 80, laps = {}, vehicle = "pickup", class = "UTV Pro NA" })
+RM.records.submit("loop", { key = "beammp:3", name = "C", mode = "controller",
+  corrected = 70, clean = 70, laps = {}, vehicle = "pickup" })
 
 local all = RM.records.wire("loop")
-eq(all.modes.controller.total, 2, "unfiltered holds both")
-eq(all.modes.controller.top[1].name, "B", "quickest first")
+eq(all.modes.controller.total, 3, "unfiltered holds all of them")
+eq(all.modes.controller.top[1].name, "C", "quickest first")
 
 local trucks = RM.records.wire("loop", nil, "Trophy Truck")
 eq(trucks.modes.controller.total, 1, "one truck")
-eq(trucks.modes.controller.top[1].name, "A", "and it is the truck driver")
+eq(trucks.modes.controller.top[1].name, "A", "and it is the one who entered it")
 eq(trucks.modes.controller.top[1].pos, 1, "placed first inside its own class")
 
 local seen = {}
 for _, c in ipairs(all.classes) do seen[c] = true end
-ok(seen["Trophy Truck"] and seen["Buggy"], "and the classes on the course are listed")
-RM.config.classes = {}
+ok(seen["Trophy Truck"] and seen["UTV Pro NA"], "the classes raced here are listed")
+eq(seen["all"], nil, "and the unentered run is not offered as a class of its own")
+
+local order = all.classes
+eq(order[1], "UTV Pro NA", "listed in his order, limited before unlimited")
+eq(order[2], "Trophy Truck", "not alphabetically")
+
+section("your best is kept once per class, not once per course")
+-- A slower run in another class is that class's first entry, not a run that
+-- failed to beat you. Two very different cars are not the same lap.
+RM.records.submit("split", { key = "beammp:9", name = "D", mode = "controller",
+  corrected = 60, clean = 60, laps = {}, class = "Class 8" })
+local second = RM.records.submit("split", { key = "beammp:9", name = "D",
+  mode = "controller", corrected = 95, clean = 95, laps = {}, class = "Class 11" })
+ok(second ~= nil, "the slower run in a second class still lands")
+eq(second.class, "Class 11", "and takes that class outright, being the only one in it")
+
+eq(RM.records.wire("split", nil, "Class 8").modes.controller.total, 1, "one in the first")
+eq(RM.records.wire("split", nil, "Class 11").modes.controller.total, 1, "one in the second")
+eq(RM.records.wire("split").modes.controller.total, 2, "and two on the shared board")
+
+local worse = RM.records.submit("split", { key = "beammp:9", name = "D",
+  mode = "controller", corrected = 99, clean = 99, laps = {}, class = "Class 11" })
+eq(worse, nil, "a slower run in a class you already hold does not move the books")
+eq(RM.records.wire("split").modes.controller.total, 2, "and adds no row")
+
+local better = RM.records.submit("split", { key = "beammp:9", name = "D",
+  mode = "controller", corrected = 50, clean = 50, laps = {}, class = "Class 11" })
+ok(better and better.personal, "beating your own class time does")
+ok(better.track, "and taking the whole course with it says so")
+eq(RM.records.wire("split").modes.controller.total, 2, "still two rows, one per class")
 
 -- ==============================================================  qualifying
 
