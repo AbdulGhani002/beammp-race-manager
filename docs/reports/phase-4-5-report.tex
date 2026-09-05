@@ -1,0 +1,311 @@
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage[margin=22mm]{geometry}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{longtable}
+\usepackage{enumitem}
+\usepackage{titlesec}
+\usepackage{fancyhdr}
+\usepackage{listings}
+\usepackage[hidelinks]{hyperref}
+
+\pagestyle{fancy}
+\fancyhf{}
+\lhead{\small BeamMP Race Manager}
+\rhead{\small Phases 4 and 5}
+\cfoot{\small \thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+
+\titleformat{\section}{\large\bfseries}{\thesection}{0.6em}{}
+\titlespacing{\section}{0pt}{14pt}{6pt}
+
+\setlist[itemize]{leftmargin=*,itemsep=2pt,topsep=4pt}
+\setlist[enumerate]{leftmargin=*,itemsep=2pt,topsep=4pt}
+\setlength{\parskip}{6pt}
+\setlength{\parindent}{0pt}
+
+\lstset{
+  basicstyle=\ttfamily\scriptsize,
+  frame=single,
+  framesep=5pt,
+  columns=fullflexible,
+  keepspaces=true,
+  breaklines=true,
+  showstringspaces=false,
+  xleftmargin=0pt,
+  aboveskip=8pt,
+  belowskip=8pt,
+}
+
+\begin{document}
+
+\begin{center}
+{\LARGE\bfseries Phases 4 and 5}\\[4pt]
+{\large Racing together, and the record books}\\[8pt]
+{\small BeamMP Race Manager \quad | \quad Build 0.5.7}
+\end{center}
+
+\vspace{6pt}
+\hrule
+\vspace{10pt}
+
+Phase 4 turns one driver at a time into a field. Phase 5 keeps what they
+did. This is what is built and what each part does.
+
+\section{Races you make and join}
+
+A race is a thing you make, and others join.
+
+\begin{enumerate}
+  \item Pick a course, laps, driving mode and class. Make the race
+        \textbf{public} or \textbf{invite only}, choosing people from the
+        player list.
+  \item Everyone who joins is placed on the grid. Nothing is armed. The start
+        line does nothing, however many times it is crossed.
+  \item The host presses \textbf{Start Race}. Only then does the line go live.
+  \item Each driver's clock starts when they cross it, so the timing stays
+        exact for everyone even if they roll off a second apart.
+\end{enumerate}
+
+Only the host can start it. A race that has started refuses late joiners. If
+the host leaves before starting, the race passes to whoever joined first
+rather than dying. One race per course. Different courses at the same time
+are fine, and driving alone works exactly as before.
+
+\section{One grid, one result}
+
+Everyone is placed in a row behind the line rather than all on the same spot.
+
+The results come out as one table in finishing order, with the gap to the
+leader and the gap to the car in front. Every row carries its splits, its
+best lap and the penalties it picked up, with a reason against each one.
+
+Somebody who leaves half way does not hold up the people still driving. They
+are filed as a did not finish and the race carries on. The results wait for
+the last car still on track and then go to everybody at once.
+
+\section{The pit}
+
+A checkpoint can be marked as a \textbf{pit} when you build the course. It is
+not part of the lap and it is drawn in its own colour. While you are inside
+it:
+
+\begin{itemize}
+  \item Fuel fills to 100\% instead of a quarter.
+  \item Repair and Spare tire add nothing to your race time.
+  \item Re-rack Spares is offered, which is a pit job only.
+  \item The holds still run in full, and the clock is still going. A stop
+        costs the time it takes and nothing on top.
+\end{itemize}
+
+\section{Speed zones}
+
+This is the 37 mph idea, between any two checkpoints you pick. A zone is a
+start gate, an end gate and a limit, and a course can have as many as needed.
+
+The server reads the speeds it already collects, so nothing is trusted to a
+driver's own game. Going over draws a warning first. The 30 second penalty
+lands only after three seconds over, so one bump over a crest is free, and it
+will not charge twice until you have dropped back under.
+
+Zones are set from the console:
+
+\begin{lstlisting}
+rm zone baja-1000 12 14 37
+rm zones baja-1000
+rm zoneclear baja-1000
+\end{lstlisting}
+
+\section{Teams}
+
+Two drivers, one car model, one result.
+
+Either driver can send an invite or ask to join. Both sides have to be in the
+same vehicle before a team can start, and the model is read off the car itself
+rather than trusted to anyone's own game. If the cars stop matching, the team
+breaks up on its own and both drivers are told why.
+
+A team result is the two corrected times added together. Both drivers have to
+finish for the team to place, so a team is only as quick as the pair of them.
+The individual rows stay as they are, and the team standing sits beside them.
+
+A team lives for the evening. It is not an account and nothing is written to
+disk, so nobody has to leave a team they made last week.
+
+\section{The record books}
+
+Every course keeps a book per mode. The Records button shows them.
+
+\begin{itemize}
+  \item Each driver's best corrected run, fastest first, with when it was set.
+  \item The fastest clean lap anyone has driven, held separately.
+  \item Your own position when you are outside the top ten.
+  \item Controller and wheel are separate books, as agreed in phase 2.
+\end{itemize}
+
+The moment a race finishes the run goes into the books before the results go
+out, so the results screen hangs the badge on the row it belongs to:
+\textbf{course record}, a \textbf{class record}, or \textbf{personal best}.
+The books live on disk and survive restarts.
+
+Two things never make the books. A run the server marked as suspect, because
+its clock could not be vouched for. And any lap with a cut checkpoint in it,
+which was already refused a best lap by the results.
+
+\section{Records by class}
+
+Your seventeen classes are in, as you sent them, in your order, under the two
+divisions you grouped them under. They are on the race screen as a row of
+buttons under Limited and Unlimited.
+
+A class is entered rather than worked out from the car. You allow every
+vehicle, and two drivers in the same truck can be running different classes,
+so the car cannot tell the server which book a run belongs in. The driver
+picks a class before setting off, or whoever makes the race picks one for the
+whole grid, which is the way your bot announces them. Picking nothing is
+allowed: the run still counts, it just sits outside the class books.
+
+Your best is kept once per class, not once per course. A slower run in a
+second class is that class's first entry rather than a run that failed to beat
+you.
+
+The record screen has a filter across the top: every class, or one of them.
+It only offers the classes that have actually been raced on that course, so
+it stays short.
+
+The line each finished race writes to disk carries the class and the car, so
+your Discord bot can read both without being told anything new.
+
+\section{Qualifying}
+
+A course marked as qualifying now sets the grid.
+
+Whoever was quickest in the qualifying session starts at the front of the next
+race on that course. Anyone who was not in it lines up behind those who were,
+in the order they joined, so a late arrival starts at the back rather than
+being turned away.
+
+The order lasts the session. A grid earned this evening should not still be
+deciding places next week.
+
+\section{Experience and levels}
+
+Finishing pays by where you came. Two hundred for a win, two less for each
+place after it, never below twenty. A level is a thousand points.
+
+The level sits next to the name in the player list and follows the account,
+so it survives a restart for the same reason the name does. Nothing is paid to
+a guest, who has no record to put it in, and nothing is paid for a run the
+clock could not vouch for.
+
+Levels start at nothing, because there are no old results to pay out for.
+They only move from here.
+
+\section{Kick, ban and granting experience}
+
+An admin can remove somebody now, or remove them and turn them away next time.
+A ban follows the account rather than a name, which can be changed, or a
+session, which is handed out fresh on every join. The list is on disk, so a
+restart does not quietly let everybody back in.
+
+Somebody banned is turned away as they knock, before anything is written down
+for them. In game nobody can act on somebody who ranks as high as they do, or
+on themselves.
+
+Experience can be handed out or taken back by name, for a race run outside the
+mod or a result that needs putting right.
+
+\begin{lstlisting}
+rm kick Marx wrecking
+rm ban Marx wrecking
+rm unban Marx
+rm bans
+rm xp Marx 500
+rm xp Marx -200
+\end{lstlisting}
+
+\section{The console}
+
+Everything you can set from the panel console, in one place.
+
+\begin{lstlisting}
+rm status                        plugin health, one line
+rm players                       who is on, level, speed, ping, role
+rm races                         runs on track now
+rm tracks                        saved courses
+rm track <id>                    checkpoints for one course
+rm records <id> [class]          the board for a course, whole or one class
+rm classes                       the race classes, by division
+rm gatewidth <course> <metres>   set the gate width on a course
+rm zone <id> <from> <to> <mph>   add a speed zone
+rm zones <id>                    the speed zones on a course
+rm zoneclear <id>                remove every zone from a course
+rm role <name> <role>            owner, admin, staff or player
+rm kick <name> [why]             remove somebody now
+rm ban <name> [why]              remove them and keep them out
+rm unban <name>                  lift a ban
+rm bans                          who is banned, and why
+rm xp <name> <amount>            hand out experience
+rm save                          write every store now
+\end{lstlisting}
+
+\section{The numbers}
+
+Every part above is covered by tests that run without the game.
+
+\begin{longtable}{@{}p{70mm}p{25mm}@{}}
+\toprule
+\textbf{Suite} & \textbf{Tests} \\
+\midrule
+\endhead
+Phase 1, identity                      & 91 \\
+Phase 2, racing                        & 141 \\
+Phase 3, the bottom bar and the rack   & 68 \\
+Phase 4, lobby, pit, zones             & 71 \\
+Phase 5, the books                     & 31 \\
+Teams, experience, bans, classes, qualifying & 84 \\
+Results and the race log               & 120 \\
+Gate shape and putting a car back      & 50 \\
+Course capture and shape               & 31 \\
+The clock and the lap bar              & 34 \\
+\midrule
+Total                                  & 721 \\
+\bottomrule
+\end{longtable}
+
+On top of those, 196 checks read the interface and the code together and stop
+the build when the two stop agreeing, plus a reader over every client file and
+a check that every key binding lands on something real.
+
+The sums that matter were also tested by breaking them on purpose: charging at
+the wrong end, letting marked runs into the books, ignoring the class a driver
+entered, keeping one best per course instead of one per class, starting a grid
+without the class its race was made in. Every one was caught.
+
+\section{What you can set}
+
+Nothing below needs a new build.
+
+\begin{itemize}
+  \item The classes, their order and their divisions.
+  \item What a finish pays, and how much a level costs.
+  \item Every penalty, and how long each pit job holds the car.
+  \item Speed zones, their limits and the grace before a penalty.
+  \item Gate widths on a saved course.
+  \item Who is owner, admin, staff or player.
+\end{itemize}
+
+\vspace{10pt}
+\hrule
+\vspace{6pt}
+
+{\small The build is \textbf{0.5.7} and the console prints it on every
+restart, so you can always tell which one you are running.
+
+The record books start empty, so the first finished race on each course sets
+its first record.}
+
+\end{document}
