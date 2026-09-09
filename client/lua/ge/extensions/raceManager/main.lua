@@ -1,6 +1,6 @@
 local M = {}
 
-M.VERSION = "0.6.1-onscreen"
+M.VERSION = "0.6.2-no-overlap"
 
 -- ui goes last: it reads from every other module the moment it comes up
 local SUBS = {

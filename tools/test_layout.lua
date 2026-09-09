@@ -28,10 +28,16 @@ local function layout(apps) return { type = "beammp", filename = "x.uilayout.jso
 local function app(name, placement) return { appName = name, placement = placement } end
 
 section("a fresh player has no entry, so it is added")
-local a, i, x = L.decide(layout({ app("tacho2", { bottom = "5px" }), app("beammpchat", {}) }))
+local a, i, x = L.decide(layout({ app("damageApp", { bottom = "0px" }), app("beammpchat", {}) }))
 eq(a, "add", "the app list without it")
 eq(i, nil, "no index to speak of")
-eq(#x, 0, "and no copies")
+eq(#x, 0, "and nothing to take out")
+
+-- what a fresh player really has: BeamMP's own dash, which the tachometer stands in for
+a, i, x = L.decide(layout({ app("tacho2", { bottom = "5px" }), app("beammpchat", {}) }))
+eq(a, "add", "still added")
+eq(#x, 1, "and the stock tachometer goes")
+eq(x[1], 0, "at the game's index nought")
 
 eq(L.decide(nil), "add", "no layout at all still says add rather than crashing")
 eq(L.decide({ apps = "nonsense" }), "add", "and so does a broken one")
@@ -66,14 +72,32 @@ eq(L.decide(layout({ app("raceManager") })), "repair", "and no placement at all"
 
 section("two copies would draw two of everything")
 a, i, x = L.decide(layout({
-  app("raceManager", L.WANT), app("tacho2", {}), app("raceManager", { left = "50%" }),
+  app("raceManager", L.WANT), app("beammpchat", {}), app("raceManager", { left = "50%" }),
   app("raceManager", {}),
 }))
 eq(a, "fine", "the first one is fine")
 eq(i, 0, "it is the first entry")
 eq(#x, 2, "the other two are copies")
-eq(x[1], 2, "at the game's index two")
-eq(x[2], 3, "and three")
+eq(x[1], 3, "the higher one first, so taking it out moves nothing")
+eq(x[2], 2, "then the lower")
+
+section("the stock gauges the dash stands in for come out")
+-- the corner of his screen: his tachometer drawn over the stock one
+a, i, x = L.decide(layout({
+  app("forcedInduction", { bottom = "320px", right = "20px" }),
+  app("simplePowertrainControl", { bottom = "0px", right = "260px" }),
+  app("damageApp", { bottom = "0px", left = "0px" }),
+  app("tacho2", { bottom = "5px", right = "5px" }),
+  app("raceManager", L.WANT),
+}))
+eq(a, "fine", "Race Manager itself is fine")
+eq(i, 4, "and is the fifth entry")
+eq(#x, 3, "three stock gauges to take out")
+eq(x[1], 3, "the stock tachometer, highest first")
+eq(x[2], 1, "the engine buttons")
+eq(x[3], 0, "the boost gauge")
+ok(not L.REPLACES.damageApp, "the damage readout is not one of them, the dash has no damage")
+ok(not L.REPLACES.beammpchat, "nor the chat")
 
 section("what it wants is the app's own idea of itself")
 eq(L.WANT.width, "100%", "full width")
@@ -131,22 +155,33 @@ eq(names(), "patch,reload", "patched where it is, then read back")
 eq(calls[1][3], 1, "the second entry, counted from nought")
 eq(calls[1][4].left, "0px", "back to the corner")
 
-section("copies come off from the end first, so the kept one's index holds")
+section("the mend goes first, then what comes out, from the end")
 reset()
-current = layout({ app("raceManager", { left = "50%" }), app("x", {}), app("raceManager", {}), app("raceManager", {}) })
+current = layout({ app("tacho2", {}), app("raceManager", { left = "50%" }), app("x", {}),
+                   app("raceManager", {}), app("raceManager", {}) })
 current.filename = "f"
 eq(L.force(), true, "done")
-eq(names(), "remove,remove,patch,reload", "copies, then the mend, then the read back")
-eq(calls[1][3], 3, "the last copy first")
-eq(calls[2][3], 2, "then the one before it")
-eq(calls[3][3], 0, "and the first entry is still the first")
+eq(names(), "patch,remove,remove,remove,reload",
+   "mended while its index still points at it, then the removals, then the read back")
+eq(calls[1][3], 1, "mended at the index it had")
+eq(calls[2][3], 4, "the last copy first")
+eq(calls[3][3], 3, "then the one before it")
+eq(calls[4][3], 0, "and the stock tachometer last, below the one that was mended")
 
 section("a layout that is already right is left alone")
 reset()
-current = layout({ app("raceManager", L.WANT) })
+current = layout({ app("damageApp", {}), app("beammpchat", {}), app("raceManager", L.WANT) })
 current.filename = "f"
 eq(L.force(), true, "nothing to do")
 eq(#calls, 0, "and nothing was written, so a good file is not rewritten on every join")
+
+section("a right layout that still has the stock gauges only loses those")
+reset()
+current = layout({ app("raceManager", L.WANT), app("tacho2", {}) })
+current.filename = "f"
+eq(L.force(), true, "done")
+eq(names(), "remove,reload", "one out, read back, nothing else touched")
+eq(calls[1][3], 1, "the stock tachometer")
 
 section("an old game with no layout code is not an error")
 extensions.ui_appLayouts = nil

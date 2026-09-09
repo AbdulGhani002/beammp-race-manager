@@ -1006,11 +1006,17 @@
   --rm-stella-k: 0.28;
   position: absolute;
   left: 18px;
-  bottom: 72px;
+  /* above the damage readout BeamMP keeps in that corner, not on it */
+  bottom: 316px;
   width: calc(1280px * var(--rm-stella-k));
   height: calc(720px * var(--rm-stella-k));
   z-index: 3;
 }
+
+/* The device photograph has see-through corners, and the shadow its own
+   sheet gives it painted a dark box around the whole thing. The photograph
+   carries its own edges. */
+.rm-stella #stella-dev { box-shadow: none; }
 
 .rm-stella-scale {
   width: 1280px;

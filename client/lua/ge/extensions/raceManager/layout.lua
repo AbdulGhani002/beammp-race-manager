@@ -15,6 +15,12 @@ local M = {}
 local APP  = "raceManager"
 local TYPE = "beammp"
 
+-- What the dash inside Race Manager stands in for. BeamMP puts these in
+-- the same corner, and two tachometers on top of each other is what was on
+-- his screen. His gauge shows revs, speed, gear, boost and the drivetrain
+-- buttons, so all three are covered.
+M.REPLACES = { tacho2 = true, forcedInduction = true, simplePowertrainControl = true }
+
 -- the whole screen, because the bars and windows are drawn inside it
 M.WANT = { top = "0px", left = "0px", width = "100%", height = "100%", position = "absolute" }
 
@@ -30,26 +36,33 @@ end
 
 -- What to do about a layout: "add" when Race Manager is not in it, "repair"
 -- when it is but not the whole screen, "fine" otherwise. The second value is
--- the entry's index as the game counts them, from nought. The third is any
--- further copies, which happen when somebody adds it twice by hand and would
--- otherwise draw two of everything.
+-- the entry's index as the game counts them, from nought. The third is
+-- everything to take out: further copies of Race Manager, which happen when
+-- somebody adds it twice by hand and would draw two of everything, and the
+-- stock gauges the dash stands in for. Highest index first, so taking one
+-- out does not move the next.
 function M.decide(layout)
   if type(layout) ~= "table" or type(layout.apps) ~= "table" then
     return "add", nil, {}
   end
 
-  local first, extras = nil, {}
+  local first, gone = nil, {}
   for i, app in ipairs(layout.apps) do
-    if type(app) == "table" and app.appName == APP then
-      if first == nil then first = i else extras[#extras + 1] = i - 1 end
+    if type(app) == "table" then
+      if app.appName == APP then
+        if first == nil then first = i else gone[#gone + 1] = i - 1 end
+      elseif M.REPLACES[app.appName] then
+        gone[#gone + 1] = i - 1
+      end
     end
   end
-  if first == nil then return "add", nil, extras end
+  table.sort(gone, function(a, b) return a > b end)
+  if first == nil then return "add", nil, gone end
 
   local p = layout.apps[first].placement
   local fine = type(p) == "table" and whole(p.width) and whole(p.height)
                and nothing(p.left) and nothing(p.top)
-  return fine and "fine" or "repair", first - 1, extras
+  return fine and "fine" or "repair", first - 1, gone
 end
 
 ------------------------------------------------------------------ the game
@@ -73,24 +86,26 @@ function M.force()
   if not ok or type(layout) ~= "table" then return false end
   if layout.type ~= TYPE or type(layout.filename) ~= "string" then return false end
 
-  local action, index, extras = M.decide(layout)
-  if action == "fine" and #extras == 0 then return true end
+  local action, index, gone = M.decide(layout)
+  if action == "fine" and #gone == 0 then return true end
 
-  -- copies go first and from the end, so the index of the one kept holds
-  for i = #extras, 1, -1 do
-    pcall(a.removeApp, layout.filename, extras[i])
-  end
+  -- The mend goes first, while the index it was given still points at the
+  -- right entry. What comes out comes out afterwards, from the end, and by
+  -- then nothing needs the index any more.
   if action == "add" then
     pcall(a.addApp, layout.filename, APP, M.WANT)
   elseif action == "repair" then
     pcall(a.applyPlacementPatch, layout.filename, index, M.WANT)
+  end
+  for i = 1, #gone do
+    pcall(a.removeApp, layout.filename, gone[i])
   end
 
   -- Those write the file quietly. Reading it back in as the current layout
   -- is what tells the screen, so it shows now rather than on the next join.
   pcall(a.setCurrentLayout, layout.filename)
   log("I", "raceManager", ("layout: %s%s in %s"):format(
-    action, #extras > 0 and (", " .. #extras .. " copy(s) removed") or "", layout.filename))
+    action, #gone > 0 and (", " .. #gone .. " taken out") or "", layout.filename))
   return true
 end
 
