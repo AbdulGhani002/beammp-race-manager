@@ -36,10 +36,54 @@
 
 <script>
 // the two globals the app talks to in the game
-window.bngApi = { engineLua: function (e) { console.log("engineLua:", e); } };
+window.bngApi = {
+  engineLua: function (e) { console.log("engineLua:", e); },
+  // his tachometer and Stella talk to the car through this one too
+  activeObjectLua: function (e) { console.log("activeObjectLua:", String(e).slice(0, 60)); }
+};
 window.StreamsManager = { add: function () {}, remove: function () {} };
+// unit helpers the tachometer reads. the game has the real ones.
+window.UiUnits = {
+  speed: function (ms) { return { val: (ms || 0) * 2.23694, unit: "mph" }; },
+  temperature: function (c) { return { val: c * 9 / 5 + 32, unit: "F" }; },
+  pressure: function (bar) { return { val: bar * 14.5, unit: "psi" }; }
+};
+window.guihooks = { trigger: function (n, d) { console.log("guihooks:", n); } };
 
-angular.module("beamng.apps", []);
+// The game's app loader. Race Manager mounts the other two apps through it,
+// so the preview needs one that does the same thing: fetch the script, run
+// it, and let the directive it registers be found afterwards.
+angular.module("oc.lazyLoad", []).provider("$ocLazyLoad", function () {
+  var $compileProvider = null;
+  this.$get = ["$q", function ($q) {
+    return {
+      load: function (src) {
+        return $q(function (resolve, reject) {
+          if (document.querySelector('script[src="' + src + '"]')) { resolve(); return; }
+          var tag = document.createElement("script");
+          tag.src = src;
+          tag.async = false;
+          tag.onload = function () { resolve(); };
+          tag.onerror = function () { reject("failed to load " + src); };
+          document.head.appendChild(tag);
+        });
+      }
+    };
+  }];
+});
+
+angular.module("beamng.apps", ["oc.lazyLoad"])
+  .config(["$compileProvider", "$provide", function ($compileProvider, $provide) {
+    // a script loaded after bootstrap calls .directive() on the module, which
+    // does nothing on its own once the injector exists. this is what ocLazyLoad
+    // does in the game: route late registrations to the live providers.
+    var mod = angular.module("beamng.apps");
+    var realDirective = mod.directive;
+    mod.directive = function (name, factory) {
+      $compileProvider.directive(name, factory);
+      return mod;
+    };
+  }]);
 </script>
 
 <script src="ui/modules/apps/RaceManager/app.js"></script>

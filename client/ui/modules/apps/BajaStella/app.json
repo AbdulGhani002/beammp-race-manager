@@ -1,0 +1,19 @@
+{
+  "interactive": "yes",
+  "domElement": "<bajastella></bajastella>",
+  "name": "Stella III EVO",
+  "types": ["ui.apps.categories.multiplayer"],
+  "css": {
+    "left": "10px",
+    "bottom": "370px",
+    "width": "1280px",
+    "height": "720px"
+  },
+  "description": "Stella III EVO - Baja Racing Instrument",
+  "preserveAspectRatio": false,
+  "resizable": false,
+  "sizeLocked": true,
+  "author": "Baja1000",
+  "version": "1.0",
+  "directive": "bajastella"
+}

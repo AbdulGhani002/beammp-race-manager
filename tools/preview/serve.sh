@@ -19,11 +19,13 @@ root="$(cd "$(dirname "$0")/../.." && pwd)"
 stage="${TMPDIR:-/tmp}/rm-preview"
 angular="$stage/angular.min.js"
 
-mkdir -p "$stage/ui/modules/apps/RaceManager"
+mkdir -p "$stage/ui"
 
-# The whole app, not a list of files. A list drifts: the sounds folder was
-# added and the preview served 404s for it because nobody had updated the list.
-cp -r "$root"/client/ui/modules/apps/RaceManager/. "$stage/ui/modules/apps/RaceManager/"
+# The whole ui tree, not a list of files. A list drifts: the sounds folder was
+# added and the preview served 404s for it because nobody had updated the
+# list, and the tachometer and Stella live in folders beside this one.
+rm -rf "$stage/ui"
+cp -r "$root"/client/ui "$stage/ui"
 cp "$root/tools/preview/index.html" "$stage/index.html"
 
 # angular is the game's, not ours, so it is fetched rather than committed

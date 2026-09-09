@@ -1,0 +1,21 @@
+{
+  "domElement": "<baja-sim-dash></baja-sim-dash>",
+  "name": "Baja Sim Dash",
+  "types": ["ui.apps.categories.vehicle_info"],
+  "description": "Transparent Baja race overlay: dark blood tach, airspeed, gear, 8-bar fuel, temps, trip miles, boost if turbo, warning lamps, drivetrain.",
+  "css": {
+    "left": "20%",
+    "bottom": "6px",
+    "width": "680px",
+    "height": "551px",
+    "min-width": "400px",
+    "min-height": "324px"
+  },
+  "author": "Baja Sim",
+  "preserveAspectRatio": true,
+  "version": "1.4",
+  "directive": "bajaSimDash",
+  "category": "Dashboard",
+  "isAuxiliary": false,
+  "interactive": "yes"
+}

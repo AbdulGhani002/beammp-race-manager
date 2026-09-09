@@ -6,3 +6,9 @@
 -- one the game picks up, loading twice costs nothing.
 load("raceManager_main")
 setExtensionUnloadMode("raceManager_main", "manual")
+
+-- The Stella instrument is its own extension, the way its author shipped it.
+-- It is loaded here rather than folded into Race Manager so his updates drop
+-- straight in, and so it keeps working on its own if Race Manager is off.
+load("bajaStella")
+setExtensionUnloadMode("bajaStella", "manual")

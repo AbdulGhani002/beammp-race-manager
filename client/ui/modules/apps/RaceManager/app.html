@@ -394,6 +394,16 @@
       </div>
 
       <div class="rm-group">
+        <h3>Dash</h3>
+        <p class="rm-hint">The tachometer drags by its top edge and resizes from
+          the corner. The Stella drags anywhere on its case.</p>
+        <div class="rm-pickrow">
+          <button ng-click="dashToggle('tacho')" ng-class="{on: dash.tacho}">Tachometer</button>
+          <button ng-click="dashToggle('stella')" ng-class="{on: dash.stella}">Stella</button>
+        </div>
+      </div>
+
+      <div class="rm-group">
         <h3>Windows</h3>
         <p class="rm-hint">Drag a window by its title, resize it from the bottom
           right corner. Where you put it is remembered.</p>
@@ -554,6 +564,20 @@
     </div>
 
     <!-- bottom bar. every one of these needs the car stopped. -->
+    <!-- The instruments. His tachometer and his Stella box, mounted here so
+         they come with the mod and sit on the dash without anyone having to
+         find them in the app list. Both can be switched off under Options. -->
+    <div class="rm-card rm-dash" rm-drag="dash" ng-if="dash.tacho">
+      <div class="rm-bar-handle" title="Drag to move"></div>
+      <div class="rm-dash-body" rm-mount="/ui/modules/apps/BajaSimDash/app.js"
+           rm-directive="bajaSimDash" rm-tag="baja-sim-dash"></div>
+    </div>
+
+    <div class="rm-stella" rm-spot="stella" ng-if="dash.stella">
+      <div class="rm-stella-scale" rm-mount="/ui/modules/apps/BajaStella/app.js"
+           rm-directive="bajastella" rm-tag="bajastella"></div>
+    </div>
+
     <div class="rm-bottom">
       <div class="rm-lightmenu" ng-if="s.lights">
         <button ng-repeat="l in lightItems" ng-click="lightPick(l)">{{ l.label }}</button>

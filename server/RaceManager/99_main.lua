@@ -20,6 +20,7 @@ local function onTick()
 
   -- a team whose cars stopped matching, and offers nobody answered
   if ticks % rosterEvery == 0 then RM.team.tick() end
+  if ticks % rosterEvery == 0 then RM.stella.tick() end
 
   -- a hold that has run its course, so the game can do the job
   RM.service.tick(RM.now())
@@ -77,6 +78,7 @@ local function onPlayerDisconnect(pid)
   RM.race.onLeave(pid)
   RM.results.onRunEnded(pid)
   RM.team.forget(pid)
+  RM.stella.forget(pid)
   RM.race.clear(pid)
   RM.results.forget(pid)
   RM.service.forget(pid)
@@ -407,6 +409,23 @@ local function wireChannels()
   RM.bus.on("team.get", function(pid)
     local s = RM.identity.session(pid)
     RM.bus.queue(pid, "team.state", RM.team.wire(s and s.key or nil))
+  end)
+
+  -- The Stella box. A stopped car, and asking the car in front to let you by.
+  -- The client only ever says what it wants; who is where is decided here.
+  RM.bus.on("stella.breakdown.set", function(pid, d)
+    RM.stella.setBreakdown(pid, type(d) == "table" and d.active == true)
+  end)
+
+  RM.bus.on("stella.pass.request", function(pid)
+    RM.stella.requestPass(pid)
+  end)
+
+  RM.bus.on("stella.pass.accept", function(pid, d)
+    local ok, why = RM.stella.acceptPass(pid, type(d) == "table" and d.requestId or nil)
+    if not ok then
+      RM.bus.queue(pid, "stella.pass.status", { state = "cancelled", reason = why })
+    end
   end)
 
   RM.bus.on("records.get", function(pid, d)

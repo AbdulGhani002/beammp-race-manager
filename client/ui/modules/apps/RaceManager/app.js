@@ -100,7 +100,8 @@ angular.module("beamng.apps")
         document.addEventListener("mouseup", onUp);
       }
 
-      var handle = node.querySelector("h2") || node.querySelector(".rm-players-head");
+      var handle = node.querySelector("h2") || node.querySelector(".rm-players-head")
+                   || node.querySelector(".rm-bar-handle");
       if (handle) {
         handle.classList.add("rm-handle");
         handle.addEventListener("mousedown", function (e) { beginDrag(e, "move"); });
@@ -119,6 +120,103 @@ angular.module("beamng.apps")
         node.style.height = ""; node.style.transform = ""; node.style.right = "";
         node.style.bottom = "";
       };
+      scope.$on("rmReset", scope.rmResetPanel);
+    }
+  };
+}])
+
+// Somebody else's app, mounted inside this one. The game only loads an app's
+// script when that app is placed on a layout, so placing it here means
+// loading it here, by the same call the game makes, and then compiling its
+// element into the slot. The script is the author's, untouched, so their
+// next version drops straight in.
+.directive("rmMount", ["$ocLazyLoad", "$compile", "$injector", "$q",
+  function ($ocLazyLoad, $compile, $injector, $q) {
+  return {
+    restrict: "A",
+    link: function (scope, element, attrs) {
+      var src = attrs.rmMount;
+      var directive = attrs.rmDirective;
+      // the element the app registers, given as a name so no markup has to
+      // live inside an attribute
+      var dom = "<" + attrs.rmTag + "></" + attrs.rmTag + ">";
+      var node = element[0];
+      var child = null;
+
+      // what the game falls back to when the lazy loader will not have it
+      function viaScriptTag() {
+        return $q(function (resolve, reject) {
+          if (document.querySelector("script[src=\"" + src + "\"]")) { resolve(); return; }
+          var tag = document.createElement("script");
+          tag.src = src;
+          tag.async = false;
+          tag.onload = function () { resolve(); };
+          tag.onerror = function () { reject("failed to load " + src); };
+          document.head.appendChild(tag);
+        });
+      }
+
+      function loaded() {
+        if ($injector.has(directive + "Directive")) return $q.when();
+        return $ocLazyLoad.load(src, { cache: false, reconfig: true, rerun: true })
+          .catch(viaScriptTag)
+          .then(function () {
+            if (!$injector.has(directive + "Directive")) {
+              return $q.reject("nothing called " + directive + " came out of " + src);
+            }
+          });
+      }
+
+      loaded().then(function () {
+        child = scope.$new();
+        var el = $compile(dom)(child);
+        node.appendChild(el[0]);
+      }, function (err) {
+        console.error("[RaceManager] could not mount " + directive + ": " + err);
+        node.classList.add("rm-mount-failed");
+      });
+
+      scope.$on("$destroy", function () {
+        if (child) { try { child.$destroy(); } catch (e) { } }
+      });
+    }
+  };
+}])
+
+// Where a thing that drags itself was left. The Stella moves its own box on
+// mousedown, so this only writes the spot down and puts it back next time.
+.directive("rmSpot", [function () {
+  return {
+    restrict: "A",
+    link: function (scope, element, attrs) {
+      var node = element[0];
+      var key = "rm.panel." + attrs.rmSpot;
+
+      function restore() {
+        var saved = null;
+        try { saved = JSON.parse(localStorage.getItem(key)); } catch (e) { }
+        if (saved && typeof saved.x === "number") {
+          node.style.left = saved.x + "px";
+          node.style.top = saved.y + "px";
+          node.style.right = "auto";
+          node.style.bottom = "auto";
+        }
+      }
+      restore();
+
+      node.addEventListener("mousedown", function () {
+        function done() {
+          document.removeEventListener("mouseup", done);
+          var r = node.getBoundingClientRect();
+          try { localStorage.setItem(key, JSON.stringify({ x: r.left, y: r.top })); } catch (e) { }
+        }
+        document.addEventListener("mouseup", done);
+      });
+
+      scope.$on("rmReset", function () {
+        try { localStorage.removeItem(key); } catch (e) { }
+        node.style.left = ""; node.style.top = ""; node.style.right = ""; node.style.bottom = "";
+      });
     }
   };
 }])
@@ -144,6 +242,24 @@ angular.module("beamng.apps")
       $scope.speed = 0;
       $scope.newTrack = { name: "", kind: "race", circuit: true, overwrite: false };
       $scope.entry = { track: null, mode: "controller", laps: 1, raceClass: null };
+
+      // The instruments on the dash, on unless switched off. A choice about
+      // your own screen, so it lives with the window positions and never
+      // goes near the server.
+      var DASH_KEY = "rm.dash";
+      $scope.dash = { tacho: true, stella: true };
+      try {
+        var savedDash = JSON.parse(localStorage.getItem(DASH_KEY));
+        if (savedDash && typeof savedDash === "object") {
+          if (typeof savedDash.tacho === "boolean") $scope.dash.tacho = savedDash.tacho;
+          if (typeof savedDash.stella === "boolean") $scope.dash.stella = savedDash.stella;
+        }
+      } catch (e) { }
+
+      $scope.dashToggle = function (which) {
+        $scope.dash[which] = !$scope.dash[which];
+        try { localStorage.setItem(DASH_KEY, JSON.stringify($scope.dash)); } catch (e) { }
+      };
       $scope.opened = null;
       $scope.openedLap = null;
       $scope.sectors = [];
@@ -1000,6 +1116,7 @@ angular.module("beamng.apps")
           for (var j = 0; j < kill.length; j++) localStorage.removeItem(kill[j]);
         } catch (e) { }
         $scope.panel = null;
+        $scope.$broadcast("rmReset");
       };
 
       $scope.nameProblem = function () {

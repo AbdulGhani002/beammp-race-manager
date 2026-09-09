@@ -1,6 +1,6 @@
 RM = RM or {}
 
-RM.VERSION = "0.5.9-press-sounds"
+RM.VERSION = "0.6.0-dash"
 
 RM.config = {
   nameMinLen  = 3,
@@ -114,6 +114,12 @@ RM.config = {
     { division = "Unlimited", name = "Trophy Truck" },
   },
 
+
+  -- The Stella box on the dash. How close a car has to be to ask the one in
+  -- front to let it by, how long that driver has to answer, how long the
+  -- green light lasts, and how far a stopped car's warning reaches.
+  stella = { passWindowM = 300, passReplySecs = 30, passGoSecs = 20,
+             hazardRangeM = 250 },
 
   maxCheckpoints = 200,
   maxTracks      = 64,

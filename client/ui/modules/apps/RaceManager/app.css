@@ -959,3 +959,77 @@
   background: var(--rm-red);
   color: #fff;
 }
+
+
+/* ------------------------------------------------------------- the dash */
+
+/* The tachometer is a window with no title, so a thin bar along the top is
+   what you drag. The gauge itself lets clicks through except its buttons. */
+.rm-dash {
+  position: absolute;
+  right: 18px;
+  bottom: 72px;
+  width: 340px;
+  height: 300px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  z-index: 3;
+}
+
+.rm-bar-handle {
+  flex: 0 0 auto;
+  height: 12px;
+  margin: 0 20px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.08);
+  cursor: move;
+}
+
+.rm-bar-handle:hover { background: rgba(255, 255, 255, 0.18); }
+
+.rm-dash-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  position: relative;
+}
+
+.rm-dash-body > * { width: 100%; height: 100%; }
+
+/* The Stella is drawn at the size of the real thing, 1280 by 720, and scaled
+   down to a box on the dash. The outer box has the scaled size so nothing
+   under it is covered by a full screen of nothing. */
+.rm-stella {
+  --rm-stella-k: 0.28;
+  position: absolute;
+  left: 18px;
+  bottom: 72px;
+  width: calc(1280px * var(--rm-stella-k));
+  height: calc(720px * var(--rm-stella-k));
+  z-index: 3;
+}
+
+.rm-stella-scale {
+  width: 1280px;
+  height: 720px;
+  transform: scale(var(--rm-stella-k));
+  transform-origin: top left;
+}
+
+/* nothing came out of the script, so the slot says so rather than sitting
+   there empty and looking broken for no reason anyone can see */
+.rm-mount-failed::after {
+  content: "could not load";
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--rm-dim);
+}

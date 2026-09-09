@@ -1,0 +1,16 @@
+{
+  "stella.caution.warn": "ALERTA",
+  "stella.caution.stop": "PRECAUCION",
+  "stella.speedZone.limit": "LIMITE DE VELOCIDAD",
+  "stella.speedZone.zone": "ZONA DE VELOCIDAD",
+  "stella.speedZone.reduce": "REDUCE VELOCIDAD",
+  "stella.flag.overtake": "ADELANTAR",
+  "stella.idle.ready": "LISTO",
+  "stella.unit.kmh": "km/h",
+  "stella.unit.km": "km",
+  "stella.unit.odoKm": "odo km",
+  "stella.unit.distM": "dist m",
+  "stella.tip.assistance": "Asistencia Mecanica",
+  "stella.tip.confirm": "Confirmar",
+  "stella.tip.overtake": "Adelantar"
+}

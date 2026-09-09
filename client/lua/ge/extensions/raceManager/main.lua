@@ -1,6 +1,6 @@
 local M = {}
 
-M.VERSION = "0.5.9-press-sounds"
+M.VERSION = "0.6.0-dash"
 
 -- ui goes last: it reads from every other module the moment it comes up
 local SUBS = {
@@ -10,6 +10,7 @@ local SUBS = {
   "raceManager_triggers",
   "raceManager_capture",
   "raceManager_race",
+  "raceManager_stella",
   "raceManager_bottombar",
   "raceManager_service",
   "raceManager_hud",
