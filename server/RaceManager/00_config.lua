@@ -1,6 +1,6 @@
 RM = RM or {}
 
-RM.VERSION = "0.6.0-dash"
+RM.VERSION = "0.6.1-onscreen"
 
 RM.config = {
   nameMinLen  = 3,

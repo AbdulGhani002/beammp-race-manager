@@ -1,6 +1,6 @@
 local M = {}
 
-M.VERSION = "0.6.0-dash"
+M.VERSION = "0.6.1-onscreen"
 
 -- ui goes last: it reads from every other module the moment it comes up
 local SUBS = {
@@ -11,6 +11,7 @@ local SUBS = {
   "raceManager_capture",
   "raceManager_race",
   "raceManager_stella",
+  "raceManager_layout",
   "raceManager_bottombar",
   "raceManager_service",
   "raceManager_hud",
@@ -76,6 +77,7 @@ end
 -- leaving the level ends a run, the same as the button does. a run left open
 -- would hold up the results for everybody else on the course.
 local function onClientEndMission()
+  extensions.raceManager_layout.disarm()
   extensions.raceManager_race.onLevelUnloaded()
   extensions.raceManager_triggers.clear()
   extensions.raceManager_capture.onLevelUnloaded()
@@ -86,6 +88,8 @@ end
 local function onClientPostStartMission()
   trySayHello()
   extensions.raceManager_hud.install()
+  -- and onto the screen, without anyone opening the app list
+  extensions.raceManager_layout.arm()
 end
 
 local function onExtensionUnloaded()
