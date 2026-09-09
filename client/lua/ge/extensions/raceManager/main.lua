@@ -1,6 +1,6 @@
 local M = {}
 
-M.VERSION = "0.6.4-spare-swaps"
+M.VERSION = "0.6.5-stella-ui"
 
 -- ui goes last: it reads from every other module the moment it comes up
 local SUBS = {

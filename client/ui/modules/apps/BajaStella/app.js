@@ -18,20 +18,21 @@ angular.module('beamng.apps').directive('bajastella', function () {
     /* === Reset & Frame (tuned + slightly larger) === */
     '#stella-dev,#stella-dev *{box-sizing:border-box;margin:0;padding:0;}' +
     '#stella-dev{' +
-      'width:1280px;height:720px;max-width:100%;max-height:100%;position:relative;overflow:hidden;' +
+      'width:362px;height:240px;max-width:100%;max-height:100%;position:relative;overflow:hidden;' +
       'pointer-events:auto;z-index:100;' +
       'display:flex;flex-direction:column;cursor:move;padding:3px 3px 4px;' +
-      'background:transparent url(' + ASSETS + 'stella_device.png) center/100% 100% no-repeat;' +
-      'border:0;border-radius:0;' +
+      'background:#2a2a32;' +
+      'border-radius:12px;border:2px solid #5f5f68;' +
       'font-family:"Bahnschrift","Arial Narrow","Segoe UI",sans-serif;' +
       'user-select:none;-webkit-user-select:none;' +
       'box-shadow:inset 0 0 0 1px rgba(255,255,255,.14),inset 0 -3px 8px rgba(0,0,0,.72),0 10px 22px rgba(0,0,0,.58);' +
     '}' +
-    '#stella-dev::before{display:none;}' +
+    '#stella-dev::before{content:"";position:absolute;inset:5px;border-radius:8px;pointer-events:none;' +
+      'box-shadow:inset 0 0 0 1px rgba(255,255,255,.08);}' +
     '#stella-dev.st-off{opacity:0;pointer-events:none;}' +
 
     /* === Header === */
-    '.st-hdr{display:none;height:33px;}' +
+    '.st-hdr{height:33px;flex-shrink:0;display:grid;grid-template-columns:58px 1fr 58px;align-items:center;padding:0 8px;' +
       'background:linear-gradient(180deg,#26262d,#0f1015);border-bottom:1px solid rgba(255,255,255,.09);}' +
     '.st-hdr-left{width:1px;height:1px;}' +
     '.st-hdr-mid{display:flex;align-items:center;justify-content:center;min-width:0;}' +
@@ -41,9 +42,9 @@ angular.module('beamng.apps').directive('bajastella', function () {
     '.st-rnum{margin-left:0;color:#d7d8de;font-size:15px;font-weight:700;font-style:italic;letter-spacing:1px;opacity:.96;}' +
 
     /* === LCD === */
-    '.st-lcd{position:absolute;left:213px;top:159px;width:852px;height:305px;margin:0;border-radius:0;overflow:hidden;' +
+    '.st-lcd{height:130px;flex-shrink:0;margin:8px 12px 5px;border-radius:2px;position:relative;overflow:hidden;' +
       'background:linear-gradient(160deg,#d6ebff 0%,#c8e2f9 50%,#bbd7f0 100%);' +
-      'padding:0 10px 8px !important;box-shadow:none;background:rgba(190,221,250,.88);}' +
+      'padding:0 4px 5px !important;box-shadow:inset 0 2px 5px rgba(0,0,0,.25),0 0 0 1px rgba(0,0,0,.45);}' +
     '.st-lcd::before{content:"";position:absolute;inset:0;z-index:1;pointer-events:none;' +
       'background-image:linear-gradient(rgba(67,90,191,.2) 1px,transparent 1px),linear-gradient(90deg,rgba(67,90,191,.2) 1px,transparent 1px);' +
       'background-size:4px 4px;opacity:.48;}' +
@@ -90,7 +91,7 @@ angular.module('beamng.apps').directive('bajastella', function () {
     '.lcd-idle-unit{font-size:12px;margin-left:4px;}' +
 
     /* === Overlays === */
-    '.lcd-caution,.lcd-bf-overlay,.lcd-flag-overlay{display:none!important;}' +
+    '.lcd-caution{position:absolute;inset:0;z-index:10;pointer-events:none;background:rgba(212,170,18,.14);display:flex;align-items:center;justify-content:center;}' +
     '@keyframes stCaution{0%,100%{opacity:1}50%{opacity:.22}}' +
     '.lcd-caution-txt{font-size:18px;font-weight:800;color:#523d04;letter-spacing:4px;animation:stCaution 1s ease-in-out infinite;}' +
     '.lcd-flag-overlay{position:absolute;left:0;right:0;bottom:4px;z-index:10;display:flex;justify-content:center;pointer-events:none;}' +
@@ -98,7 +99,7 @@ angular.module('beamng.apps').directive('bajastella', function () {
     '.lcd-flag-txt{font-size:10px;letter-spacing:1px;}' +
 
     /* === Speed zone overlay === */
-    '.lcd-sz-overlay{position:absolute;right:0;top:0;width:330px;height:100%;z-index:9;pointer-events:none;display:flex;flex-direction:column;align-items:center;justify-content:center;transition:opacity .3s;}' +
+    '.lcd-sz-overlay{position:absolute;inset:0;z-index:9;pointer-events:none;display:flex;flex-direction:column;align-items:center;justify-content:center;transition:opacity .3s;}' +
     '.lcd-sz-overlay.sz-warn{background:rgba(212,170,18,.12);}' +
     '.lcd-sz-overlay.sz-exceed{background:rgba(210,30,20,.16);}' +
     '@keyframes szPulse{0%,100%{opacity:1}50%{opacity:.3}}' +
@@ -120,10 +121,10 @@ angular.module('beamng.apps').directive('bajastella', function () {
     '.lcd-bf-overlay.bf-acked{animation:bfGreen .5s ease-in-out infinite;}' +
 
     /* === Bottom strip === */
-    '.st-bot{position:absolute;left:213px;top:487px;width:852px;height:174px;display:flex;align-items:center;gap:8px;padding:0;}' +
-    '.st-led-blk{position:absolute;left:0;top:0;width:365px;height:174px;display:flex;align-items:center;}' +
+    '.st-bot{height:64px;flex-shrink:0;display:flex;align-items:center;gap:8px;padding:0 12px;}' +
+    '.st-led-blk{flex:0 0 132px;height:46px;display:flex;align-items:center;}' +
     '.st-led-num{display:none;}' +
-    '.st-led-mx{width:365px;height:174px;display:grid;grid-template-columns:repeat(10,1fr);grid-template-rows:repeat(5,1fr);gap:5px;' +
+    '.st-led-mx{width:132px;height:46px;display:grid;grid-template-columns:repeat(10,1fr);grid-template-rows:repeat(5,1fr);gap:2px;' +
       'padding:3px;background:#15151b;border:1px solid #4a4a4e;border-radius:2px;box-shadow:inset 0 3px 8px rgba(0,0,0,.7);}' +
     '.st-led-d{border-radius:50%;opacity:.95;background:radial-gradient(circle at 50% 52%,#1d1e24 30%,#787469 33%,#262730 67%);}' +
     '.st-led-mx.l-green .st-led-d.st-led-on{background:radial-gradient(circle,#9dff95 20%,#20c53f 48%,#153b1d 70%);box-shadow:0 0 5px rgba(53,220,70,.55);}' +
@@ -132,16 +133,16 @@ angular.module('beamng.apps').directive('bajastella', function () {
     '.st-led-mx.l-blue .st-led-d.st-led-on{background:radial-gradient(circle,#b5ddff 20%,#2e8fe2 48%,#17344c 70%);box-shadow:0 0 5px rgba(65,150,230,.55);}' +
     '@keyframes stFlash{0%,100%{opacity:1}50%{opacity:.1}}' +
     '.st-led-mx.l-flash .st-led-d.st-led-on{animation:stFlash .55s ease-in-out infinite;}' +
-    '.st-btns{position:absolute;left:365px;top:0;width:487px;height:174px;display:flex;flex-direction:column;justify-content:flex-end;min-width:0;}' +
-    '.st-btn-row{height:122px;display:flex;border:0;box-shadow:none;overflow:visible;position:relative;}' +
+    '.st-btns{flex:1;display:flex;flex-direction:column;justify-content:flex-end;min-width:0;}' +
+    '.st-btn-row{height:41px;display:flex;border-radius:10px;border:1px solid rgba(255,255,255,.1);box-shadow:0 0 16px rgba(0,174,255,.35),0 0 10px rgba(255,50,50,.24);overflow:visible;position:relative;}' +
     '.st-btn{border:none;border-radius:0;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:3px;' +
       'font-family:"Bahnschrift","Segoe UI",sans-serif;font-weight:700;color:#fff;transition:filter .1s,transform .08s;}' +
     '.st-btn:active{transform:scale(.98);filter:brightness(.9);}' +
-    '.st-btn img{display:none;}' +
-    '.st-btn-sos{flex:1;background:transparent;border-radius:20px 0 0 20px;}' +
+    '.st-btn img{width:17px;height:17px;display:block;}' +
+    '.st-btn-sos{flex:1;background:#d82118;border-radius:9px 0 0 9px;}' +
     '.st-btn-sos img{filter:brightness(0) invert(1);}' +
-    '.st-btn-ok{flex:1;background:transparent;font-size:18px;line-height:1;color:transparent;}' +
-    '.st-btn-flag{flex:1;background:transparent;border-left:0;border-radius:0 20px 20px 0;color:transparent;}' +
+    '.st-btn-ok{flex:1;background:#1fa036;font-size:18px;line-height:1;}' +
+    '.st-btn-flag{flex:1;background:#2a9fe5;border-left:1px solid rgba(0,0,0,.25);border-radius:0 9px 9px 0;}' +
     '.st-btn-flag img{filter:brightness(0) invert(1);}' +
     '@keyframes stFlagPulse{0%,100%{box-shadow:0 0 8px rgba(38,162,242,.35) inset}50%{box-shadow:0 0 18px rgba(38,162,242,.88) inset}}' +
     '.st-btn-flag.fl-active{animation:stFlagPulse .9s ease-in-out infinite;}' +
@@ -159,28 +160,6 @@ angular.module('beamng.apps').directive('bajastella', function () {
       'box-shadow:0 4px 12px rgba(0,0,0,.6),inset 0 1px 2px rgba(255,255,255,.08);}' +
     '.st-btn[data-tip]:hover::before{opacity:1;}' +
 
-    /* The photograph is authoritative: these are only transparent interaction and
-       telemetry layers positioned over the matching features in the photograph. */
-    '#stella-dev .lcd-main{display:grid;}' +
-    '#stella-dev .lcd-main.ng-hide{display:none;}' +
-    '#stella-dev .lcd-apr{display:none!important;}' +
-    '#stella-dev .lcd-hdg{font-size:190px;line-height:.78;letter-spacing:-9px;}' +
-    '#stella-dev .lcd-hdg sup{font-size:72px;}' +
-    '#stella-dev .lcd-wp{font-size:55px;line-height:.9;max-width:410px;margin-top:10px;}' +
-    '#stella-dev .lcd-dist-vcp,#stella-dev .lcd-total{font-size:150px;line-height:.78;letter-spacing:-7px;}' +
-    '#stella-dev .lcd-right{min-width:350px;}' +
-    '#stella-dev .lcd-km-lbl{font-size:25px;padding-bottom:14px;}' +
-    '#stella-dev .lcd-odo-lbl{font-size:19px;margin-top:8px;}' +
-    '#stella-dev .lcd-track{font-size:18px;bottom:8px;}' +
-    '#stella-dev .lcd-speed{position:absolute;right:18px;bottom:8px;font-size:25px;letter-spacing:1px;}' +
-    '#stella-dev .st-sos-bar{display:none;}' +
-    '#stella-dev .st-led-num{display:none;}' +
-    '#stella-dev .st-led-mx{background:transparent;border:0;box-shadow:none;}' +
-    '#stella-dev .st-led-d{opacity:.18;}' +
-    '#stella-dev .st-led-msg{position:absolute;inset:8px;z-index:3;display:flex;align-items:center;justify-content:center;' +
-      'color:#f5e36b;text-align:center;font-size:34px;line-height:1.05;font-weight:800;letter-spacing:3px;text-shadow:0 0 8px currentColor;}' +
-    '#stella-dev .st-led-msg.msg-red{color:#ff4538;}#stella-dev .st-led-msg.msg-blue{color:#65b8ff;}' +
-    '#stella-dev .st-led-msg.msg-green{color:#79ed8a;}' +
   '</style>';
 
   // -----------------------------------------------------------------------
@@ -193,7 +172,7 @@ angular.module('beamng.apps').directive('bajastella', function () {
   // HTML Template
   // -----------------------------------------------------------------------
   var HTML =
-    '<div id="stella-dev" ng-class="{\'st-off\': !visible}" ng-mousedown="dragStart($event)" style="width:1280px;height:720px">' +
+    '<div id="stella-dev" ng-class="{\'st-off\': !visible}" ng-mousedown="dragStart($event)" style="width:362px;height:240px">' +
 
       /* Header */
       '<div class="st-hdr">' +
@@ -214,8 +193,8 @@ angular.module('beamng.apps').directive('bajastella', function () {
         '</div>' +
 
         /* Blue flag LCD background overlay */
-          '<div class="lcd-bf-overlay" ng-show="flagState!==\'none\'" ' +
-          'ng-class="{\'bf-incoming\': flagState===\'incoming\', \'bf-requesting\': flagState===\'requested\', \'bf-acknowledged\': flagState===\'delivered\', \'bf-acked\': flagState===\'go\'}">' +
+        '<div class="lcd-bf-overlay" ng-show="flagState!==\'none\'" ' +
+          'ng-class="{\'bf-incoming\': flagState===\'incoming\', \'bf-requesting\': flagState===\'requesting\', \'bf-acknowledged\': flagState===\'acknowledged\', \'bf-acked\': flagState===\'acked\'}">' +
         '</div>' +
 
         /* Speed zone overlay */
@@ -238,7 +217,7 @@ angular.module('beamng.apps').directive('bajastella', function () {
         '</div>' +
 
         /* Normal race mode */
-        '<div class="lcd-main" ng-show="raceActive">' +
+        '<div class="lcd-main" ng-show="raceActive && !approaching">' +
           '<div class="lcd-left">' +
             '<div class="lc lcd-hdg">{{hdg}}<sup>\u00B0</sup></div>' +
             '<div class="lc lcd-wp">{{wpLabel}}</div>' +
@@ -251,7 +230,7 @@ angular.module('beamng.apps').directive('bajastella', function () {
             '<div class="lc-label lcd-odo-lbl">{{tr("stella.unit.odoKm","odo km")}}</div>' +
             '<div class="lc lcd-total">{{tDist}}</div>' +
           '</div>' +
-          '<div class="lc lcd-speed" ng-show="szActive">{{spdMph}} / {{szLimitMph}} mph</div>' +
+          '<div class="lcd-track" ng-show="trackLabel">{{trackLabel}}</div>' +
         '</div>' +
 
         /* Approach mode */
@@ -280,7 +259,6 @@ angular.module('beamng.apps').directive('bajastella', function () {
         '<div class="st-led-blk">' +
           '<div class="st-led-num">{{raceNum}}</div>' +
           '<div class="st-led-mx" ng-class="ledCls">' + dots + '</div>' +
-          '<div class="st-led-msg" ng-class="ledMsgClass">{{ledMessage}}</div>' +
         '</div>' +
         '<div class="st-btns">' +
           '<div class="st-btn-row">' +
@@ -307,10 +285,9 @@ angular.module('beamng.apps').directive('bajastella', function () {
     controller: ['$scope', function ($scope) {
 
       // ---- State ----
-      $scope.visible     = false;
+      $scope.visible     = true;
       $scope.hdg         = '000';
       $scope.spd         = '0';
-      $scope.spdMph      = '0';
       $scope.dVCP        = '00.00';
       $scope.dMeters     = '0';
       $scope.wpName      = '';
@@ -330,8 +307,6 @@ angular.module('beamng.apps').directive('bajastella', function () {
       $scope.ledCls      = '';
       $scope.ledPattern  = 'none';
       $scope._ledMask    = [];
-      $scope.ledMessage  = '';
-      $scope.ledMsgClass = '';
 
       // Speed zone state
       $scope.szActive    = false;
@@ -388,21 +363,6 @@ angular.module('beamng.apps').directive('bajastella', function () {
         if (!color || color === 'off') p = 'none';
         $scope.ledPattern = p;
         $scope._ledMask = ledMask(p);
-      }
-
-      function updateLedMessage() {
-        var msg = '', cls = '';
-        if ($scope.hazardAhead) { msg = '▲'; cls = 'msg-red'; }
-        else if ($scope.breakdownActive) { msg = '▲'; }
-        else if ($scope.flagState === 'incoming') { msg = 'BLUE FLAG'; cls = 'msg-blue'; }
-        else if ($scope.flagState === 'requested') { msg = 'BLUE'; cls = 'msg-blue'; }
-        else if ($scope.flagState === 'delivered') { msg = 'SENT'; cls = 'msg-green'; }
-        else if ($scope.flagState === 'go') { msg = 'GO'; cls = 'msg-green'; }
-        else if ($scope.flagState === 'accepted') { msg = 'PASS'; cls = 'msg-blue'; }
-        else if ($scope.szActive || $scope.szWarning) { msg = ($scope.szExceeding ? '▲ ' : '') + $scope.szLimitMph + ' MPH'; cls = $scope.szExceeding ? 'msg-red' : ''; }
-        else if ($scope.cautionAhead) { msg = '▲ CAUTION'; }
-        $scope.ledMessage = msg;
-        $scope.ledMsgClass = cls;
       }
 
       $scope.ledDotClass = function (idx) {
@@ -525,7 +485,7 @@ angular.module('beamng.apps').directive('bajastella', function () {
       $scope.$on('BajaStella_VCPSound', playVCPSound);
       // Backward compat: old event from race.lua
       $scope.$on('BajaVCP_Sound', playVCPSound);
-      // Volume change from the optional host settings UI
+      // Volume change from BajaConfigs
       $scope.$on('BajaVCP_VolumeChange', function (_ev, vol) {
         vcpAudio.volume = Math.max(0, Math.min(1, vol));
       });
@@ -574,26 +534,24 @@ angular.module('beamng.apps').directive('bajastella', function () {
         $scope.$applyAsync(function () {
           if (!d) return;
           $scope.hdg        = pad(d.heading || 0, 3);
-          $scope.spd        = String(d.speed || 0);
-          $scope.spdMph     = String(Math.round((d.speed || 0) * 0.621371));
+          if ($scope._airKmh == null) $scope.spd = String(d.speed || 0);
           $scope.dVCP       = fmtKm(d.distToVCPkm || 0);
           $scope.dMeters    = String(d.distToVCPm || 0);
           $scope.wpName     = d.vcpName || 'VCP';
-          $scope.wpLabel    = pad(d.validatedVCPs || 0, 2) + '-WP' + (d.vcpIndex || 0) +
-            (d.vcpName ? ' ' + d.vcpName : '');
+          $scope.wpLabel    = pad(d.vcpIndex || 0, 2) + '-' + (d.vcpName || 'WP');
           $scope.wpKm       = d.distToVCPkm != null ? d.distToVCPkm.toFixed(2) : '0.00';
           $scope.tDist      = fmtKm(d.totalDistKm || 0);
           $scope.raceActive = !!(d.raceActive);
           $scope.approaching = !!(d.isApproaching);
           $scope.isStopped  = !!(d.isStopped);
-          $scope.cautionAhead = !!(d.cautionAhead);
+          $scope.cautionAhead = !!(d.cautionAhead || d.hazardAhead);
           $scope.breakdownActive = !!(d.breakdownActive);
           $scope.hazardAhead = !!(d.hazardAhead);
           $scope.flagState  = d.blueFlagState || 'none';
           $scope.flagPlayer = d.blueFlagPlayer || '';
           var pid = (d.playerId != null) ? Number(d.playerId) : NaN;
           $scope.raceNum    = isNaN(pid) ? pad(d.vcpIndex || 0, 4) : pad(Math.max(0, Math.floor(pid)), 4);
-          $scope.trackLabel = '';
+          $scope.trackLabel = d.trackName ? d.trackName.toUpperCase() : '';
 
           // Speed zone data from stella.lua
           $scope.szActive    = !!(d.speedZoneActive);
@@ -603,8 +561,7 @@ angular.module('beamng.apps').directive('bajastella', function () {
           $scope.szLimitMph  = Math.round($scope.szLimit * 0.621371);
           $scope.szName      = d.speedZoneName || '';
 
-           setLedVisual(d.ledColor, d.ledFlash, d.ledPattern);
-           updateLedMessage();
+          setLedVisual(d.ledColor, d.ledFlash, d.ledPattern);
 
           // Update compass SVG in approach mode
           if (d.isApproaching && d.bearingToVCP != null) {
@@ -629,8 +586,7 @@ angular.module('beamng.apps').directive('bajastella', function () {
       // ---- LED event ----
       $scope.$on('BajaStella_LED', function (_ev, d) {
         $scope.$applyAsync(function () {
-           setLedVisual(d && d.color, d && d.flash, d && d.pattern);
-           updateLedMessage();
+          setLedVisual(d && d.color, d && d.flash, d && d.pattern);
         });
       });
 
@@ -640,32 +596,12 @@ angular.module('beamng.apps').directive('bajastella', function () {
           var st = (d && d.state) || 'none';
           $scope.flagState  = (st === 'clear') ? 'none' : st;
           $scope.flagPlayer = (d && d.playerName) || '';
-           updateLedMessage();
+          if (st === 'incoming') { playOvertakeBeep(3); }
         });
-      });
-
-      $scope.$on('BajaStella_AlertSound', function (_ev, d) {
-        var loud = !!(d && d.loud);
-        var a = initSZAudio('beep_corto.mp3');
-        if (!a) return;
-        a.volume = loud ? 1 : vcpAudio.volume;
-        var remaining = loud ? 5 : 3;
-        a.onended = function () {
-          remaining--;
-          if (remaining > 0) setTimeout(function () {
-            try { a.currentTime = 0; a.play(); } catch (_) {}
-          }, loud ? 100 : 200);
-        };
-        try { a.currentTime = 0; a.play(); } catch (_) {}
       });
 
       // ---- VCP crossed (LED green driven by Lua via BajaStella_LED + BajaStella_Update) ----
       $scope.$on('BajaStella_VCPCrossed', function () { /* LED state managed by stella.lua */ });
-
-      // Local GE proximity warnings (the extension handles cooldown/hysteresis).
-      $scope.$on('BajaStella_Proximity', function (_ev, d) {
-        if (d && !d.clear) playOvertakeBeep(d.kind === 'rearApproach' ? 3 : 1);
-      });
 
       // ---- Speed zone events (sound triggers from stella.lua) ----
       $scope.$on('BajaStella_SpeedZone', function (_ev, d) {
@@ -681,10 +617,43 @@ angular.module('beamng.apps').directive('bajastella', function () {
         }
       });
 
-      // ---- Button handlers ----
-      $scope.pressSOS = function () {
-        lua('extensions.bajaStella.requestSOS()');
-      };
+
+      var streamsList = ['electrics'];
+      if (typeof StreamsManager !== 'undefined' && StreamsManager.add) {
+        try { StreamsManager.add(streamsList); } catch (_) {}
+      }
+      $scope.$on('$destroy', function () {
+        if (typeof StreamsManager !== 'undefined' && StreamsManager.remove) {
+          try { StreamsManager.remove(streamsList); } catch (_) {}
+        }
+      });
+      $scope.$on('streamsUpdate', function (_ev, streams) {
+        if (!streams || !streams.electrics) return;
+        var e = streams.electrics;
+        var ms = e.airspeed;
+        if (ms == null || isNaN(ms)) ms = e.wheelspeed;
+        if (ms == null || isNaN(ms)) return;
+        var kmh = Math.round(ms * 3.6);
+        $scope._airKmh = kmh;
+        $scope.$applyAsync(function () { $scope.spd = String(kmh); });
+      });
+
+      $scope.$on('BajaStella_AlertSound', function (_ev, d) {
+        playOvertakeBeep((d && d.loud) ? 5 : 3);
+      });
+      $scope.$on('BajaStella_Proximity', function (_ev, d) {
+        if (d && !d.clear) playOvertakeBeep(d.kind === 'rearApproach' ? 3 : 1);
+      });
+      $scope.$on('BajaStella_Breakdown', function (_ev, d) {
+        $scope.$applyAsync(function () { $scope.breakdownActive = !!(d && d.active); });
+      });
+      $scope.$on('BajaStella_HazardAhead', function (_ev, d) {
+        $scope.$applyAsync(function () {
+          $scope.hazardAhead = !!(d && d.active !== false);
+          if (d && d.active === false) $scope.hazardAhead = false;
+          $scope.cautionAhead = $scope.hazardAhead;
+        });
+      });
       var sosHoldTimer = null;
       $scope.pressSOSStart = function (e) {
         if (e && e.stopPropagation) e.stopPropagation();
@@ -698,14 +667,19 @@ angular.module('beamng.apps').directive('bajastella', function () {
         if (e && e.stopPropagation) e.stopPropagation();
         if (sosHoldTimer) { clearTimeout(sosHoldTimer); sosHoldTimer = null; }
       };
+
+      // ---- Button handlers ----
+      $scope.pressSOS = function () {
+        lua('if extensions.bajaStella then extensions.bajaStella.requestMechanicalBreakdown() elseif extensions.gameCommands then extensions.gameCommands.stellaSOS() end');
+      };
       $scope.pressOK = function () {
-        lua('extensions.bajaStella.acknowledgeBlueFlag()');
+        lua('if extensions.bajaStella then extensions.bajaStella.acknowledgeBlueFlag() elseif extensions.gameCommands then extensions.gameCommands.stellaOK() end');
       };
       $scope.pressFlag = function () {
         if ($scope.flagState === 'incoming') {
-          lua('extensions.bajaStella.acknowledgeBlueFlag()');
+          lua('if extensions.bajaStella then extensions.bajaStella.acknowledgeBlueFlag() elseif extensions.gameCommands then extensions.gameCommands.stellaOK() end');
         } else {
-          lua('extensions.bajaStella.requestBlueFlag()');
+          lua('if extensions.bajaStella then extensions.bajaStella.requestBlueFlag() elseif extensions.gameCommands then extensions.gameCommands.stellaFlag() end');
         }
       };
 
@@ -713,7 +687,7 @@ angular.module('beamng.apps').directive('bajastella', function () {
       // Restore visibility if UI reloaded during an active race
       setTimeout(function () {
         if (typeof bngApi !== 'undefined') {
-          bngApi.engineLua('extensions.bajaStella.requestState()');
+          bngApi.engineLua('if extensions.bajaStella then extensions.bajaStella.requestState() elseif extensions.gameCommands then extensions.gameCommands.requestStellaState() end');
         }
       }, 600);
 

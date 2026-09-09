@@ -82,6 +82,7 @@ end
 local function vehicle()
   return be and be:getPlayerVehicle(0) or nil
 end
+-- Airspeed: world velocity length in km/h. Same quantity as electrics.airspeed.
 local function speedAndHeading(v)
   local vel, fwd = v:getVelocity(), v:getDirectionVector()
   local speed = vel and vel:length() * 3.6 or 0

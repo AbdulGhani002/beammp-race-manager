@@ -104,6 +104,7 @@ def snapshot_fields(uilua):
 def main():
     html = read(os.path.join(APP, "app.html"))
     js = read(os.path.join(APP, "app.js"))
+    css = read(os.path.join(APP, "app.css"))
     uilua = read(os.path.join(LUA, "ui.lua"))
 
     bad = tags_balance(html)
@@ -266,6 +267,34 @@ def main():
     # The client asked the car for a flat before every spare press. The server
     # only wants one during a run and out on the course, so the check refused
     # presses the server would have allowed.
+    # The Stella is his app, and he resizes it. The dash box around it is
+    # mine, and it has to be the same size or the instrument is drawn at a
+    # fraction of itself in the corner. That is exactly what a 1280x720 box
+    # around a 362x240 device looked like on his screen.
+    import json as _json
+    stella_json = _json.loads(read("client/ui/modules/apps/BajaStella/app.json"))
+    want_w = stella_json.get("css", {}).get("width", "")
+    want_h = stella_json.get("css", {}).get("height", "")
+    scale = re.search(r"\.rm-stella-scale \{(.*?)\}", css, re.S)
+    check(scale is not None, "the Stella dash box is gone from app.css")
+    if scale:
+        got_w = re.search(r"width:\s*([0-9]+px)", scale.group(1))
+        got_h = re.search(r"height:\s*([0-9]+px)", scale.group(1))
+        check(got_w is not None and got_w.group(1) == want_w,
+              "the Stella dash box is %s wide but his app.json says %s"
+              % (got_w.group(1) if got_w else "?", want_w))
+        check(got_h is not None and got_h.group(1) == want_h,
+              "the Stella dash box is %s tall but his app.json says %s"
+              % (got_h.group(1) if got_h else "?", want_h))
+
+    # His own sheet draws the device: its border, its shadow, its screen. The
+    # overrides here were for a photograph that is no longer used, and forcing
+    # them onto the drawn one takes his screen apart.
+    stella_css = re.findall(r"\.rm-stella [^{]*\{[^}]*\}", css)
+    check(not any("st-lcd" in r or "box-shadow" in r for r in stella_css),
+          "app.css overrides the Stella's own styling again, which was only "
+          "ever needed for the photograph")
+
     svc = read("client/lua/ge/extensions/raceManager/service.lua")
 
     # A spare is a part swap. The first version let air back into a puncture

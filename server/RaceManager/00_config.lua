@@ -1,6 +1,6 @@
 RM = RM or {}
 
-RM.VERSION = "0.6.4-spare-swaps"
+RM.VERSION = "0.6.5-stella-ui"
 
 RM.config = {
   nameMinLen  = 3,

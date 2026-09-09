@@ -1002,33 +1002,31 @@
 
 .rm-dash-body > * { width: 100%; height: 100%; }
 
-/* The Stella is drawn at the size of the real thing, 1280 by 720, and scaled
-   down to a box on the dash. The outer box has the scaled size so nothing
-   under it is covered by a full screen of nothing. */
+/* The Stella is drawn at the size of the real device and sits on the dash at
+   that size. His first one was a photograph drawn 1280 by 720 and scaled down
+   to fit here; this one is drawn at the size it is meant to be seen, so there
+   is nothing to scale. Both numbers come from its own app.json, and the build
+   fails if they drift apart.
+
+   Nothing of his styling is overridden any more. The old sheet fought the
+   photograph: it had see-through corners that needed the drop shadow killed,
+   and printed numbers under a see-through screen that needed the screen made
+   opaque. There is no photograph now, and the shadow and the border are his
+   design. */
 .rm-stella {
-  --rm-stella-k: 0.28;
+  --rm-stella-k: 1;
   position: absolute;
   left: 18px;
   /* above the damage readout BeamMP keeps in that corner, not on it */
   bottom: 316px;
-  width: calc(1280px * var(--rm-stella-k));
-  height: calc(720px * var(--rm-stella-k));
+  width: calc(362px * var(--rm-stella-k));
+  height: calc(240px * var(--rm-stella-k));
   z-index: 3;
 }
 
-/* The device photograph has see-through corners, and the shadow its own
-   sheet gives it painted a dark box around the whole thing. The photograph
-   carries its own edges. */
-.rm-stella #stella-dev { box-shadow: none; }
-
-/* The photograph is of a running device, with numbers printed on its
-   screen, and the live screen its own sheet lays over them is see-through.
-   Two sets of numbers on one screen. Opaque, so only the live ones show. */
-.rm-stella .st-lcd { background: rgb(196, 224, 250); height: 311px; }
-
 .rm-stella-scale {
-  width: 1280px;
-  height: 720px;
+  width: 362px;
+  height: 240px;
   transform: scale(var(--rm-stella-k));
   transform-origin: top left;
 }
