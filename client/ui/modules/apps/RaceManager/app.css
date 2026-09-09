@@ -80,7 +80,9 @@
 /* top banner */
 .rm-top {
   position: absolute;
-  top: 10px;
+  /* under the strip BeamMP keeps across the top, with the server name and
+     the Leave button in it, which this used to sit on */
+  top: 46px;
   left: 50%;
   transform: translateX(-50%);
   display: flex;
@@ -150,7 +152,7 @@
 /* player list */
 .rm-players {
   position: absolute;
-  top: 64px;
+  top: 100px;
   right: 14px;
   width: 300px;
   max-height: 62vh;
@@ -240,7 +242,8 @@
 
 .rm-panel {
   position: absolute;
-  top: 64px;
+  /* the bar moved down to clear BeamMP's strip, and these open under the bar */
+  top: 100px;
   left: 50%;
   transform: translateX(-50%);
   width: 460px;
@@ -1017,6 +1020,11 @@
    sheet gives it painted a dark box around the whole thing. The photograph
    carries its own edges. */
 .rm-stella #stella-dev { box-shadow: none; }
+
+/* The photograph is of a running device, with numbers printed on its
+   screen, and the live screen its own sheet lays over them is see-through.
+   Two sets of numbers on one screen. Opaque, so only the live ones show. */
+.rm-stella .st-lcd { background: rgb(196, 224, 250); height: 311px; }
 
 .rm-stella-scale {
   width: 1280px;

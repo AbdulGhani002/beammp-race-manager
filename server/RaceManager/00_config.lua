@@ -1,6 +1,6 @@
 RM = RM or {}
 
-RM.VERSION = "0.6.2-no-overlap"
+RM.VERSION = "0.6.3-clear-top"
 
 RM.config = {
   nameMinLen  = 3,
