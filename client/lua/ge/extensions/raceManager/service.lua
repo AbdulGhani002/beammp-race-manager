@@ -342,59 +342,35 @@ local function repairAll(v)
   return placeHere(v, true)
 end
 
--- The tire fix. Air back into every flat and the flat flag cleared, which is
--- what the game's own onboard compressors do, and nothing else on the car is
--- touched. A tire that is torn up or on a broken wheel will not come back
--- from air alone, so that case falls back to the full repair and says so.
-local SPARE_FIX = [[
-  local allFixed = true
-  for _, wd in pairs(wheels.wheels or {}) do
-    if wd.isTireDeflated then
-      if wd.isBroken or not wd.pressureGroupId or not wd.startingPressure then
-        allFixed = false
-      else
-        obj:setGroupPressure(wd.pressureGroupId, wd.startingPressure)
-        wd.isTireDeflated = false
-      end
-    end
-  end
-  obj:queueGameEngineLua("extensions.raceManager_service.onSpareFixed(" .. tostring(allFixed) .. ")")
-]]
-
 -- whether this job is meant to cost a tire off the rack
 local takesSpare = false
 
--- The vehicle answers on its own frame, so the spare reports back late.
---
--- Air first. A puncture with the wheel still under it goes back up where it
--- stands and nothing else on the car is touched, which is most racing flats.
--- Only a tire that is past saving takes the other road, because that one has
--- to rebuild the car and would otherwise hand out a free repair every time.
-function M.onSpareFixed(allFixed)
-  if allFixed then
-    st.which = "spare"
-    report(true, nil)
-    st.which = nil
-    notice("Air back in. One off the rack.")
-    return
-  end
-
-  local ok, why = fitSpare(takesSpare)
-  st.which = "spare"
-  report(ok and true or false, (not ok) and (why or "swap_failed") or nil)
-  st.which = nil
-  notice(ok and "That one was past saving, so a spare went on"
-            or "No spare would go on")
-end
+local WHY = {
+  no_such_action  = "That button does nothing yet",
+  already_working = "One job at a time",
+  no_flat_tire    = "Spare tire is only for a flat",
+  no_session      = "The server has not finished recognising you",
+  no_vehicle      = "Get in a car first",
+  no_tank         = "Nothing on this car takes fuel",
+  repair_failed   = "The car could not be reset",
+  no_spares_left  = "The rack is empty. Pit and re-rack.",
+  pit_only        = "That one is a pit job",
+  no_rack         = "This car carries no spares",
+  no_config       = "The car's parts could not be read",
+  swap_failed     = "The spare would not go on",
+}
 
 local function doJob(which, full)
   local v = playerVehicle()
   if not v then return false, "no_vehicle" end
 
+  -- A spare is a part swap and nothing less: one comes off the rack and the
+  -- car is rebuilt with fresh tires, which is what he asked for and what the
+  -- vehicle selector does. Air alone was tried first, to save the rebuild
+  -- for a tire past mending, and on his screen that read as a button that
+  -- played its sounds and did nothing.
   if which == "spare" then
-    local ok = pcall(function() v:queueLuaCommand(SPARE_FIX) end)
-    if not ok then return false, "repair_failed" end
-    return "async"
+    return fitSpare(takesSpare)
   end
 
   if which == "repair" then
@@ -447,30 +423,14 @@ local function onRun(d)
 
   st.which, st.endsAt, st.hold, st.left = nil, nil, 0, 0
 
-  -- the spare answers from the vehicle's own frame, through onSpareFixed
-  if ok ~= "async" then
-    st.which = which
-    report(ok, why)
-    st.which = nil
-    if not ok then notice((which or "that") .. " could not be done") end
+  st.which = which
+  report(ok and true or false, (not ok) and (why or "failed") or nil)
+  st.which = nil
+  if not ok then
+    notice(WHY[tostring(why)] or ((which or "that") .. " could not be done"))
   end
   extensions.raceManager_ui.push()
 end
-
-local WHY = {
-  no_such_action  = "That button does nothing yet",
-  already_working = "One job at a time",
-  no_flat_tire    = "Spare tire is only for a flat",
-  no_session      = "The server has not finished recognising you",
-  no_vehicle      = "Get in a car first",
-  no_tank         = "Nothing on this car takes fuel",
-  repair_failed   = "The car could not be reset",
-  no_spares_left  = "The rack is empty. Pit and re-rack.",
-  pit_only        = "That one is a pit job",
-  no_rack         = "This car carries no spares",
-  no_config       = "The car's parts could not be read",
-  swap_failed     = "The spare would not go on",
-}
 
 local function onFailed(d)
   if type(d) ~= "table" then return end

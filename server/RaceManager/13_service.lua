@@ -114,7 +114,9 @@ function RM.service.use(pid, d)
     reason = action.penalty,
     lap    = r and r.currentLap or nil,
     full   = inPit,
-    takes  = action.takesSpare and racing or false,
+    -- one comes off the rack every time, run or no run. only the count of
+    -- how many are left is a race thing, and that is kept in report below.
+    takes  = action.takesSpare and true or false,
   }
 
   RM.info(("%s: %s%s"):format(RM.identity.displayName(pid), which,

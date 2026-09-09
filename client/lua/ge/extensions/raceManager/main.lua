@@ -1,6 +1,6 @@
 local M = {}
 
-M.VERSION = "0.6.3-clear-top"
+M.VERSION = "0.6.4-spare-swaps"
 
 -- ui goes last: it reads from every other module the moment it comes up
 local SUBS = {

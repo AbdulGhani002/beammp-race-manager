@@ -161,6 +161,20 @@ RM.service.forget(0)
 local freeSpare = use("spare")
 ok(freeSpare ~= nil, "and free driving needs no flat at all")
 
+section("a spare comes off the rack whether or not a race is on")
+-- His test: press it on an empty server and expect to see a tire go on and a
+-- spare come off. Outside a run the count is not kept, but the part still
+-- goes, or the button looks like it does nothing.
+M.clearOutbox(0)
+M.clientSend(0, "service.use", { which = "spare", spares = 2 })
+tick(1)
+local freeRun = M.lastMessage(0, "service.run")
+ok(freeRun ~= nil, "free driving runs the job straight away")
+eq(freeRun and freeRun.takes, true, "and tells the game to take one off the rack")
+M.clientSend(0, "service.done", { which = "spare", ok = true })
+tick(1)
+eq(RM.service.spares(0), nil, "with no run there is no count to spend")
+
 section("the rack is what limits a spare change")
 -- a car carries what it carries: two on a race truck, one on a UTV, none on
 -- plenty of things. the client counts what is bolted on and the run is seeded
@@ -180,7 +194,15 @@ local function spareRun(spares)
 end
 
 startRun()
-spareRun(2)
+M.clearOutbox(0)
+M.clientSend(0, "service.use", { which = "spare", flat = true, spares = 2 })
+tick(1)
+M.advance(HOLD.spareTire + 1)
+tick(1)
+local racedRun = M.lastMessage(0, "service.run")
+eq(racedRun and racedRun.takes, true, "in a race the job takes one too")
+M.clientSend(0, "service.done", { which = "spare", ok = true })
+tick(1)
 eq(RM.service.spares(0), 1, "a truck with two spares has one left after a change")
 spareRun(2)
 eq(RM.service.spares(0), 0, "and none after the second")

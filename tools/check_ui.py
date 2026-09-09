@@ -267,6 +267,16 @@ def main():
     # only wants one during a run and out on the course, so the check refused
     # presses the server would have allowed.
     svc = read("client/lua/ge/extensions/raceManager/service.lua")
+
+    # A spare is a part swap. The first version let air back into a puncture
+    # and only rebuilt for a tire past saving, and on his screen that was a
+    # button that played its sounds and did nothing.
+    job = re.search(r"local function doJob\(which, full\)(.*?)\nend\n", svc, re.S)
+    check(job is not None and re.search(r'if which == "spare" then\s*return fitSpare\(', job.group(1)),
+          "the spare job no longer swaps the part, so pressing it changes nothing you can see")
+    check("setGroupPressure" not in svc,
+          "service.lua lets air back into a tire again instead of fitting a spare")
+
     ask = re.search(r"local function askFlat\(\)(.*?)\nend\n", svc, re.S)
     check(ask is not None and "isRunning()" in ask.group(1) and "inPit()" in ask.group(1),
           "askFlat demands a flat tire whatever the race state, so the spare "
