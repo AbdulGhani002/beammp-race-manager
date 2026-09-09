@@ -37,6 +37,7 @@ function M.status() return st end
 function M.isRunning() return st.state == "running" end
 function M.isArmed()   return st.state == "armed" end
 function M.isActive()  return st.state == "armed" or st.state == "running" end
+function M.inPit()     return st.inPit and true or false end
 
 local function push()
   extensions.raceManager_ui.push()

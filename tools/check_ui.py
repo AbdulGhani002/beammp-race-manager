@@ -239,6 +239,42 @@ def main():
           "triggers.lua tracks the pit with a flag again, so overlapping pit "
           "boxes cancel each other")
 
+    # Every press has to make a noise. The bar was silent unless a job started
+    # inside a run, so pressing a button on an empty server felt like nothing
+    # had happened at all.
+    for fn in ("bottomClick", "lightPick"):
+        body = re.search(r"\$scope\.%s = function \(.*?\n(.*?)\n      \};" % fn, js, re.S)
+        check(body is not None and "pressClick()" in body.group(1),
+              "%s does not play the press sound, so the button is silent" % fn)
+
+    click = os.path.join(APP, "sounds", "click.mp3")
+    check(os.path.exists(click), "sounds/click.mp3 is missing, so a press is silent")
+    if os.path.exists(click):
+        check(os.path.getsize(click) > 200,
+              "sounds/click.mp3 is empty, so a press is silent")
+
+    # The sound used to be cut the moment the job ended. Outside a run the
+    # server starts and finishes a job in the same breath, so that killed the
+    # pattern before a note of it was heard.
+    sfs = re.search(r"function soundsForState\(data\) \{(.*?)\n      \}", js, re.S)
+    check(sfs is not None and "if (!which) return;" in sfs.group(1),
+          "soundsForState stops the sound when a job ends again, so nothing is "
+          "heard outside a run")
+    check(sfs is not None and "FREE_SOUND_SECS" in sfs.group(1),
+          "a job with no hold gets no sound window, so free driving is silent")
+
+    # The client asked the car for a flat before every spare press. The server
+    # only wants one during a run and out on the course, so the check refused
+    # presses the server would have allowed.
+    svc = read("client/lua/ge/extensions/raceManager/service.lua")
+    ask = re.search(r"local function askFlat\(\)(.*?)\nend\n", svc, re.S)
+    check(ask is not None and "isRunning()" in ask.group(1) and "inPit()" in ask.group(1),
+          "askFlat demands a flat tire whatever the race state, so the spare "
+          "button does nothing on an empty server")
+    check(ask is not None and "(wheels and wheels.wheels)" in ask.group(1),
+          "the flat check reads through wheels without checking it is there, "
+          "so a car without it never answers and the press dies silently")
+
     # The gate has to cover the line the capture car drove. Sliding it onto the
     # road's middle and leaving it there put gates beside the course.
     fitroad = re.search(r"function M\.fitRoad\(.*?\n(.*?)\nend\n", triggers, re.S)

@@ -1,6 +1,6 @@
 RM = RM or {}
 
-RM.VERSION = "0.5.8-store-backup"
+RM.VERSION = "0.5.9-press-sounds"
 
 RM.config = {
   nameMinLen  = 3,

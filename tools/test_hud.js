@@ -38,6 +38,72 @@ function penaltyWords(race) {
   return build(race);
 }
 
+// The bottom bar sounds, against a fake Audio. Node has none, and the pattern
+// is the part that keeps coming back: six bursts for six wheel nuts, a bottle
+// for fuel, drill then hammer and ratchet for a repair, nothing for a
+// reposition. It also has to keep moving when a clip will not play at all.
+function soundRun(which, holdSecs, opts) {
+  opts = opts || {};
+  const played = [];
+  const timers = [];
+
+  function FakeAudio(src) {
+    this.src = src;
+    this.duration = 0.2;
+    this.playbackRate = 1;
+    this.onended = null;
+    this.currentTime = 0;
+    this.pause = function () {};
+    const self = this;
+    this.play = function () {
+      played.push(String(src).split("/").pop());
+      if (opts.neverEnds) return { catch: function () { return this; } };
+      // ended fires on its own, the way a browser would
+      timers.push(setTimeout(function () { if (self.onended) self.onended(); }, 1));
+      return { catch: function () { return this; } };
+    };
+  }
+
+  const sandbox = {
+    Audio: FakeAudio,
+    Date: Date,
+    setTimeout: function (fn, ms) { return setTimeout(fn, Math.min(ms, 2)); },
+    isFinite: isFinite,
+  };
+
+  const body =
+    lift(/var SOUND_URL = [\s\S]*?\n      var soundChain = null;/, "sound header") +
+    lift(/function clip\(name\) \{[\s\S]*?\n      \}/, "clip") +
+    lift(/function stopSounds\(\) \{[\s\S]*?\n      \}/, "stopSounds") +
+    lift(/function runSounds\(steps, endsAt\) \{[\s\S]*?\n      \}/, "runSounds") +
+    lift(/function jobSounds\(which\) \{[\s\S]*?\n      \}/, "jobSounds") +
+    "; return { run: runSounds, steps: jobSounds };";
+
+  const make = new Function("Audio", "setTimeout", "isFinite", body);
+  const api = make(sandbox.Audio, sandbox.setTimeout, sandbox.isFinite);
+  const steps = api.steps(which);
+  if (steps) api.run(steps, Date.now() + holdSecs * 1000);
+  return { played: played, steps: steps, timers: timers };
+}
+
+// waits until the pattern stops growing rather than guessing a duration, so a
+// slower machine does not read a half finished chain as a short one
+function soundPattern(which, holdSecs, opts) {
+  return new Promise(function (res) {
+    const r = soundRun(which, holdSecs, opts);
+    let last = -1, quiet = 0;
+    const tick = setInterval(function () {
+      if (r.played.length === last) quiet++; else { last = r.played.length; quiet = 0; }
+      if (quiet >= 6) {
+        clearInterval(tick);
+        r.timers.forEach(clearTimeout);
+        res(r.played);
+      }
+    }, 15);
+  });
+}
+
+
 let pass = 0, fail = 0;
 function eq(got, want, what) {
   if (got === want) { pass++; return; }
@@ -107,5 +173,38 @@ eq(penaltyWords({ penalties: 2, penaltyBy: { missed_gate: 1, jumpstart: 1 } }),
 eq(penaltyWords({ penalties: 2 }),
    "2 penalties", "and an older server that sends no breakdown still says how many");
 
-console.log(`\n${pass} passed, ${fail} failed`);
-process.exit(fail === 0 ? 0 : 1);
+(async function () {
+  console.log("\n== the sounds the bottom bar makes");
+
+  const spare = await soundPattern("spare", 30);
+  eq(spare.length, 6, "a spare tire is six bursts, one per wheel nut");
+  eq(spare.every(function (n) { return n === "drill.mp3"; }), true, "all of them the drill");
+
+  const fuel = await soundPattern("fuel", 20);
+  eq(fuel.join(","), "fuel.mp3", "fuel is the bottle, once");
+
+  const repair = await soundPattern("repair", 60);
+  eq(repair[0], "drill.mp3", "a repair starts on the drill");
+  eq(repair[1], "hammer.mp3", "then the hammer");
+  eq(repair[2], "ratchet.mp3", "then the ratchet");
+  eq(repair.length, 17, "drill once and eight of each after it");
+
+  const rep = await soundPattern("reposition", 5);
+  eq(rep.length, 0, "reposition stays quiet, which is what he asked for");
+
+  const rerack = await soundPattern("rerack", 30);
+  eq(rerack.length, 0, "and so does re-racking");
+
+  // the hold is what cuts the pattern short
+  const none = await soundPattern("spare", 0);
+  eq(none.length, 0, "a hold that is already over plays nothing at all");
+
+  // Waiting only on the clip ending left the whole pattern stalled after one
+  // note whenever a clip could not be played, and one drill on its own is
+  // exactly what an unattached sound sounds like.
+  const stuck = await soundPattern("spare", 30, { neverEnds: true });
+  eq(stuck.length, 6, "a clip that never ends does not stall the rest");
+
+  console.log(`\n${pass} passed, ${fail} failed`);
+  process.exit(fail === 0 ? 0 : 1);
+})();

@@ -191,10 +191,27 @@ local function askFlat()
   if not v then notice("Get in a car first") return end
   -- caught before anything comes off, so the pit knows what to put back
   rememberRack()
+
+  -- The server only wants a flat while a run is going and you are out on the
+  -- course. Free driving and the pit both fit a spare without one. Asking the
+  -- car first refused presses the server would have allowed, which is what
+  -- made the button look dead on an empty server.
+  local mustBeFlat = extensions.raceManager_race.isRunning()
+                     and not extensions.raceManager_race.inPit()
+  if not mustBeFlat then
+    extensions.raceManager_net.send("service.use",
+      { which = "spare", spares = rackCount() })
+    return
+  end
+
   pendingFlat = true
+  -- wheels is not there in every vehicle's frame. reading through it when it
+  -- is missing threw inside the car's own lua, the reply never came back, and
+  -- the press did nothing at all with nothing on screen to say why.
   v:queueLuaCommand([[
     local flat = false
-    for _, w in pairs(wheels.wheels or {}) do
+    local list = (wheels and wheels.wheels) or {}
+    for _, w in pairs(list) do
       if w.isTireDeflated or w.isBroken then flat = true break end
     end
     obj:queueGameEngineLua("extensions.raceManager_service.onFlat(" .. tostring(flat) .. ")")

@@ -1,6 +1,6 @@
 local M = {}
 
-M.VERSION = "0.5.8-store-backup"
+M.VERSION = "0.5.9-press-sounds"
 
 -- ui goes last: it reads from every other module the moment it comes up
 local SUBS = {

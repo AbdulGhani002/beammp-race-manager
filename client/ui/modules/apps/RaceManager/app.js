@@ -239,6 +239,25 @@ angular.module("beamng.apps")
         return a;
       }
 
+      // A press has to make a noise the moment it happens, whether or not
+      // anything comes of it. Without this the bar was silent unless a job
+      // started inside a run, and every press felt like nothing had happened.
+      // Kept out of the bank on purpose so a job starting cannot cut it off.
+      var clickSound = null;
+
+      function pressClick() {
+        try {
+          if (!clickSound) {
+            clickSound = new Audio(SOUND_URL + "click.mp3");
+            clickSound.preload = "auto";
+          }
+          clickSound.pause();
+          clickSound.currentTime = 0;
+          var p = clickSound.play();
+          if (p && p.catch) p.catch(function () {});
+        } catch (e) {}
+      }
+
       function stopSounds() {
         if (soundChain) { soundChain.dead = true; soundChain = null; }
         for (var k in soundBank) {
@@ -257,16 +276,30 @@ angular.module("beamng.apps")
           if (endsAt && Date.now() >= endsAt) return;
           var step = steps[chain.i++];
           var a = clip(step.name);
+
+          // Each step moves the chain on exactly once, on whichever comes
+          // first: the clip ending, the clip refusing to play, or a timer the
+          // length of the clip. Waiting only on ended left the whole pattern
+          // stalled after one note whenever a clip could not be played, and
+          // one drill on its own is what an unattached sound sounds like.
+          var moved = false;
+          function advance() {
+            if (moved || chain.dead) return;
+            moved = true;
+            setTimeout(next, step.gap || 0);
+          }
+
           try {
             a.pause();
             a.currentTime = 0;
             a.playbackRate = step.rate || 1;
-            a.onended = function () {
-              if (!chain.dead) setTimeout(next, step.gap || 0);
-            };
+            a.onended = advance;
             var p = a.play();
-            if (p && p.catch) p.catch(function () {});
-          } catch (e) {}
+            if (p && p.catch) p.catch(advance);
+          } catch (e) { advance(); }
+
+          var secs = (a.duration && isFinite(a.duration)) ? a.duration : 1;
+          setTimeout(advance, (secs / (step.rate || 1)) * 1000 + 120);
         }
         next();
       }
@@ -293,18 +326,25 @@ angular.module("beamng.apps")
 
       var soundJob = null;
 
+      // Outside a run a job is instant, so there is no hold for the pattern to
+      // follow and it gets a short window of its own instead. Hearing the
+      // tools on an empty server is worth more than keeping them to races.
+      var FREE_SOUND_SECS = 4;
+
       function soundsForState(data) {
         var job = (data && data.service) || {};
         var which = job.which || null;
         if (which === soundJob) return;
         soundJob = which;
 
-        var racing = ((data && data.race) || {}).state === "running";
-        if (which && racing && (job.hold || 0) > 0) {
-          runSounds(jobSounds(which), Date.now() + job.hold * 1000);
-        } else {
-          stopSounds();
-        }
+        // The job finishing is not a reason to cut the sound: outside a run
+        // the server starts and finishes it in the same breath, and stopping
+        // here killed the pattern before a note of it was heard. A new job
+        // stops the old one, and the deadline stops the rest.
+        if (!which) return;
+
+        var secs = (job.hold || 0) > 0 ? job.hold : FREE_SOUND_SECS;
+        runSounds(jobSounds(which), Date.now() + secs * 1000);
       }
 
       var capturePanelShown = false;
@@ -629,6 +669,7 @@ angular.module("beamng.apps")
       // as a menu that would not go away. It shuts on the one you picked; the
       // button opens it again if you want another.
       $scope.lightPick = function (l) {
+        pressClick();
         call("raceManager_bottombar", "light", l.key);
         ui("closeLights");
       };
@@ -672,6 +713,7 @@ angular.module("beamng.apps")
       // the key and the button go through the same lua, so the two cannot
       // disagree about whether the submenu is open
       $scope.bottomClick = function (b) {
+        pressClick();
         // reaching past the open menu for another button means you are done
         // with it, so it goes rather than sitting there over the road
         if (b.key !== "lights" && $scope.s.lights) ui("closeLights");
