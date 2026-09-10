@@ -192,14 +192,30 @@ end
 -- Worse, a grid inside the gate volume never fires at all: the car is already
 -- through it before the run begins, and there is no crossing left to make.
 --
--- So the lineup is taken from gate 1 instead. Square in front of it, back far
--- enough to be clear of the volume, pointing at it. The saved grid keeps the
--- one job it is good at, which is saying where the lap starts.
+-- So the lineup is taken from gate 1. Square in front of it, back far enough
+-- to be clear of the volume, pointing at it. The one exception is a start
+-- line placed on purpose, in front of gate 1 and facing it: that is a grid
+-- somebody chose, and the front row goes there.
 local GRID_SETBACK = 8.0
+local GRID_FACING  = 0.5
+local GRID_REACH   = 150.0
+
+local function placedStart(track, cp)
+  local s = track.start
+  if type(s) ~= "table" or type(s.pos) ~= "table" then return nil end
+  local dx, dy = cp.pos.x - s.pos.x, cp.pos.y - s.pos.y
+  local m = math.sqrt(dx * dx + dy * dy)
+  if m < GRID_SETBACK * 0.5 or m > GRID_REACH then return nil end
+  local yaw = tonumber(s.yaw) or 0
+  if (dx / m) * math.cos(yaw) + (dy / m) * math.sin(yaw) < GRID_FACING then return nil end
+  return { pos = { x = s.pos.x, y = s.pos.y, z = s.pos.z }, yaw = yaw }
+end
 
 function RM.tracks.gridFor(track)
   local cp = track and type(track.checkpoints) == "table" and track.checkpoints[1]
   if not cp then return track and track.start or nil end
+  local placed = placedStart(track, cp)
+  if placed then return placed end
   local yaw = tonumber(cp.yaw) or 0
   return {
     pos = {

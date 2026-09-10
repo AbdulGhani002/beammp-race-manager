@@ -187,6 +187,36 @@ do
   near(m, 8.0, 0.01, "rather than a metre past it facing away")
 end
 
+section("a start line placed on purpose, in front of gate 1 and facing it, is the grid")
+do
+  local t2 = tester()
+  RM.tracks.squareUp(t2)
+  local one = t2.checkpoints[1]
+  local yaw = one.yaw
+  local fx, fy = math.cos(yaw), math.sin(yaw)
+  local function gap1(g)
+    return math.sqrt((one.pos.x - g.pos.x) ^ 2 + (one.pos.y - g.pos.y) ^ 2)
+  end
+
+  t2.start = { pos = { x = one.pos.x - fx * 30, y = one.pos.y - fy * 30, z = one.pos.z }, yaw = yaw }
+  local g = RM.tracks.gridFor(t2)
+  near(g.pos.x, t2.start.pos.x, 0.01, "the front row is where the start line was put")
+  near(g.pos.y, t2.start.pos.y, 0.01, "thirty metres before gate 1")
+  near(g.yaw, yaw, 0.001, "facing the way it was set")
+  local row2 = RM.tracks.gridSpot(t2, 3)
+  local bx, by = row2.pos.x - g.pos.x, row2.pos.y - g.pos.y
+  ok(bx * fx + by * fy < -6, "and the second row is behind it, away from the gate")
+
+  t2.start = { pos = { x = one.pos.x - fx * 300, y = one.pos.y - fy * 300, z = one.pos.z }, yaw = yaw }
+  near(gap1(RM.tracks.gridFor(t2)), 8.0, 0.01, "three hundred metres out was not meant, so gate 1 it is")
+
+  t2.start = { pos = { x = one.pos.x - fx * 30, y = one.pos.y - fy * 30, z = one.pos.z }, yaw = yaw + math.pi }
+  near(gap1(RM.tracks.gridFor(t2)), 8.0, 0.01, "facing away from gate 1 was not meant either")
+
+  t2.start = { pos = { x = one.pos.x, y = one.pos.y, z = one.pos.z }, yaw = yaw }
+  near(gap1(RM.tracks.gridFor(t2)), 8.0, 0.01, "and the default start, gate 1 itself, lines up behind gate 1")
+end
+
 section("a point to point course keeps its order too")
 local ptp = tester()
 ptp.circuit = false

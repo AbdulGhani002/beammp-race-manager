@@ -46,6 +46,15 @@ end
 
 function RM.race.get(pid) return runs[pid] end
 
+-- whether anyone is mid run. the speeds are read for the player list, and a
+-- run in a speed zone needs them read whether or not anyone has the list open.
+function RM.race.anyRunning()
+  for _, r in pairs(runs) do
+    if r.state == "running" then return true end
+  end
+  return false
+end
+
 function RM.race.state(pid)
   local r = runs[pid]
   return r and r.state or "idle"

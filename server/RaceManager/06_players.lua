@@ -177,9 +177,11 @@ local function sample(pid, s)
   end
 end
 
--- called on the roster timer, not every tick, and only while somebody is looking
+-- Called on the roster timer, not every tick, while somebody is looking at
+-- the list or somebody is mid run. The speed zones judge what is read here,
+-- and with the list closed they were judging nothing at all.
 function RM.players.sample()
-  if subs <= 0 then return end
+  if subs <= 0 and not RM.race.anyRunning() then return end
   for pid, s in pairs(RM.identity.sessions()) do
     sample(pid, s)
   end

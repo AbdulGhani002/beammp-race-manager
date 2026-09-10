@@ -272,6 +272,33 @@ eq(RM.race.get(0).penalties[1].reason, "speeding", "named for what it was")
 eq(RM.zones.sample(0, 20), nil, "dropping under resets the meter")
 eq(RM.zones.sample(0, 50), "warn", "so going over again warns again")
 
+section("the zone through the roster: the speed the server reads is the speed it judges")
+-- the checks above fed the rule a number by hand. this is the whole path:
+-- BeamMP reports the car's velocity, the roster turns it into mph, and the
+-- tick judges it, warning the screen first and charging after the grace.
+RM.zones.sample(0, 20)
+M.fire("onVehicleSpawn", 0, 1, "pickup:0-1:{\"jbm\":\"pickup\"}")
+eq(RM.identity.session(0).activeVid, 1, "the car just spawned is the one read")
+local before = #RM.race.get(0).penalties
+eq(RM.players.subscriberCount(), 0, "nobody has the player list open, and it must not matter")
+M.setVelocity(0, 1, 25, 0, 0)
+M.clearOutbox(0)
+tick(10)
+local warned = M.lastMessage(0, "zone.warn")
+ok(warned ~= nil and warned.charged == false, "fifty six mph in a thirty seven zone warns the screen")
+eq(warned and warned.zone and warned.zone.mph, 37, "and says which limit")
+eq(#RM.race.get(0).penalties, before, "with no charge yet")
+tick(40)
+local charged = M.lastMessage(0, "zone.warn")
+ok(charged ~= nil and charged.charged == true, "staying over through the grace charges")
+eq(#RM.race.get(0).penalties, before + 1, "one more speeding penalty on the run")
+ok(M.lastMessage(0, "race.state") ~= nil, "and the run state goes out with it")
+M.setVelocity(0, 1, 5, 0, 0)
+M.clearOutbox(0)
+tick(10)
+eq(M.lastMessage(0, "zone.warn"), nil, "eleven mph is nothing to say")
+eq(#RM.race.get(0).penalties, before + 1, "and nothing more is charged")
+
 section("the zone console")
 RM.tracks.setZonesDirect("loop", {})
 RM.console.handle("rm zone loop 2 4 37")
