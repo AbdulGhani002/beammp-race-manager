@@ -56,7 +56,6 @@
 
     <!-- top banner -->
     <div class="rm-top" rm-move="top" title="Drag the bar to move it">
-      <span class="rm-bar-handle rm-bar-grip" title="Drag to move"></span>
       <img class="rm-mark" src="/ui/modules/apps/RaceManager/logo-round.png" alt="Baja Sim" />
       <button ng-repeat="b in buttons" ng-click="open(b.key)"
               ng-class="{on: panel === b.key, 'rm-danger': b.key === 'race' && raceActive()}"
@@ -161,12 +160,16 @@
         <div ng-if="s.tracks.length">
           <div class="rm-field">Course</div>
           <div class="rm-picklist">
-            <button ng-repeat="t in s.tracks" ng-click="pickTrack(t.id)"
-                    ng-class="{on: entry.track === t.id}">
+            <button ng-repeat="t in trackList() track by t.id" ng-click="pickTrack(t.id)"
+                    ng-class="{on: entry.track === t.id, away: trackAway(t)}">
               <span class="rm-pick-name">{{ t.name }}</span>
-              <span class="rm-pick-note">{{ t.count }} gates</span>
+              <span class="rm-pick-note" ng-if="!trackAway(t)">{{ t.count }} gates</span>
+              <span class="rm-pick-note" ng-if="trackAway(t)">on {{ t.level }}</span>
             </button>
           </div>
+          <p class="rm-hint" ng-if="anyAway()">The greyed courses were built on
+            another map. A server runs one map at a time, so they open up when
+            the server is switched to that map.</p>
 
           <div class="rm-track-meta" ng-if="chosen()">
             {{ chosen().count }} checkpoints &middot;
@@ -206,8 +209,9 @@
             Point to point, so it is one run from the start line to the last checkpoint.</p>
 
           <div class="rm-problem" ng-if="wrongLevel()">
-            That course was built on {{ chosen().level }} and you are on
-            {{ s.level }}. Load that map first.
+            This course was built on {{ chosen().level }}. The server is on
+            {{ s.level }} today and runs one map at a time, so it waits until
+            the server is switched to that map.
           </div>
 
           <div class="rm-pickrow">
@@ -623,7 +627,6 @@
     </div>
 
     <div class="rm-bottom" rm-move="bottom" title="Drag the bar to move it">
-      <span class="rm-bar-handle rm-bar-grip" title="Drag to move"></span>
       <div class="rm-lightmenu" ng-if="s.lights">
         <button ng-repeat="l in lightItems" ng-click="lightPick(l)">{{ l.label }}</button>
       </div>

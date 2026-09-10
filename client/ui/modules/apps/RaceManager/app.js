@@ -221,10 +221,9 @@ angular.module("beamng.apps")
   };
 }])
 
-// A bar is dragged by its handle, the way a window is dragged by its title,
-// and where it ends up is remembered the way the Stella's spot is. No corner
-// to resize from: a bar is as wide as what is on it. The top bar's handle is
-// the badge, the bottom bar's is the ridge at its left end.
+// A bar is dragged from wherever it is taken hold of, and where it ends up is
+// remembered the way the Stella's spot is. No handle to find and no corner
+// to resize from: a bar is as wide as what is on it.
 .directive("rmMove", [function () {
   return {
     restrict: "A",
@@ -248,26 +247,46 @@ angular.module("beamng.apps")
       try { saved = JSON.parse(localStorage.getItem(key)); } catch (e) { }
       if (saved && typeof saved.x === "number") put(saved.x, saved.y);
 
-      // Anywhere on the bar that is not a button takes hold of it. He tried
-      // the bar itself first, found it would not move, and said so. The
-      // handles are still there for whoever looks for them.
-      var handle = node.querySelector(".rm-bar-handle");
-      if (handle) handle.classList.add("rm-handle");
+      // The whole bar takes hold, buttons included. Nearly all of a bar is
+      // buttons, with five pixels between them and six around, and that
+      // sliver was all there was to grab. A press that travels is a drag and
+      // the button under it does not fire. A press that stays put is a click.
+      var SLACK = 5;
+      var dragged = false;
+
+      node.addEventListener("click", function (e) {
+        if (!dragged) return;
+        dragged = false;
+        e.stopPropagation();
+        e.preventDefault();
+      }, true);
+
       node.addEventListener("mousedown", function (e) {
         if (e.button !== 0) return;
         var t = e.target;
         while (t && t !== node) {
           var tag = (t.tagName || "").toLowerCase();
-          if (tag === "button" || tag === "input" || tag === "a" || tag === "select") return;
+          if (tag === "input" || tag === "select") return;
           t = t.parentNode;
         }
         e.preventDefault();
         var r = node.getBoundingClientRect();
         var dx = e.clientX - r.left, dy = e.clientY - r.top;
-        function move(ev) { put(ev.clientX - dx + window.scrollX, ev.clientY - dy + window.scrollY); }
+        var sx = e.clientX, sy = e.clientY;
+        var moving = false;
+        dragged = false;
+        function move(ev) {
+          if (!moving) {
+            if (Math.abs(ev.clientX - sx) < SLACK && Math.abs(ev.clientY - sy) < SLACK) return;
+            moving = true;
+            dragged = true;
+          }
+          put(ev.clientX - dx + window.scrollX, ev.clientY - dy + window.scrollY);
+        }
         function done() {
           document.removeEventListener("mousemove", move);
           document.removeEventListener("mouseup", done);
+          if (!moving) return;
           // written down in page coordinates, which is what left and top
           // are. the game never scrolls this page, but the preview does.
           var q = node.getBoundingClientRect();
@@ -1066,6 +1085,31 @@ angular.module("beamng.apps")
       //
       // Written through functions rather than bound with ng-model because
       // ng-if makes a child scope, and a bare assignment lands on the child.
+      // The courses on this map first, then the ones built elsewhere, said
+      // so. A course belongs to the map it was captured on and a server runs
+      // one map at a time. Cached on the list and the level, since a fresh
+      // array every digest never settles.
+      var listFrom = null, listLevel = null, listCache = [];
+      $scope.trackList = function () {
+        var all = $scope.s.tracks || [], lvl = $scope.s.level || "";
+        if (all !== listFrom || lvl !== listLevel) {
+          listFrom = all; listLevel = lvl;
+          var here = [], away = [];
+          for (var i = 0; i < all.length; i++) {
+            (all[i].level && lvl && all[i].level !== lvl ? away : here).push(all[i]);
+          }
+          listCache = here.concat(away);
+        }
+        return listCache;
+      };
+      $scope.trackAway = function (t) {
+        return !!(t && t.level && $scope.s.level && t.level !== $scope.s.level);
+      };
+      $scope.anyAway = function () {
+        var l = $scope.trackList();
+        return l.length > 0 && $scope.trackAway(l[l.length - 1]);
+      };
+
       $scope.pickTrack = function (id) { $scope.entry.track = id; };
       $scope.pickMode  = function (m)  { $scope.entry.mode = m; };
       $scope.pickKind  = function (k)  { $scope.newTrack.kind = k; };

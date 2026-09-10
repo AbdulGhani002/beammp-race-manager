@@ -135,20 +135,11 @@
   letter-spacing: 0.1em;
 }
 
-/* the ridge you take hold of to move the bottom bar */
-.rm-bar-grip {
-  flex: 0 0 auto;
-  width: 8px;
-  height: 26px;
-  margin: 0 4px 0 2px;
-  border-radius: 4px;
-  background: rgba(255, 255, 255, 0.10);
-  cursor: move;
-}
-.rm-bar-grip:hover { background: rgba(255, 255, 255, 0.22); }
-.rm-bar-grip::after { content: none; }
-/* the bar itself is what you take hold of; the buttons on it still click */
-.rm-top, .rm-bottom { cursor: move; }
+/* The root is click-through so the world under it gets the mouse, and the
+   bars inherited that: only their buttons could be pressed, and the grip, the
+   badge and the gaps were nothing to the mouse. A bar has to say it is solid.
+   The bar itself is what you take hold of; the buttons on it still click. */
+.rm-top, .rm-bottom { pointer-events: auto; cursor: move; }
 .rm-top button, .rm-bottom button { cursor: pointer; }
 
 /* sits under the bottom bar and swallows a click meant for anywhere else */
@@ -1096,3 +1087,8 @@
   color: var(--rm-dim);
 }
 .rm-zone-add input { width: 72px; }
+
+/* a course on another map is still listed, so you know it is there, but it
+   reads as somewhere else rather than as something to pick today */
+.rm-picklist button.away { opacity: 0.5; }
+.rm-picklist button.away.on { opacity: 0.8; }

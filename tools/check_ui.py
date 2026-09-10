@@ -309,9 +309,26 @@ def main():
     # once a course was on show. They are on screen for staff from the start.
     check('<div class="rm-group rm-zones" ng-if="s.isAdmin">' in html,
           "the speed zones hide until a course is shown again, which is where he lost them")
-    # and he took hold of the bar itself, not the handle, so the bar itself drags
-    check("if (tag === \"button\" || tag === \"input\"" in js,
-          "a bar only drags by its handle again, which nobody finds")
+    # and he took hold of a button, which is nearly all of a bar, so a press
+    # that travels drags the bar and a press that stays put is the click
+    check("var SLACK = " in js and 'node.addEventListener("click"' in js,
+          "a bar no longer drags from a press on a button, and a button is "
+          "nearly all there is of a bar")
+    check("rm-bar-grip" not in html and "rm-bar-grip" not in css,
+          "a bar has a special handle on it again, and he asked for none: "
+          "wherever a bar is taken hold of, it moves")
+    check('if (tag === "input" || tag === "select") return;' in js
+          and 'tag === "button"' not in js.split("var SLACK")[0].split("rmMove")[-1],
+          "a press on a bar button is refused as a drag again")
+    check('t in trackList() track by t.id' in html and "trackAway(t)" in html,
+          "the course list no longer says which courses were built on another map")
+    # The root is click-through so the world under it gets the mouse, and the
+    # bars inherited that. Only their buttons could be pressed; the grip, the
+    # badge and the gaps were nothing to the mouse. Two seconds of his
+    # recording are the cursor on the grip and the bar staying put.
+    check(re.search(r"\.rm-top,\s*\.rm-bottom\s*\{[^}]*pointer-events:\s*auto", css) is not None,
+          "the bars are click-through again, so there is nothing to take hold of "
+          "but the buttons")
     check("$scope.zoneAdd" in js and 'cap("setZones"' in js,
           "the speed zone tools are gone from the screen")
 
