@@ -305,6 +305,13 @@ def main():
           "the clock over the road is back on without being asked for")
     check("topLabel(b)" in html and "$scope.topLabel" in js,
           "the Race button no longer turns into End race during a run")
+    # He looked for the zones and did not find them, because they only showed
+    # once a course was on show. They are on screen for staff from the start.
+    check('<div class="rm-group rm-zones" ng-if="s.isAdmin">' in html,
+          "the speed zones hide until a course is shown again, which is where he lost them")
+    # and he took hold of the bar itself, not the handle, so the bar itself drags
+    check("if (tag === \"button\" || tag === \"input\"" in js,
+          "a bar only drags by its handle again, which nobody finds")
     check("$scope.zoneAdd" in js and 'cap("setZones"' in js,
           "the speed zone tools are gone from the screen")
 

@@ -55,9 +55,9 @@
     <div class="rm-scrim" ng-if="anythingOpen()" ng-click="dismiss()"></div>
 
     <!-- top banner -->
-    <div class="rm-top" rm-move="top">
-      <img class="rm-mark rm-bar-handle" src="/ui/modules/apps/RaceManager/logo-round.png"
-           alt="Baja Sim" title="Drag to move" />
+    <div class="rm-top" rm-move="top" title="Drag the bar to move it">
+      <span class="rm-bar-handle rm-bar-grip" title="Drag to move"></span>
+      <img class="rm-mark" src="/ui/modules/apps/RaceManager/logo-round.png" alt="Baja Sim" />
       <button ng-repeat="b in buttons" ng-click="open(b.key)"
               ng-class="{on: panel === b.key, 'rm-danger': b.key === 'race' && raceActive()}"
               >{{ topLabel(b) }}</button>
@@ -474,23 +474,32 @@
                   ng-click="cap('stopPreview')">Hide gates</button>
           <button ng-if="s.capture.showing === t.id" ng-click="cap('refitSaved')"
                   title="Resize every gate to the width of the road under it">Fit to road</button>
+          <button ng-if="s.isAdmin && s.capture.showing !== t.id" ng-click="cap('openTrack', t.id)"
+                  title="Show this course and set speed zones on it">Zones</button>
           <button class="rm-danger" ng-click="cap('deleteTrack', t.id)">Delete</button>
         </div>
 
         <!-- speed zones on the course on show: two gates and a limit. the
              server keeps the list and refuses anyone who is not staff. -->
-        <div class="rm-group rm-zones" ng-if="s.isAdmin && s.capture.shown">
-          <h3>Speed zones on {{ s.capture.shown.name }}</h3>
+        <div class="rm-group rm-zones" ng-if="s.isAdmin">
+          <h3>Speed zones<span ng-if="s.capture.shown"> on {{ s.capture.shown.name }}</span></h3>
           <p class="rm-hint">From one gate to another, in gate order. The car is
             warned first, and charged thirty seconds after three seconds over.</p>
-          <div class="rm-zone" ng-repeat="z in s.capture.shown.zones track by $index">
+          <div ng-if="!s.capture.shown">
+            <p class="rm-empty" ng-if="!s.tracks.length">Save a course first.</p>
+            <p class="rm-hint" ng-if="s.tracks.length">Pick the course to set them on.</p>
+            <div class="rm-pickrow" ng-if="s.tracks.length">
+              <button ng-repeat="t in s.tracks" ng-click="cap('openTrack', t.id)">{{ t.name }}</button>
+            </div>
+          </div>
+          <div class="rm-zone" ng-if="s.capture.shown" ng-repeat="z in s.capture.shown.zones track by $index">
             <span class="rm-zone-gates">Gates {{ z.from }} to {{ z.to }}</span>
             <span class="rm-zone-mph">{{ z.mph }} mph</span>
             <button ng-click="zoneRemove($index)">Remove</button>
           </div>
-          <p class="rm-empty" ng-if="!s.capture.shown.zones.length">No zones on this
-            course yet.</p>
-          <div class="rm-zone-add">
+          <p class="rm-empty" ng-if="s.capture.shown && !s.capture.shown.zones.length">No zones
+            on this course yet.</p>
+          <div class="rm-zone-add" ng-if="s.capture.shown">
             <label>From gate
               <input type="number" min="1" max="{{ s.capture.shown.count }}" ng-model="zoneForm.from" /></label>
             <label>To gate
@@ -519,6 +528,9 @@
           <button ng-click="cap('undo')" ng-disabled="!s.capture.count">Undo last</button>
           <button ng-click="cap('setStart')">Set start line</button>
         </div>
+        <p class="rm-hint">The start line is the grid. Sit where the front row
+          should be, facing the way the race goes, and press it. Everyone who
+          joins a race on this course is put in a row behind that spot.</p>
 
         <!-- a pit is not part of the lap. fuel fills, repairs are free,
              holds still apply -->
@@ -610,7 +622,7 @@
            rm-directive="bajastella" rm-tag="bajastella"></div>
     </div>
 
-    <div class="rm-bottom" rm-move="bottom">
+    <div class="rm-bottom" rm-move="bottom" title="Drag the bar to move it">
       <span class="rm-bar-handle rm-bar-grip" title="Drag to move"></span>
       <div class="rm-lightmenu" ng-if="s.lights">
         <button ng-repeat="l in lightItems" ng-click="lightPick(l)">{{ l.label }}</button>

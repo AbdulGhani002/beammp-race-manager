@@ -248,10 +248,19 @@ angular.module("beamng.apps")
       try { saved = JSON.parse(localStorage.getItem(key)); } catch (e) { }
       if (saved && typeof saved.x === "number") put(saved.x, saved.y);
 
-      var handle = node.querySelector(".rm-bar-handle") || node;
-      handle.classList.add("rm-handle");
-      handle.addEventListener("mousedown", function (e) {
+      // Anywhere on the bar that is not a button takes hold of it. He tried
+      // the bar itself first, found it would not move, and said so. The
+      // handles are still there for whoever looks for them.
+      var handle = node.querySelector(".rm-bar-handle");
+      if (handle) handle.classList.add("rm-handle");
+      node.addEventListener("mousedown", function (e) {
         if (e.button !== 0) return;
+        var t = e.target;
+        while (t && t !== node) {
+          var tag = (t.tagName || "").toLowerCase();
+          if (tag === "button" || tag === "input" || tag === "a" || tag === "select") return;
+          t = t.parentNode;
+        }
         e.preventDefault();
         var r = node.getBoundingClientRect();
         var dx = e.clientX - r.left, dy = e.clientY - r.top;

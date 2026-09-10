@@ -115,6 +115,27 @@ do
      "having been turned more than 30 degrees off the heading that was captured")
 end
 
+section("a gate pointed roughly the way you drive keeps the heading it was given")
+-- his courses: he points the car along the course and presses the key, and
+-- that is where he wants the gate to face. thirty degrees off the line is a
+-- corner entry, not a mistake, and it is left alone.
+do
+  local kept = tester()
+  RM.tracks.squareUp(kept)
+  local g2 = kept.checkpoints[2]
+  local n = #kept.checkpoints
+  local prev = kept.checkpoints[1]
+  local into = math.atan(g2.pos.y - prev.pos.y, g2.pos.x - prev.pos.x)
+  g2.yaw = into + math.rad(30)
+  RM.tracks.squareUp(kept)
+  near(g2.yaw, into + math.rad(30), 1e-9, "thirty degrees off the way in is left as marked")
+  g2.yaw = into + math.rad(80)
+  RM.tracks.squareUp(kept)
+  ok(math.abs(gap(g2.yaw, into + math.rad(80))) > 0.3,
+     "eighty degrees off is a slot, and is squared")
+  ok(squareness(kept, 2) > 0.55, "to something a car can drive through")
+end
+
 section("running it twice changes nothing")
 local twice = tester()
 RM.tracks.squareUp(twice)

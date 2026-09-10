@@ -28,6 +28,7 @@ local HELP = {
   "rm xp <name> <amount>  hand out experience, negative takes it back",
   "rm classes             the race classes, by division",
   "rm gatewidth <course> <metres>   widen every gate on a course",
+  "rm square <course>     turn every gate to face along the course",
   "rm records <id> [class]  the board for a course, whole or one class",
 }
 
@@ -368,6 +369,16 @@ function RM.console.handle(input)
       local ok, why = RM.tracks.setZonesDirect(track.id, zones)
       if ok then say(("zone added: gates %s to %s at %s mph"):format(from, to, mph))
       else say("could not add it: " .. tostring(why)) end
+    end
+  elseif cmd == "square" then
+    local id = rest:match("^square%s+(%S+)%s*$")
+    if not id then
+      say("  usage: rm square <course>. gates face the way the car pointed when marked;")
+      say("  this turns every one along the course instead, for a course captured sideways")
+    else
+      local ok, got = RM.tracks.squareAll(id)
+      if ok then say(("%d of %d gate(s) on %s turned to face along the course"):format(got.turned, got.gates, got.id))
+      else say("could not do it: " .. tostring(got)) end
     end
   elseif cmd == "gatewidth" then
     local id, w = rest:match("^gatewidth%s+(%S+)%s+([%d%.]+)%s*$")

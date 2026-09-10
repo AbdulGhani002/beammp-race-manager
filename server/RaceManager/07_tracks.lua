@@ -76,11 +76,21 @@ end
 -- off the way in, which is the fault being fixed rather than a fix for it.
 local MOST_SWING = math.pi / 4
 
-local function faceAlongTheLine(cps, circuit)
+-- This used to be done to every gate, and on his real courses it turned
+-- them to face each other along the line, which is not where he pointed
+-- them. A gate faces the way the car was pointing when it was marked. Only
+-- one marked so far round from the way you arrive that it would be a slot
+-- rather than a doorway is squared, because that one cannot be driven
+-- through as captured. Measured against the way in, not the swung angle:
+-- the hairpin gate was ninety degrees off the way in and would have hidden
+-- behind the swing.
+local TOO_FAR = math.rad(55)
+
+local function faceAlongTheLine(cps, circuit, every)
   local n = #cps
   if n < 2 then return 0 end
 
-  local want = {}
+  local want, ref = {}, {}
   for i = 1, n do
     local here = cps[i]
     local prev = cps[i - 1] or (circuit and cps[n] or nil)
@@ -96,16 +106,19 @@ local function faceAlongTheLine(cps, circuit)
       local swing = angleGap(away, into) * 0.5
       if swing >  MOST_SWING then swing =  MOST_SWING end
       if swing < -MOST_SWING then swing = -MOST_SWING end
-      want[i] = into + swing
-    elseif ix then want[i] = math.atan(iy, ix)
-    elseif ox then want[i] = math.atan(oy, ox) end
+      want[i], ref[i] = into + swing, into
+    elseif ix then want[i] = math.atan(iy, ix); ref[i] = want[i]
+    elseif ox then want[i] = math.atan(oy, ox); ref[i] = want[i] end
   end
 
   local moved = 0
   for i = 1, n do
     if want[i] then
-      if math.abs(angleGap(want[i], cps[i].yaw or 0)) > 0.05 then moved = moved + 1 end
-      cps[i].yaw = want[i]
+      local off = math.abs(angleGap(ref[i], cps[i].yaw or 0))
+      if every or off > TOO_FAR then
+        if off > 0.05 then moved = moved + 1 end
+        cps[i].yaw = want[i]
+      end
     end
   end
   return moved
@@ -141,18 +154,33 @@ end
 -- Everything above, run over one course. Idempotent: an angle read off the
 -- racing line does not move when it is read again, and nothing here renumbers
 -- anything.
-function RM.tracks.squareUp(track)
+function RM.tracks.squareUp(track, every)
   if type(track) ~= "table" or type(track.checkpoints) ~= "table" then return end
   local problem = gridFacesGateOne(track)
-  local turned = faceAlongTheLine(track.checkpoints, track.circuit and true or false)
+  local turned = faceAlongTheLine(track.checkpoints, track.circuit and true or false, every)
 
   if turned > 0 then
-    RM.info(("%s: squared %d gate%s to the racing line")
-      :format(tostring(track.id), turned, turned == 1 and "" or "s"))
+    RM.info(every
+      and ("%s: squared all %d gate%s to the racing line"):format(
+            tostring(track.id), turned, turned == 1 and "" or "s")
+      or ("%s: %d gate%s marked sideways, squared to the racing line"):format(
+            tostring(track.id), turned, turned == 1 and " was" or "s were"))
   end
   if problem then
     RM.warn(("%s: %s"):format(tostring(track.id), problem))
   end
+  return turned
+end
+
+-- Every gate, the old way, for a course somebody captured with the car
+-- pointing anywhere but along it. From the console only.
+function RM.tracks.squareAll(id)
+  local track = tracks[tostring(id or "")]
+  if not track then return false, "no_such_track" end
+  local turned = RM.tracks.squareUp(track, true) or 0
+  RM.store.markDirty(STORE)
+  RM.store.flushNow(STORE)
+  return true, { id = track.id, turned = turned, gates = #track.checkpoints }
 end
 
 -- Where the cars line up. The saved grid decides which part of a loop the lap

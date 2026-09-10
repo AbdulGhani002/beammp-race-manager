@@ -147,7 +147,9 @@
 }
 .rm-bar-grip:hover { background: rgba(255, 255, 255, 0.22); }
 .rm-bar-grip::after { content: none; }
-.rm-mark.rm-bar-handle { cursor: move; }
+/* the bar itself is what you take hold of; the buttons on it still click */
+.rm-top, .rm-bottom { cursor: move; }
+.rm-top button, .rm-bottom button { cursor: pointer; }
 
 /* sits under the bottom bar and swallows a click meant for anywhere else */
 .rm-scrim {

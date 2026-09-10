@@ -268,6 +268,16 @@ local function wireChannels()
     RM.bus.broadcast("race.lobbies", RM.lobby.list())
   end
 
+  -- A race is somewhere as well as something. Whoever makes one or joins
+  -- one is put on the grid there and then, in the seat they got, so the cars
+  -- gather behind the line while the rest turn up rather than at Start.
+  local function seatOnGrid(pid, lobby)
+    local track = RM.tracks.get(lobby.track)
+    if not track or not track.start then return end
+    local seat = tonumber(lobby.joined[pid]) or 1
+    RM.bus.queue(pid, "race.teleport", RM.tracks.gridSpot(track, seat - 1))
+  end
+
   RM.bus.on("race.create", function(pid, d)
     local ok, result = RM.lobby.create(pid, d)
     if not ok then
@@ -275,6 +285,7 @@ local function wireChannels()
       return
     end
     RM.bus.queue(pid, "race.lobby", RM.lobby.wire(pid))
+    seatOnGrid(pid, result)
     lobbyList()
   end)
 
@@ -285,6 +296,7 @@ local function wireChannels()
       return
     end
     lobbyFan(result)
+    seatOnGrid(pid, result)
     lobbyList()
   end)
 

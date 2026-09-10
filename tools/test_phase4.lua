@@ -110,6 +110,26 @@ eq(#order, 2, "with both drivers in it")
 eq(order[1], 0, "the host has the first grid spot")
 eq(RM.lobby.of(0), nil, "the lobby is gone once it starts")
 
+section("making or joining a race puts you on the grid straight away")
+-- so the cars gather behind the line as they turn up, in the seats they got,
+-- rather than all standing wherever they spawned until the host presses Start
+M.clearOutbox(0)
+M.clientSend(0, "race.create", { track = "loop", laps = 1, open = true })
+tick(1)
+local hostSpot = M.lastMessage(0, "race.teleport")
+ok(hostSpot ~= nil and hostSpot.pos ~= nil, "the host is put on the grid on making the race")
+local mine = RM.lobby.of(0)
+M.clearOutbox(1)
+M.clientSend(1, "race.join", { id = mine.id })
+tick(1)
+local joinSpot = M.lastMessage(1, "race.teleport")
+ok(joinSpot ~= nil and joinSpot.pos ~= nil, "and so is somebody who joins it")
+ok(hostSpot and joinSpot and (math.abs(hostSpot.pos.x - joinSpot.pos.x) > 0.5
+   or math.abs(hostSpot.pos.y - joinSpot.pos.y) > 0.5),
+   "in a different seat, not on top of the host")
+RM.lobby.leave(1)
+RM.lobby.leave(0)
+
 section("the host sets the class once and everybody is armed in it")
 -- his bot announces a race with a class, so the race carries one rather than
 -- every driver being told to pick the same thing

@@ -1,6 +1,6 @@
 local M = {}
 
-M.VERSION = "0.6.6-his-list"
+M.VERSION = "0.6.7-as-pointed"
 
 -- ui goes last: it reads from every other module the moment it comes up
 local SUBS = {
