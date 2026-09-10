@@ -89,6 +89,11 @@ end
 local function modelFrom(data)
   if type(data) ~= "string" or data == "" then return nil end
   local body = data:match("^%s*[%w_]+%s*:%s*(.*)$") or data
+  -- what arrives is name:pid-vid:{...}, and the json starts at the brace.
+  -- handing the whole thing to the decoder lost the model on every spawn,
+  -- and the log said so once a car.
+  local brace = type(body) == "string" and body:find("{", 1, true) or nil
+  if brace and brace > 1 then body = body:sub(brace) end
   local ok, tbl = pcall(Util.JsonDecode, body)
   if ok and type(tbl) == "table" then
     local m = tbl.jbm or tbl.vcf and tbl.vcf.model or tbl.model

@@ -13,7 +13,18 @@ local M = {}
 -- decision, kept apart so it can be tested without a game.
 
 local APP  = "raceManager"
-local TYPE = "beammp"
+
+-- Whether we are on a server at all. BeamMP says so; a game with no BeamMP
+-- is a game driving alone. It used to be judged by the layout being the one
+-- BeamMP names "beammp", and a map that brings its own layout put the
+-- session on a different one, and Race Manager stayed off the screen.
+local function onAServer()
+  local ok, is = pcall(function()
+    return MPCoreNetwork and MPCoreNetwork.isMPSession and MPCoreNetwork.isMPSession()
+  end)
+  return ok and is == true
+end
+M.onAServer = onAServer
 
 -- What the dash inside Race Manager stands in for. BeamMP puts these in
 -- the same corner, and two tachometers on top of each other is what was on
@@ -82,9 +93,12 @@ function M.force()
   end
   if type(a.isEditing) == "function" and a.isEditing() then return false end
 
+  -- somebody driving alone keeps their own layout, whatever it is called
+  if not onAServer() then return false end
+
   local ok, layout = pcall(a.getCurrentLayout)
   if not ok or type(layout) ~= "table" then return false end
-  if layout.type ~= TYPE or type(layout.filename) ~= "string" then return false end
+  if type(layout.filename) ~= "string" then return false end
 
   local action, index, gone = M.decide(layout)
   if action == "fine" and #gone == 0 then return true end
@@ -111,15 +125,17 @@ end
 
 ------------------------------------------------------------------ timing
 
--- BeamMP puts its layout up some moments after the level, so this looks
--- once a second for a while rather than once and giving up.
-local EVERY   = 1.0
-local GIVE_UP = 30.0
+-- BeamMP puts its layout up some moments after the level, and on a big map
+-- that is minutes rather than seconds. So this looks once a second for as
+-- long as it takes, and stops only when it is done. It used to give up after
+-- half a minute, and on a one gigabyte map that was before the layout was
+-- there to be looked at, so Race Manager never came up at all.
+local EVERY = 1.0
 
-local armed, since, total = false, 0, 0
+local armed, since = false, 0
 
 function M.arm()
-  armed, since, total = true, 0, 0
+  armed, since = true, 0
 end
 
 function M.disarm()
@@ -129,10 +145,10 @@ end
 function M.onUpdate(dt)
   if not armed then return end
   dt = tonumber(dt) or 0
-  since, total = since + dt, total + dt
+  since = since + dt
   if since < EVERY then return end
   since = 0
-  if M.force() or total >= GIVE_UP then armed = false end
+  if M.force() then armed = false end
 end
 
 return M

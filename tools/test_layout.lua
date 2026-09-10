@@ -123,12 +123,29 @@ log = function() end
 local function reset() calls = {} end
 local function names() local t = {} for i = 1, #calls do t[i] = calls[i][1] end return table.concat(t, ",") end
 
-section("nothing is touched until the beammp layout is the one on screen")
+-- BeamMP, faked: whether this game is on a server
+MPCoreNetwork = { isMPSession = function() return true end }
+
+section("nothing is touched until there is a layout on screen")
 current = nil
 eq(L.force(), false, "no layout yet, look again later")
-current = { type = "freeroam", filename = "/settings/ui_apps/layouts/default/freeroam.uilayout.json", apps = {} }
-eq(L.force(), false, "somebody driving alone keeps their own layout")
+
+section("somebody driving alone keeps their own layout, whatever it is called")
+MPCoreNetwork.isMPSession = function() return false end
+current = layout({})
+current.filename = "/settings/ui_apps/layouts/default/beammp.uilayout.json"
+eq(L.force(), false, "not on a server, so not touched, even the one named beammp")
 eq(#calls, 0, "and nothing was written")
+MPCoreNetwork.isMPSession = function() return true end
+
+section("on a server, whatever layout is up is the one it goes into")
+-- his new map brought its own layout, and the old rule only knew the one
+-- BeamMP names beammp, so Race Manager stayed off the screen entirely
+reset()
+current = { type = "freeroam", filename = "/settings/ui_apps/layouts/default/freeroam.uilayout.json", apps = {} }
+eq(L.force(), true, "a layout of another name still gets it")
+eq(names(), "add,reload", "added and read back in")
+reset()
 
 section("nor while the layout editor is open")
 current = layout({})
@@ -187,7 +204,7 @@ section("an old game with no layout code is not an error")
 extensions.ui_appLayouts = nil
 eq(L.force(), true, "there is nothing to be done, so it is done")
 
-section("it looks once a second after the level is up, and stops when it is done")
+section("it looks once a second after the level is up, and stops only when it is done")
 extensions.ui_appLayouts = { getCurrentLayout = function() return current end,
   addApp = function() end, applyPlacementPatch = function() end,
   removeApp = function() end, setCurrentLayout = function() end }
@@ -204,17 +221,30 @@ eq(looked, 3, "one more look, and it was fine")
 for _ = 1, 50 do L.onUpdate(0.1) end
 eq(looked, 3, "and no more after that")
 
-section("and gives up after half a minute rather than looking for ever")
+section("and keeps looking for as long as the map takes to come up")
+-- it used to stop after half a minute. a one gigabyte map is still loading
+-- then, and Race Manager never came up on it at all.
 looked = 0
 extensions.ui_appLayouts.getCurrentLayout = function() looked = looked + 1 return nil end
 L.arm()
--- six hundred tenths do not add up to exactly sixty in floating point, so
--- the count is allowed a look either side
-for _ = 1, 600 do L.onUpdate(0.1) end
-ok(looked >= 27 and looked <= 31, ("about thirty looks, not %d"):format(looked))
-local before = looked
+for _ = 1, 3000 do L.onUpdate(0.1) end
+-- tenths do not add up cleanly in floating point, so the count is loose;
+-- what matters is that it is still going
+ok(looked >= 250, ("five minutes in it is still looking, %d looks"):format(looked))
+current = layout({ app("raceManager", L.WANT) })
+current.filename = "f"
+extensions.ui_appLayouts.getCurrentLayout = function() looked = looked + 1 return current end
+for _ = 1, 20 do L.onUpdate(0.1) end
+local seen = looked
 for _ = 1, 100 do L.onUpdate(0.1) end
-eq(looked, before, "and none at all once it has given up")
+eq(looked, seen, "and stops the moment it is done")
+
+section("being disarmed stops it too")
+L.arm()
+L.disarm()
+looked = 0
+for _ = 1, 50 do L.onUpdate(0.1) end
+eq(looked, 0, "leaving the level stops the looking")
 
 print("")
 print(("%d passed, %d failed"):format(pass, fail))

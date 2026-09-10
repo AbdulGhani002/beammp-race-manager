@@ -129,6 +129,14 @@ local function drives(pid, model)
   M.fire("onVehicleSpawn", pid, pid * 10, model .. ':{"jbm":"' .. model .. '"}')
 end
 
+section("the car is read off the spawn as BeamMP really sends it")
+-- from the server log: name, then pid-vid, then the json. the old strip took
+-- one word and one colon and handed 0-0:{...} to the decoder, which is not
+-- json, so the model was lost on every spawn on the live server.
+M.fire("onVehicleSpawn", 1, 10,
+  'guest8493757:1-10:{"pro":"0","abs":"realistic","pos":[-8.9,799.7,129.5],"jbm":"nine","pid":1,"ign":3}')
+eq(RM.players.modelOf(1), "nine", "the model comes out of the real payload")
+
 section("a team needs both of you in the same car")
 drives(1, "pickup")
 drives(2, "bigrig")

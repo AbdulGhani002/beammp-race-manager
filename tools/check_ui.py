@@ -324,6 +324,16 @@ def main():
               and not re.search(r"Veh[ií]culo|Adelantar|ADELANTAR|Confirmar|Asistencia", body),
               "%s has Spanish in it again" % path.split("/")[-1])
 
+    # Hello used to stop for good after a fixed number of tries, and on a big
+    # map every one of them went out before the session existed. Then nothing
+    # came up on his screen at all. It slows down; it never stops.
+    mainlua = read("client/lua/ge/extensions/raceManager/main.lua")
+    check("GIVE_UP_AFTER" not in mainlua and "SLOW_EVERY" in mainlua,
+          "main.lua gives up on hello again, which on a big map is before the map is up")
+    laylua = read("client/lua/ge/extensions/raceManager/layout.lua")
+    check("GIVE_UP" not in laylua and "onAServer" in laylua,
+          "layout.lua gives up or only knows the layout named beammp again")
+
     svc = read("client/lua/ge/extensions/raceManager/service.lua")
 
     # A spare is a part swap. The first version let air back into a puncture
