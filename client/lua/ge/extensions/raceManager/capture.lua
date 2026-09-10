@@ -94,6 +94,17 @@ end
 
 function M.status()
   st.showing = extensions.raceManager_triggers.shownId()
+
+  -- the course on show, with its zones, so the tools can list them. the
+  -- full course is what the server sent when it was opened.
+  local t = extensions.raceManager_state.get().track
+  if st.showing and type(t) == "table" and t.id == st.showing then
+    st.shown = { id = t.id, name = t.name,
+                 count = #(type(t.checkpoints) == "table" and t.checkpoints or {}),
+                 zones = type(t.zones) == "table" and t.zones or {} }
+  else
+    st.shown = nil
+  end
   return st
 end
 
@@ -226,6 +237,20 @@ function M.openTrack(id)
   extensions.raceManager_net.send("track.get", { id = id })
 end
 
+-- the whole list every time. the server keeps the one copy and says what it
+-- kept, and a zone off the end of the course is dropped there, not here.
+function M.setZones(id, zones)
+  if type(id) ~= "string" or id == "" then return end
+  local out = {}
+  for i = 1, #(type(zones) == "table" and zones or {}) do
+    local z = zones[i]
+    if type(z) == "table" then
+      out[#out + 1] = { from = tonumber(z.from), to = tonumber(z.to), mph = tonumber(z.mph) }
+    end
+  end
+  extensions.raceManager_net.send("track.zones", { id = id, zones = out })
+end
+
 function M.stopPreview()
   extensions.raceManager_triggers.stopPreview()
   st.previewing = false
@@ -297,6 +322,13 @@ function M.onResult(d)
     onBegin(d.data or {})
   elseif a == "mark" then
     onMark(d.data or {})
+  elseif a == "zones" then
+    -- the server hands the course back with what it kept. the copy on show
+    -- takes it, so the list on screen is the server's and not our guess.
+    local t = extensions.raceManager_state.get().track
+    if type(d.data) == "table" and type(t) == "table" and t.id == d.data.id then
+      t.zones = d.data.zones or {}
+    end
   elseif a == "pit" then
     st.pits = type(d.data) == "table" and d.data.i or ((st.pits or 0) + 1)
   elseif a == "pitundo" then

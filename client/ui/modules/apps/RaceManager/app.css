@@ -120,13 +120,34 @@
   border-radius: 4px;
 }
 
+/* Floats above the bar rather than sitting in it, so a job counting down
+   does not make the bar grow and shrink under the buttons. */
 .rm-moving {
-  margin-left: 8px;
+  position: absolute;
+  left: 50%;
+  top: -22px;
+  transform: translateX(-50%);
+  margin: 0;
+  white-space: nowrap;
   font-size: 11px;
   color: var(--rm-orange);
   text-transform: uppercase;
   letter-spacing: 0.1em;
 }
+
+/* the ridge you take hold of to move the bottom bar */
+.rm-bar-grip {
+  flex: 0 0 auto;
+  width: 8px;
+  height: 26px;
+  margin: 0 4px 0 2px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.10);
+  cursor: move;
+}
+.rm-bar-grip:hover { background: rgba(255, 255, 255, 0.22); }
+.rm-bar-grip::after { content: none; }
+.rm-mark.rm-bar-handle { cursor: move; }
 
 /* sits under the bottom bar and swallows a click meant for anywhere else */
 .rm-scrim {
@@ -1045,3 +1066,31 @@
   letter-spacing: 0.12em;
   color: var(--rm-dim);
 }
+
+/* speed zones in the course tools */
+.rm-zone {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--rm-line);
+}
+.rm-zone-gates { flex: 1 1 auto; }
+.rm-zone-mph { color: var(--rm-orange); font-variant-numeric: tabular-nums; }
+.rm-zone-add {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 8px;
+  margin-top: 10px;
+}
+.rm-zone-add label {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--rm-dim);
+}
+.rm-zone-add input { width: 72px; }

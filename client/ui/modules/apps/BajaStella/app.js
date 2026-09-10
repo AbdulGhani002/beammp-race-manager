@@ -160,7 +160,37 @@ angular.module('beamng.apps').directive('bajastella', function () {
       'box-shadow:0 4px 12px rgba(0,0,0,.6),inset 0 1px 2px rgba(255,255,255,.08);}' +
     '.st-btn[data-tip]:hover::before{opacity:1;}' +
 
-  '</style>';
+      /* === the look of the real device, from his photograph === */
+    '#stella-dev{background:#0d0e11 repeating-linear-gradient(0deg,rgba(255,255,255,.018) 0 1px,transparent 1px 3px);' +
+      'border:2px solid #4b4d56;border-radius:11px;' +
+      'box-shadow:inset 0 0 0 1px rgba(255,255,255,.10),inset 0 -3px 8px rgba(0,0,0,.85),0 12px 24px rgba(0,0,0,.6);}' +
+    '#stella-dev::before{box-shadow:inset 0 0 0 1px rgba(255,255,255,.06);}' +
+    '#stella-dev .st-hdr{background:linear-gradient(180deg,#1a1b20,#0b0c0f);border-bottom:1px solid rgba(255,255,255,.07);}' +
+    '#stella-dev .st-rnum{color:#c9cbd4;}' +
+    /* the pale blue screen with the fine dot grid the photograph shows */
+    '#stella-dev .st-lcd{background:linear-gradient(180deg,#d3dfec 0%,#c4d2e2 100%);border:1px solid #8b98aa;border-radius:3px;}' +
+    '#stella-dev .st-lcd::before{background-image:radial-gradient(circle,rgba(28,46,105,.13) 0 .6px,transparent .75px);background-size:3px 3px;opacity:1;}' +
+    '#stella-dev .st-lcd::after{box-shadow:inset 0 0 22px rgba(39,70,145,.18);}' +
+    '#stella-dev .lcd-main,#stella-dev .lcd-apr,#stella-dev .lcd-idle{color:#1b2d6b;}' +
+    '#stella-dev .lcd-hdg,#stella-dev .lcd-dist-vcp,#stella-dev .lcd-total,#stella-dev .lcd-wp,#stella-dev .lcd-apr-dm,#stella-dev .lcd-apr-wp{color:#1b2d6b;font-weight:700;}' +
+    /* the big numbers are made of dots on the real thing */
+    '#stella-dev .lcd-hdg,#stella-dev .lcd-dist-vcp,#stella-dev .lcd-total{' +
+      '-webkit-mask-image:radial-gradient(circle,#000 58%,transparent 66%);-webkit-mask-size:3px 3px;-webkit-mask-repeat:repeat;}' +
+    '#stella-dev .lc-label{color:#3f4f86;}' +
+    /* the led block sits on black, with the little serial turned on its side */
+    '#stella-dev .st-led-mx{background:#050507;padding:3px;border-radius:3px;box-sizing:border-box;}' +
+    '#stella-dev .st-led-num{display:block;writing-mode:vertical-rl;transform:rotate(180deg);font-size:9px;font-style:italic;font-weight:700;letter-spacing:1px;color:#9a9ca6;margin-right:3px;}' +
+    /* the three buttons, vivid, with the soft glow they throw on the case */
+    '#stella-dev .st-btn-row{border:1px solid rgba(255,255,255,.12);border-radius:10px;' +
+      'box-shadow:0 0 18px rgba(0,174,255,.38),0 0 14px rgba(255,40,40,.30),0 0 10px rgba(40,220,90,.18);}' +
+    '#stella-dev .st-btn-row .st-btn-sos{background:linear-gradient(180deg,#f0322a,#c81a12);}' +
+    '#stella-dev .st-btn-row .st-btn-ok{background:linear-gradient(180deg,#2fc24a,#178a2c);color:#fff;font-weight:700;}' +
+    '#stella-dev .st-btn-row .st-btn-flag{background:linear-gradient(180deg,#3fb0f2,#1f86cc);}' +
+    '#stella-dev .st-btn:hover{filter:brightness(1.08);}' +
+    /* the bracket under all three, labelled SOS */
+    '#stella-dev .st-sos-lbl{color:#e6e8ee;font-size:9px;letter-spacing:2px;}' +
+    '#stella-dev .st-sos-lbl::before{width:200px;height:1px;background:#8a2a2e;top:-6px;}' +
+    '</style>';
 
   // -----------------------------------------------------------------------
   // LED dot grid (10 cols × 5 rows = 50 dots)
@@ -206,7 +236,7 @@ angular.module('beamng.apps').directive('bajastella', function () {
 
         /* Blue flag overlay */
         '<div class="lcd-flag-overlay" ng-show="flagState===\'incoming\'">' +
-          '<div class="lcd-flag-pill"><span class="lcd-flag-txt lc">{{tr("stella.flag.overtake","ADELANTAR")}} \u2014 {{flagPlayer}}</span></div>' +
+          '<div class="lcd-flag-pill"><span class="lcd-flag-txt lc">{{tr("stella.flag.overtake","OVERTAKE")}} \u2014 {{flagPlayer}}</span></div>' +
         '</div>' +
 
         /* Idle mode */
@@ -262,11 +292,11 @@ angular.module('beamng.apps').directive('bajastella', function () {
         '</div>' +
         '<div class="st-btns">' +
           '<div class="st-btn-row">' +
-            '<button class="st-btn st-btn-sos" ng-mousedown="pressSOSStart($event)" ng-mouseup="pressSOSCancel($event)" ng-mouseleave="pressSOSCancel($event)" ng-touchstart="pressSOSStart($event)" ng-touchend="pressSOSCancel($event)" data-tip="{{tr(\'stella.tip.assistance\',\'Asistencia Mecanica\')}}">' +
+            '<button class="st-btn st-btn-sos" ng-mousedown="pressSOSStart($event)" ng-mouseup="pressSOSCancel($event)" ng-mouseleave="pressSOSCancel($event)" ng-touchstart="pressSOSStart($event)" ng-touchend="pressSOSCancel($event)" data-tip="{{tr(\'stella.tip.assistance\',\'Mechanical assistance\')}}">' +
               '<img src="' + ASSETS + 'sos.svg" alt="">' +
             '</button>' +
-            '<button class="st-btn st-btn-ok" ng-click="pressOK()" ng-mousedown="$event.stopPropagation()" data-tip="{{tr(\'stella.tip.confirm\',\'Confirmar\')}}">OK</button>' +
-            '<button class="st-btn st-btn-flag" ng-click="pressFlag()" ng-mousedown="$event.stopPropagation()" ng-class="{\'fl-active\': flagState!==\'none\'}" data-tip="{{tr(\'stella.tip.overtake\',\'Adelantar\')}}">' +
+            '<button class="st-btn st-btn-ok" ng-click="pressOK()" ng-mousedown="$event.stopPropagation()" data-tip="{{tr(\'stella.tip.confirm\',\'Confirm\')}}">OK</button>' +
+            '<button class="st-btn st-btn-flag" ng-click="pressFlag()" ng-mousedown="$event.stopPropagation()" ng-class="{\'fl-active\': flagState!==\'none\'}" data-tip="{{tr(\'stella.tip.overtake\',\'Overtake\')}}">' +
               '<img src="' + ASSETS + 'blueflag.svg" alt="">' +
             '</button>' +
           '</div>' +

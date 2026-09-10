@@ -156,7 +156,7 @@ end
 function M.onProximityAlert(data)
   proximity=data or {}
   emit("BajaStella_Proximity", proximity)
-  emit("Message", {msg=(proximity.kind=="rearApproach" and "⚠ Vehículo acercándose por detrás" or "⚠ Vehículo cercano"), category="warning"})
+  emit("Message", {msg=(proximity.kind=="rearApproach" and "⚠ Vehicle closing from behind" or "⚠ Vehicle nearby"), category="warning"})
   setLed("yellow", true, "triangle")
 end
 function M.clearProximityAlert() proximity=nil; emit("BajaStella_Proximity", {clear=true}); restoreLed() end
@@ -197,7 +197,7 @@ function M.onRaceManagerPassAlert(data)
     requestId=data.requestId, requesterId=data.requesterId, distanceM=data.distanceM}
   emit("BajaStella_BlueFlag", blueFlag)
   emit("BajaStella_AlertSound", {kind="blueFlag", loud=false, beep=true})
-  emit("Message", {msg="BLUE FLAG: vehículo solicita paso", category="warning"})
+  emit("Message", {msg="BLUE FLAG: vehicle asking to pass", category="warning"})
   restoreLed(); publishAlert()
 end
 function M.onRaceManagerPassStatus(data)
@@ -231,7 +231,7 @@ function M.onRaceManagerBreakdownAlert(data)
     hazardAhead=data
     emit("BajaStella_HazardAhead", data)
     emit("BajaStella_AlertSound", {kind="stoppedVehicle", loud=true, beep=true})
-    emit("Message", {msg="⚠ VEHÍCULO DETENIDO ADELANTE", category="warning"})
+    emit("Message", {msg="⚠ VEHICLE STOPPED AHEAD", category="warning"})
   end
   restoreLed(); publishAlert()
 end

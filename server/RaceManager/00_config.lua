@@ -1,6 +1,6 @@
 RM = RM or {}
 
-RM.VERSION = "0.6.5-stella-ui"
+RM.VERSION = "0.6.6-his-list"
 
 RM.config = {
   nameMinLen  = 3,

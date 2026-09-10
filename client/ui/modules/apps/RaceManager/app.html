@@ -55,10 +55,12 @@
     <div class="rm-scrim" ng-if="anythingOpen()" ng-click="dismiss()"></div>
 
     <!-- top banner -->
-    <div class="rm-top">
-      <img class="rm-mark" src="/ui/modules/apps/RaceManager/logo-round.png" alt="Baja Sim" />
+    <div class="rm-top" rm-move="top">
+      <img class="rm-mark rm-bar-handle" src="/ui/modules/apps/RaceManager/logo-round.png"
+           alt="Baja Sim" title="Drag to move" />
       <button ng-repeat="b in buttons" ng-click="open(b.key)"
-              ng-class="{on: panel === b.key}">{{ b.label }}</button>
+              ng-class="{on: panel === b.key, 'rm-danger': b.key === 'race' && raceActive()}"
+              >{{ topLabel(b) }}</button>
       <button class="rm-players-toggle" ng-click="togglePlayers()"
               ng-class="{on: s.rosterOpen}">Players</button>
     </div>
@@ -402,7 +404,11 @@
         <div class="rm-pickrow">
           <button ng-click="dashToggle('tacho')" ng-class="{on: dash.tacho}">Tachometer</button>
           <button ng-click="dashToggle('stella')" ng-class="{on: dash.stella}">Stella</button>
+          <button ng-click="dashToggle('clock')" ng-class="{on: dash.clock}">Race clock</button>
         </div>
+        <p class="rm-hint">The race clock is the time and penalties over the road
+          during a run. Off by default: penalties are on the results either way.
+          The top and bottom bars drag too, by the badge and by the ridge.</p>
       </div>
 
       <div class="rm-group">
@@ -470,6 +476,30 @@
                   title="Resize every gate to the width of the road under it">Fit to road</button>
           <button class="rm-danger" ng-click="cap('deleteTrack', t.id)">Delete</button>
         </div>
+
+        <!-- speed zones on the course on show: two gates and a limit. the
+             server keeps the list and refuses anyone who is not staff. -->
+        <div class="rm-group rm-zones" ng-if="s.isAdmin && s.capture.shown">
+          <h3>Speed zones on {{ s.capture.shown.name }}</h3>
+          <p class="rm-hint">From one gate to another, in gate order. The car is
+            warned first, and charged thirty seconds after three seconds over.</p>
+          <div class="rm-zone" ng-repeat="z in s.capture.shown.zones track by $index">
+            <span class="rm-zone-gates">Gates {{ z.from }} to {{ z.to }}</span>
+            <span class="rm-zone-mph">{{ z.mph }} mph</span>
+            <button ng-click="zoneRemove($index)">Remove</button>
+          </div>
+          <p class="rm-empty" ng-if="!s.capture.shown.zones.length">No zones on this
+            course yet.</p>
+          <div class="rm-zone-add">
+            <label>From gate
+              <input type="number" min="1" max="{{ s.capture.shown.count }}" ng-model="zoneForm.from" /></label>
+            <label>To gate
+              <input type="number" min="1" max="{{ s.capture.shown.count }}" ng-model="zoneForm.to" /></label>
+            <label>Limit, mph
+              <input type="number" min="5" max="200" ng-model="zoneForm.mph" /></label>
+            <button class="rm-primary" ng-click="zoneAdd()">Add zone</button>
+          </div>
+        </div>
       </div>
 
       <div ng-if="s.capture.active">
@@ -525,7 +555,7 @@
     <!-- the racing clock. up from the moment the line is crossed until the run
          is over, panel open or not, counted locally from a start the server
          gave us. before that a toast says what to do and nothing sits there. -->
-    <div class="rm-hud" ng-if="raceRunning()">
+    <div class="rm-hud" ng-if="raceRunning() && dash.clock">
       <!-- the big number already has the penalties in it, so the total sits
            with the cut count instead of next to the clock, where it read as
            another ninety seconds still to come -->
@@ -580,7 +610,8 @@
            rm-directive="bajastella" rm-tag="bajastella"></div>
     </div>
 
-    <div class="rm-bottom">
+    <div class="rm-bottom" rm-move="bottom">
+      <span class="rm-bar-handle rm-bar-grip" title="Drag to move"></span>
       <div class="rm-lightmenu" ng-if="s.lights">
         <button ng-repeat="l in lightItems" ng-click="lightPick(l)">{{ l.label }}</button>
       </div>
@@ -588,7 +619,6 @@
               ng-disabled="b.key !== 'lights' && (!stopped() || holding() || outOfSpares(b))"
               title="{{ bottomNote(b) }}">{{ bottomLabel(b) }}</button>
       <span class="rm-moving" ng-if="holding()">{{ holdLabel() }} {{ holdLeft() }}s</span>
-      <span class="rm-moving" ng-if="!holding() && !stopped()">stop the car to use these</span>
     </div>
 
 

@@ -221,6 +221,65 @@ angular.module("beamng.apps")
   };
 }])
 
+// A bar is dragged by its handle, the way a window is dragged by its title,
+// and where it ends up is remembered the way the Stella's spot is. No corner
+// to resize from: a bar is as wide as what is on it. The top bar's handle is
+// the badge, the bottom bar's is the ridge at its left end.
+.directive("rmMove", [function () {
+  return {
+    restrict: "A",
+    link: function (scope, element, attrs) {
+      var node = element[0];
+      var key = "rm.bar." + attrs.rmMove;
+      var EDGE = 24;
+
+      function clamp(v, lo, hi) { return v < lo ? lo : (v > hi ? hi : v); }
+
+      function put(x, y) {
+        var r = node.getBoundingClientRect();
+        node.style.left = clamp(x, EDGE - r.width, window.innerWidth - EDGE) + "px";
+        node.style.top = clamp(y, 0, window.innerHeight - EDGE) + "px";
+        node.style.right = "auto";
+        node.style.bottom = "auto";
+        node.style.transform = "none";
+      }
+
+      var saved = null;
+      try { saved = JSON.parse(localStorage.getItem(key)); } catch (e) { }
+      if (saved && typeof saved.x === "number") put(saved.x, saved.y);
+
+      var handle = node.querySelector(".rm-bar-handle") || node;
+      handle.classList.add("rm-handle");
+      handle.addEventListener("mousedown", function (e) {
+        if (e.button !== 0) return;
+        e.preventDefault();
+        var r = node.getBoundingClientRect();
+        var dx = e.clientX - r.left, dy = e.clientY - r.top;
+        function move(ev) { put(ev.clientX - dx + window.scrollX, ev.clientY - dy + window.scrollY); }
+        function done() {
+          document.removeEventListener("mousemove", move);
+          document.removeEventListener("mouseup", done);
+          // written down in page coordinates, which is what left and top
+          // are. the game never scrolls this page, but the preview does.
+          var q = node.getBoundingClientRect();
+          try {
+            localStorage.setItem(key, JSON.stringify({
+              x: q.left + window.scrollX, y: q.top + window.scrollY }));
+          } catch (er) { }
+        }
+        document.addEventListener("mousemove", move);
+        document.addEventListener("mouseup", done);
+      });
+
+      scope.$on("rmReset", function () {
+        try { localStorage.removeItem(key); } catch (e) { }
+        node.style.left = ""; node.style.top = ""; node.style.right = "";
+        node.style.bottom = ""; node.style.transform = "";
+      });
+    }
+  };
+}])
+
 .directive("raceManager", [function () {
   return {
     templateUrl: "/ui/modules/apps/RaceManager/app.html",
@@ -247,12 +306,15 @@ angular.module("beamng.apps")
       // your own screen, so it lives with the window positions and never
       // goes near the server.
       var DASH_KEY = "rm.dash";
-      $scope.dash = { tacho: true, stella: true };
+      // The clock over the road is off unless asked for. He would rather the
+      // penalties turn up on the results than sit on the screen during a run.
+      $scope.dash = { tacho: true, stella: true, clock: false };
       try {
         var savedDash = JSON.parse(localStorage.getItem(DASH_KEY));
         if (savedDash && typeof savedDash === "object") {
           if (typeof savedDash.tacho === "boolean") $scope.dash.tacho = savedDash.tacho;
           if (typeof savedDash.stella === "boolean") $scope.dash.stella = savedDash.stella;
+          if (typeof savedDash.clock === "boolean") $scope.dash.clock = savedDash.clock;
         }
       } catch (e) { }
 
@@ -511,6 +573,9 @@ angular.module("beamng.apps")
       ];
 
       $scope.open = function (key) {
+        // while a race is on, the Race button is the End race button. the
+        // window it would open only had that one button in it anyway.
+        if (key === "race" && $scope.raceActive()) { $scope.endRace(); return; }
         $scope.panel = ($scope.panel === key) ? null : key;
         if ($scope.panel === "team") call("raceManager_race", "teamGet");
         if ($scope.panel === "records") {
@@ -974,6 +1039,16 @@ angular.module("beamng.apps")
         return ($scope.s.race || {}).state === "running";
       };
 
+      // on the grid or on the clock. either way there is a race to end.
+      $scope.raceActive = function () {
+        var st = ($scope.s.race || {}).state;
+        return st === "armed" || st === "running";
+      };
+
+      $scope.topLabel = function (b) {
+        return (b.key === "race" && $scope.raceActive()) ? "End race" : b.label;
+      };
+
       // A native select does not open in the game's interface layer. None of
       // the 116 apps that ship with the game use one, and the one that needs a
       // picker reaches for angular material instead. So these are buttons: they
@@ -1016,6 +1091,34 @@ angular.module("beamng.apps")
       };
 
       $scope.endRace = function () { ui("endRace"); };
+
+      // Speed zones on the course being shown. The whole list goes to the
+      // server every time, because a zone is a rule on the course rather than
+      // a thing of its own, and the server keeps the one copy.
+      $scope.zoneForm = { from: 1, to: 2, mph: 37 };
+
+      function shownZones() {
+        var sh = ($scope.s.capture || {}).shown;
+        return (sh && sh.zones) ? sh.zones.slice() : [];
+      }
+
+      $scope.zoneAdd = function () {
+        var sh = ($scope.s.capture || {}).shown;
+        if (!sh) return;
+        var z = shownZones();
+        z.push({ from: parseInt($scope.zoneForm.from, 10) || 1,
+                 to:   parseInt($scope.zoneForm.to, 10) || 1,
+                 mph:  parseInt($scope.zoneForm.mph, 10) || 37 });
+        $scope.cap("setZones", [sh.id, z]);
+      };
+
+      $scope.zoneRemove = function (i) {
+        var sh = ($scope.s.capture || {}).shown;
+        if (!sh) return;
+        var z = shownZones();
+        z.splice(i, 1);
+        $scope.cap("setZones", [sh.id, z]);
+      };
 
       $scope.raceAgain = function () {
         $scope.opened = null;

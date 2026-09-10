@@ -295,6 +295,28 @@ def main():
           "app.css overrides the Stella's own styling again, which was only "
           "ever needed for the photograph")
 
+    # The things he asked for after the first full test, each one a line
+    # that can quietly come back.
+    check('rm-move="top"' in html and 'rm-move="bottom"' in html,
+          "a bar lost its rm-move, so it cannot be dragged")
+    check("stop the car to use these" not in html,
+          "the bottom bar says stop the car again, and grows to say it")
+    check('ng-if="raceRunning() && dash.clock"' in html,
+          "the clock over the road is back on without being asked for")
+    check("topLabel(b)" in html and "$scope.topLabel" in js,
+          "the Race button no longer turns into End race during a run")
+    check("$scope.zoneAdd" in js and 'cap("setZones"' in js,
+          "the speed zone tools are gone from the screen")
+
+    # The Stella is in English. His own strings were Spanish and his i18n
+    # only covers the labels, not the messages the car sends up.
+    for path in ("client/lua/ge/extensions/bajaStella.lua",
+                 "client/ui/modules/apps/BajaStella/app.js"):
+        body = read(path)
+        check(re.search(r"[\u00e1\u00e9\u00ed\u00f3\u00fa\u00f1\u00c1\u00c9\u00cd\u00d3\u00da\u00d1]", body) is None
+              and not re.search(r"Veh[ií]culo|Adelantar|ADELANTAR|Confirmar|Asistencia", body),
+              "%s has Spanish in it again" % path.split("/")[-1])
+
     svc = read("client/lua/ge/extensions/raceManager/service.lua")
 
     # A spare is a part swap. The first version let air back into a puncture
