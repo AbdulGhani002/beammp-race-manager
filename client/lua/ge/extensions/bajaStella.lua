@@ -36,6 +36,14 @@ local function setLed(color, flash, pattern)
   led = {color=color or "off", flash=flash or false, pattern=pattern or "none"}
   emit("BajaStella_LED", led)
 end
+-- the limit the way he reads it, in mph, for the dots to spell out
+local function zoneMph(z)
+  if type(z) ~= "table" then return 0 end
+  local mph = tonumber(z.limitMph)
+  if not mph then mph = num(z.limitKmh or z.speedLimitKmh) * 0.621371 end
+  return math.floor(mph + 0.5)
+end
+local function limitPattern(z) return "limit:" .. tostring(zoneMph(z)) end
 local function zoneIdentity(z)
   if type(z) ~= "table" then return "" end
   return table.concat({
@@ -59,9 +67,9 @@ local function restoreLed()
   elseif proximity then
     setLed("yellow", true, "triangle")
   elseif zone and zone.upcoming and zone.advanceWarned then
-    setLed("yellow", false, "all")
+    setLed("yellow", true, limitPattern(zone))
   elseif zone and not zone.upcoming then
-    if lastExceeding then setLed("red", true, "all") else setLed("yellow", false, "all") end
+    setLed("red", lastExceeding and true or false, limitPattern(zone))
   else
     setLed("off", false, "none")
   end
@@ -314,7 +322,7 @@ function M.onUpdate(dt)
       {event="normalized"})
     if ledUntil == 0 then restoreLed() end
   end
-  emit("BajaStella_Update",{heading=math.floor(heading),speed=math.floor(speed),distToVCPm=math.floor(dist),distToVCPkm=dist/1000,vcpName=name,vcpIndex=nextCheckpoint,validatedVCPs=validatedCheckpoints,totalVCPs=total,totalDistKm=odo/1000,raceActive=not not race.active,raceStarted=not not race.started,bearingToVCP=math.floor(bearing),isApproaching=approach,trackName=race.trackName or "",isStopped=speed<1.5,breakdownActive=breakdown,hazardAhead=hazardAhead~=nil,blueFlagState=blueFlag.state,blueFlagPlayer=blueFlag.playerName,ledColor=led.color,ledFlash=led.flash,ledPattern=led.pattern,speedZoneActive=zoneActive,speedZoneWarning=zone~=nil and zone.upcoming and zone.advanceWarned,speedZoneName=zone and zone.name or "",speedZoneLimit=zone and num(zone.limitKmh or zone.speedLimitKmh) or 0,speedExceeding=exceeding})
+  emit("BajaStella_Update",{heading=math.floor(heading),speed=math.floor(speed),distToVCPm=math.floor(dist),distToVCPkm=dist/1000,vcpName=name,vcpIndex=nextCheckpoint,validatedVCPs=validatedCheckpoints,totalVCPs=total,totalDistKm=odo/1000,raceActive=not not race.active,raceStarted=not not race.started,bearingToVCP=math.floor(bearing),isApproaching=approach,trackName=race.trackName or "",isStopped=speed<1.5,breakdownActive=breakdown,hazardAhead=hazardAhead~=nil,blueFlagState=blueFlag.state,blueFlagPlayer=blueFlag.playerName,ledColor=led.color,ledFlash=led.flash,ledPattern=led.pattern,speedZoneActive=zoneActive,speedZoneWarning=zone~=nil and zone.upcoming and zone.advanceWarned,speedZoneName=zone and zone.name or "",speedZoneLimit=zone and num(zone.limitKmh or zone.speedLimitKmh) or 0,speedZoneLimitMph=zone and zoneMph(zone) or 0,speedExceeding=exceeding})
 end
 
 function M.onExtensionLoaded() setLed("off",false,"none") end

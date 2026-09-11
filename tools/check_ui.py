@@ -314,6 +314,28 @@ def main():
     check("var SLACK = " in js and 'node.addEventListener("click"' in js,
           "a bar no longer drags from a press on a button, and a button is "
           "nearly all there is of a bar")
+    # The Stella and the speed zones, the way he described them: the limit in
+    # flashing yellow about 100 m before, steady red inside, flashing red over,
+    # and gone after. His extension had yellow inside and never spelt the number.
+    bs = read("client/lua/ge/extensions/bajaStella.lua")
+    bridge = read("client/lua/ge/extensions/raceManager/stella.lua")
+    stella_ui = read("client/ui/modules/apps/BajaStella/app.js")
+    check('setLed("yellow", true, limitPattern(zone))' in bs,
+          "a zone ahead no longer flashes the limit in yellow on the Stella")
+    check('setLed("red", lastExceeding and true or false, limitPattern(zone))' in bs,
+          "inside a zone the Stella no longer sits red with the limit, flashing when over")
+    check("warnDistance = 100," in bridge and "limitMph = mph," in bridge,
+          "the bridge no longer warns at a hundred metres with the limit in mph")
+    check("p.indexOf('limit:') === 0" in stella_ui and "function digitRows" in stella_ui,
+          "the Stella dots no longer spell the limit")
+    check('ng-show="szActive || szWarning"' in stella_ui,
+          "the Stella screen no longer shows the limit for a zone ahead")
+    # and the race panel says what zones a course has, so nobody drives one
+    # expecting a penalty it cannot give
+    check("rm-track-zones" in html and "No speed zones on this course" in html,
+          "the race panel no longer says which speed zones a course has")
+    check("zones = type(t.zones) == \"table\" and t.zones or {}," in read("server/RaceManager/07_tracks.lua"),
+          "the course list no longer carries the zones, so the race panel cannot show them")
     check("rm-bar-grip" not in html and "rm-bar-grip" not in css,
           "a bar has a special handle on it again, and he asked for none: "
           "wherever a bar is taken hold of, it moves")

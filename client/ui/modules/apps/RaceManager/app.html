@@ -176,6 +176,13 @@
             {{ chosen().circuit ? "circuit" : "point to point" }} &middot;
             {{ chosen().level }}
           </div>
+          <div class="rm-track-meta rm-track-zones" ng-if="chosen()">
+            <span ng-if="chosen().zones.length">Speed zones:
+              <span ng-repeat="z in chosen().zones">gates {{ z.from }} to {{ z.to }} at
+                <b>{{ z.mph }} mph</b>{{ $last ? "" : ", " }}</span></span>
+            <span ng-if="!chosen().zones.length">No speed zones on this course<span
+              ng-if="s.isAdmin">. Set them under Course tools</span>.</span>
+          </div>
 
           <div class="rm-field">Driving with</div>
           <div class="rm-pickrow">

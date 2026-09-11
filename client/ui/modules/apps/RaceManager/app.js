@@ -938,6 +938,7 @@ angular.module("beamng.apps")
 
       var PENALTY = {
         missed_gate: "Missed checkpoint",
+        speeding:    "Speeding before gate",
         recovery:    "Recovery",
         flatTire:    "Spare tire",
         repair:      "Repair"

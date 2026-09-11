@@ -561,9 +561,12 @@ function RM.tracks.summary()
   local out, n = {}, 0
   for id, t in pairs(tracks) do
     n = n + 1
+    -- the zones ride along: a handful of small tables, and the race panel
+    -- says what a course has before anyone drives it expecting a penalty
     out[n] = {
       id = id, name = t.name, kind = t.kind, level = t.level,
       circuit = t.circuit, count = #t.checkpoints,
+      zones = type(t.zones) == "table" and t.zones or {},
     }
   end
   return out

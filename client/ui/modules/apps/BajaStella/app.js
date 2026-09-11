@@ -109,6 +109,11 @@ angular.module('beamng.apps').directive('bajastella', function () {
     '.lcd-sz-label.sz-red{color:#8b1a12;animation:szPulse .6s ease-in-out infinite;}' +
     '.lcd-sz-unit{font-size:14px;font-weight:700;color:#6b6232;margin-left:2px;}' +
     '.lcd-sz-unit.sz-red{color:#8b1a12;}' +
+    /* the three states he described: ahead flashes yellow, inside sits red, over flashes red */
+    '.lcd-sz-overlay.sz-ahead{background:rgba(212,170,18,.10);}' +
+    '.lcd-sz-limit.sz-yellow,.lcd-sz-unit.sz-yellow,.lcd-sz-label.sz-yellow{color:#8a6300;animation:szPulse .6s ease-in-out infinite;}' +
+    '.lcd-sz-limit.sz-in,.lcd-sz-unit.sz-in,.lcd-sz-label.sz-in{color:#8b1a12;animation:none;}' +
+    '.lcd-sz-limit.sz-red,.lcd-sz-unit.sz-red{animation:szPulse .6s ease-in-out infinite;}' +
 
     /* === Blue flag LCD overlay === */
     '.lcd-bf-overlay{position:absolute;inset:0;z-index:8;pointer-events:none;}' +
@@ -228,9 +233,9 @@ angular.module('beamng.apps').directive('bajastella', function () {
         '</div>' +
 
         /* Speed zone overlay */
-        '<div class="lcd-sz-overlay" ng-show="szActive" ng-class="{\x27sz-warn\x27: szActive && !szExceeding, \x27sz-exceed\x27: szExceeding}">' +
-          '<div class="lcd-sz-label" ng-class="{\x27sz-red\x27: szExceeding}">{{szExceeding ? tr("stella.speedZone.limit","\\u26A0 SPEED LIMIT") : tr("stella.speedZone.zone","SPEED ZONE")}}</div>' +
-          '<div class="lcd-sz-limit" ng-class="{\x27sz-red\x27: szExceeding}">{{szLimitMph}}<span class="lcd-sz-unit" ng-class="{\x27sz-red\x27: szExceeding}">mph</span></div>' +
+        '<div class="lcd-sz-overlay" ng-show="szActive || szWarning" ng-class="{\x27sz-ahead\x27: szWarning && !szActive, \x27sz-warn\x27: szActive && !szExceeding, \x27sz-exceed\x27: szExceeding}">' +
+          '<div class="lcd-sz-label" ng-class="{\x27sz-red\x27: szExceeding, \x27sz-in\x27: szActive && !szExceeding, \x27sz-yellow\x27: szWarning && !szActive}">{{szExceeding ? tr("stella.speedZone.limit","\\u26A0 SPEED LIMIT") : (szActive ? tr("stella.speedZone.zone","SPEED ZONE") : tr("stella.speedZone.ahead","SPEED ZONE AHEAD"))}}</div>' +
+          '<div class="lcd-sz-limit" ng-class="{\x27sz-red\x27: szExceeding, \x27sz-in\x27: szActive && !szExceeding, \x27sz-yellow\x27: szWarning && !szActive}">{{szLimitMph}}<span class="lcd-sz-unit" ng-class="{\x27sz-red\x27: szExceeding, \x27sz-in\x27: szActive && !szExceeding, \x27sz-yellow\x27: szWarning && !szActive}">mph</span></div>' +
           '<div class="lcd-sz-label" ng-show="szExceeding" ng-class="{\x27sz-red\x27: szExceeding}">{{tr("stella.speedZone.reduce","REDUCE SPEED")}}</div>' +
         '</div>' +
 
@@ -358,6 +363,37 @@ angular.module('beamng.apps').directive('bajastella', function () {
       }
       function lua(cmd) { if (typeof bngApi !== 'undefined') bngApi.engineLua(cmd); }
 
+      // Two digits on ten by five dots, four wide each with a gap between.
+      // Anything the dots cannot spell lights them all, as before.
+      var DIGITS = {
+        '0': ['1111', '1001', '1001', '1001', '1111'],
+        '1': ['0010', '0110', '0010', '0010', '0111'],
+        '2': ['1111', '0001', '1111', '1000', '1111'],
+        '3': ['1111', '0001', '0111', '0001', '1111'],
+        '4': ['1001', '1001', '1111', '0001', '0001'],
+        '5': ['1111', '1000', '1111', '0001', '1111'],
+        '6': ['1111', '1000', '1111', '1001', '1111'],
+        '7': ['1111', '0001', '0010', '0100', '0100'],
+        '8': ['1111', '1001', '1111', '1001', '1111'],
+        '9': ['1111', '1001', '1111', '0001', '1111']
+      };
+      function digitRows(text) {
+        var n = parseInt(text, 10);
+        if (isNaN(n) || n < 0 || n > 99) {
+          return ['1111111111', '1111111111', '1111111111', '1111111111', '1111111111'];
+        }
+        var s = String(n);
+        var rows = [];
+        for (var r = 0; r < 5; r++) {
+          if (s.length === 1) {
+            rows.push('000' + DIGITS[s][r] + '000');
+          } else {
+            rows.push(DIGITS[s.charAt(0)][r] + '00' + DIGITS[s.charAt(1)][r]);
+          }
+        }
+        return rows;
+      }
+
       function ledMask(pattern) {
         var p = pattern || 'none';
         var rows;
@@ -369,6 +405,8 @@ angular.module('beamng.apps').directive('bajastella', function () {
           rows = ['1101110110', '1001010100', '1101010110', '0101010010', '1101110110'];
         } else if (p === 'none') {
           rows = ['0000000000', '0000000000', '0000000000', '0000000000', '0000000000'];
+        } else if (p.indexOf('limit:') === 0) {
+          rows = digitRows(p.slice(6));
         } else {
           rows = ['1111111111', '1111111111', '1111111111', '1111111111', '1111111111'];
         }
@@ -588,7 +626,7 @@ angular.module('beamng.apps').directive('bajastella', function () {
           $scope.szWarning   = !!(d.speedZoneWarning);
           $scope.szExceeding = !!(d.speedExceeding);
           $scope.szLimit     = d.speedZoneLimit || 0;
-          $scope.szLimitMph  = Math.round($scope.szLimit * 0.621371);
+          $scope.szLimitMph  = d.speedZoneLimitMph || Math.round($scope.szLimit * 0.621371);
           $scope.szName      = d.speedZoneName || '';
 
           setLedVisual(d.ledColor, d.ledFlash, d.ledPattern);

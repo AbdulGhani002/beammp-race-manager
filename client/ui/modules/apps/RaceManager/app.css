@@ -766,6 +766,7 @@
 
 .rm-race label { display: block; margin: 10px 0 0; }
 .rm-race .rm-track-meta { margin: 4px 0 2px; }
+.rm-track-zones b { color: var(--rm-orange); font-weight: 600; }
 .rm-armed { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin: 6px 0 10px; }
 .rm-armed .rm-big { font-size: 30px; color: var(--rm-yellow); }
 

@@ -329,6 +329,11 @@ function M.onResult(d)
     if type(d.data) == "table" and type(t) == "table" and t.id == d.data.id then
       t.zones = d.data.zones or {}
     end
+    -- and says so, because a zone nobody can see saved is a penalty nobody
+    -- expects to be missing
+    local n = type(d.data) == "table" and type(d.data.zones) == "table" and #d.data.zones or 0
+    extensions.raceManager_state.notice(n == 0 and "No speed zones on this course now"
+      or ("Speed zones saved: %d on %s"):format(n, tostring(d.data.name or d.data.id)))
   elseif a == "pit" then
     st.pits = type(d.data) == "table" and d.data.i or ((st.pits or 0) + 1)
   elseif a == "pitundo" then

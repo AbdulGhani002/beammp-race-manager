@@ -98,15 +98,17 @@ local function updateZones(track, nextCp)
       and isUpcoming == lastZoneUpcoming then return end
 
   -- Stella owns the warning distance.  The entry checkpoint and position are
-  -- supplied so it can warn approximately 90 m before entry.
+  -- supplied so it can warn about 100 m before entry, which is what he asked
+  -- for. The limit goes in mph as well, so the dots spell the number he set.
   local entry = checkpoint(track, z.from)
   local sent = call("setSpeedZone", {
     name = z.name or ("Zone " .. tostring(chosen.i)),
     limitKmh = kph,
+    limitMph = mph,
     upcoming = isUpcoming,
     entryCheckpoint = tonumber(z.from),
     entryPosition = position(entry),
-    warnDistance = 90,
+    warnDistance = 100,
   })
   if sent then
     lastZoneKey, lastZoneKph = key, kph

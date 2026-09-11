@@ -1,6 +1,6 @@
 RM = RM or {}
 
-RM.VERSION = "0.6.10-front-row"
+RM.VERSION = "0.6.11-limit-lit"
 
 RM.config = {
   nameMinLen  = 3,
