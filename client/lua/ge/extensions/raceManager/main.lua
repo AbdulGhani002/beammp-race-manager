@@ -1,6 +1,6 @@
 local M = {}
 
-M.VERSION = "0.6.12-first-zone"
+M.VERSION = "0.6.13-let-go"
 
 -- ui goes last: it reads from every other module the moment it comes up
 local SUBS = {
@@ -95,6 +95,7 @@ end
 -- would hold up the results for everybody else on the course.
 local function onClientEndMission()
   extensions.raceManager_layout.disarm()
+  extensions.raceManager_service.onLevelUnloaded()
   extensions.raceManager_race.onLevelUnloaded()
   extensions.raceManager_triggers.clear()
   extensions.raceManager_capture.onLevelUnloaded()

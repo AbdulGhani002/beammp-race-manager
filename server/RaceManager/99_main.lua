@@ -222,6 +222,10 @@ local function wireChannels()
   RM.bus.on("race.end", function(pid)
     local ok = RM.race.endRace(pid)
     if not ok then return end
+    if RM.service.busy(pid) then
+      RM.info(("%s ended the run with a job still held; the job is dropped"):format(
+        RM.identity.displayName(pid)))
+    end
     RM.service.forget(pid)
     RM.bus.queue(pid, "race.state", RM.race.wire(pid))
     RM.results.onRunEnded(pid)

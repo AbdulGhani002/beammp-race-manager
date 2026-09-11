@@ -347,6 +347,18 @@ def main():
         check(False, "app.js calls an array method on a list from the game without list(): " + bad)
     check("$scope.zoneProblem" in js and 'ng-disabled="zoneProblem()"' in html,
           "the zone form no longer refuses a zone that runs nowhere")
+    # A hold locks the gearbox. The car that was locked is let go by id, a
+    # server that goes quiet lets it go after a grace, and leaving the level
+    # forgets it. An engine that revs with a car that will not move is what a
+    # leak here looks like from the seat.
+    svc_hold = read("client/lua/ge/extensions/raceManager/service.lua")
+    check("local frozenId" in svc_hold and "be:getObjectByID(frozenId)" in svc_hold,
+          "the hold no longer remembers which car it locked")
+    check("local GRACE = " in svc_hold and "if left < -GRACE then" in svc_hold,
+          "a hold the server never finishes keeps the car locked again")
+    check("function M.onLevelUnloaded" in svc_hold
+          and "raceManager_service.onLevelUnloaded()" in read(os.path.join(LUA, "main.lua")),
+          "leaving the level no longer forgets a hold")
     check("rm-bar-grip" not in html and "rm-bar-grip" not in css,
           "a bar has a special handle on it again, and he asked for none: "
           "wherever a bar is taken hold of, it moves")

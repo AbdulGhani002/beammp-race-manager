@@ -259,8 +259,29 @@ end
 
 ------------------------------------------------------------ doing it
 
+-- A hold locks the gearbox, so the engine revs and the car goes nowhere.
+-- That is the one thing here that could leave somebody stuck, so the car
+-- that was locked is remembered by id and that car is the one let go, not
+-- whichever one the player happens to be in by then.
+local frozenId = nil
+
 local function freeze(v, on)
-  pcall(function() core_vehicleBridge.executeAction(v, "setFreeze", on and true or false) end)
+  local ok = pcall(function() core_vehicleBridge.executeAction(v, "setFreeze", on and true or false) end)
+  if on then
+    local okId, id = pcall(function() return v:getID() end)
+    frozenId = (ok and okId) and id or nil
+  end
+end
+
+local function unfreeze(v)
+  local held = nil
+  if frozenId then
+    local ok, o = pcall(function() return be:getObjectByID(frozenId) end)
+    held = ok and o or nil
+  end
+  if held then freeze(held, false) end
+  if v and v ~= held then freeze(v, false) end
+  frozenId = nil
 end
 
 -- a quarter of a tank on the road, the whole tank in the pit
@@ -403,7 +424,7 @@ local function onHold(d)
 
   if st.hold > 0 then
     local v = playerVehicle()
-    if v then freeze(v, true) end
+    if v then unfreeze(nil); freeze(v, true) end
     local cost = tonumber(d.penalty)
     notice(cost and ("%s: %ds, and %ds on the clock"):format(st.which, st.hold, cost)
                  or ("%s: %ds"):format(st.which, st.hold))
@@ -417,7 +438,7 @@ local function onRun(d)
   local full = type(d) == "table" and d.full == true
   takesSpare = type(d) == "table" and d.takes == true
   local v = playerVehicle()
-  if v then freeze(v, false) end
+  unfreeze(v)
 
   local ok, why = doJob(which, full)
 
@@ -434,8 +455,7 @@ end
 
 local function onFailed(d)
   if type(d) ~= "table" then return end
-  local v = playerVehicle()
-  if v and st.which then freeze(v, false) end
+  if st.which then unfreeze(playerVehicle()) end
   st.which, st.endsAt, st.hold, st.left = nil, nil, 0, 0
   notice(WHY[tostring(d.why)] or ("That did not work: " .. tostring(d.why)))
   extensions.raceManager_ui.push()
@@ -443,18 +463,36 @@ end
 
 -- a run that ends while a car is held would leave it stuck
 function M.release()
-  if not st.which then return end
-  local v = playerVehicle()
-  if v then freeze(v, false) end
+  if not st.which and not frozenId then return end
+  unfreeze(playerVehicle())
   st.which, st.endsAt, st.hold, st.left = nil, nil, 0, 0
   extensions.raceManager_ui.push()
 end
+
+-- the level going away takes the cars with it; nothing is held any more
+function M.onLevelUnloaded()
+  frozenId = nil
+  st.which, st.endsAt, st.hold, st.left = nil, nil, 0, 0
+end
+
+-- how long past the end of a hold the server gets to say the job may run
+-- before the car is let go anyway
+local GRACE = 5.0
 
 local shown = -1
 
 local function onUpdate()
   if not st.endsAt then return end
   local left = st.endsAt - extensions.raceManager_clock.now()
+
+  -- The server says when the hold is up and the job may run. If that word
+  -- never comes, the car must not stay locked waiting for it.
+  if left < -GRACE then
+    notice((st.which or "The job") .. " was dropped by the server, so the car is let go")
+    M.release()
+    return
+  end
+
   if left < 0 then left = 0 end
   st.left = left
 
