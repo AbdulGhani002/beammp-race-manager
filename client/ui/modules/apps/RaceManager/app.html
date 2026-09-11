@@ -517,8 +517,9 @@
               <input type="number" min="1" max="{{ s.capture.shown.count }}" ng-model="zoneForm.to" /></label>
             <label>Limit, mph
               <input type="number" min="5" max="200" ng-model="zoneForm.mph" /></label>
-            <button class="rm-primary" ng-click="zoneAdd()">Add zone</button>
+            <button class="rm-primary" ng-disabled="zoneProblem()" ng-click="zoneAdd()">Add zone</button>
           </div>
+          <div class="rm-problem" ng-if="s.capture.shown && zoneProblem()">{{ zoneProblem() }}</div>
         </div>
       </div>
 

@@ -374,7 +374,9 @@ function RM.tracks.setZonesDirect(id, zones)
     local from = math.floor(tonumber(z.from) or 0)
     local to   = math.floor(tonumber(z.to) or 0)
     local mph  = tonumber(z.mph) or 0
-    if from >= 1 and from <= n and to >= 1 and to <= n and mph > 0 then
+    -- a zone runs from one gate on to a later one. one that ends where it
+    -- starts covers no road, and would sit in the list looking like it does.
+    if from >= 1 and from <= n and to > from and to <= n and mph > 0 then
       out[#out + 1] = { from = from, to = to, mph = mph }
     end
   end
@@ -510,6 +512,12 @@ function RM.tracks.finishCapture(pid)
 
   RM.tracks.squareUp(draft)
 
+  -- a course saved over one that had zones loses them: the gates were
+  -- marked afresh, so the old numbers mean nothing. the saver is told.
+  local old = tracks[draft.id]
+  local droppedZones = old and type(old.zones) == "table" and #old.zones or 0
+  draft.droppedZones = droppedZones > 0 and droppedZones or nil
+
   draft.replaces = nil
   draft.savedAt = os.time()
   tracks[draft.id] = draft
@@ -521,8 +529,19 @@ function RM.tracks.finishCapture(pid)
   RM.store.flushNow(DSTORE)
   RM.info(("track %s saved: %d checkpoints on %s"):format(
     draft.id, #draft.checkpoints, draft.level))
+  if droppedZones > 0 then
+    RM.info(("%d speed zone(s) on the old %s were dropped with it"):format(droppedZones, draft.id))
+  end
 
   RM.tracks.broadcastList()
+  local told = draft.droppedZones
+  draft.droppedZones = nil
+  if told then
+    local copy = {}
+    for k, v in pairs(draft) do copy[k] = v end
+    copy.droppedZones = told
+    return true, copy
+  end
   return true, draft
 end
 

@@ -1,6 +1,6 @@
 local M = {}
 
-M.VERSION = "0.6.11-limit-lit"
+M.VERSION = "0.6.12-first-zone"
 
 -- ui goes last: it reads from every other module the moment it comes up
 local SUBS = {

@@ -192,6 +192,41 @@ B.onUpdate(0.2)
 z, sent = lastZoneCall()
 ok(sent and z == nil, "past gate 4 the zone is taken down")
 
+section("two zones back to back hand over at the shared gate")
+track.zones = { { from = 1, to = 2, mph = 37 }, { from = 2, to = 4, mph = 20 } }
+status.next, status.done = 2, 1
+B.onUpdate(0.2)
+z = lastZoneCall()
+eq(z and z.upcoming, false, "past gate 1, the first is on")
+eq(z and z.limitMph, 37, "at thirty seven")
+status.next, status.done = 3, 2
+B.onUpdate(0.2)
+z = lastZoneCall()
+eq(z and z.upcoming, false, "past gate 2, the second is on")
+eq(z and z.limitMph, 20, "at twenty")
+status.next, status.done = 5, 4
+B.onUpdate(0.2)
+z, sent = lastZoneCall()
+ok(sent and z == nil, "past gate 4 there is nothing")
+
+section("a zone from the start line comes round again on the next lap")
+track.zones = { { from = 1, to = 2, mph = 37 } }
+status.next, status.done = 1, 4
+B.onUpdate(0.2)
+z = lastZoneCall()
+eq(z and z.upcoming, true, "waiting on the line, the zone from gate 1 is ahead")
+eq(z and z.entryPosition and z.entryPosition.x, 0, "with the start line as its entry")
+
+section("the Stella hands over from one zone to the next, exit then enter")
+events = {}
+S.setSpeedZone({ name = "A", limitKmh = 59.5, limitMph = 37, upcoming = false, entryCheckpoint = 1 })
+S.setSpeedZone({ name = "B", limitKmh = 32.2, limitMph = 20, upcoming = false, entryCheckpoint = 2 })
+local kinds = {}
+for _, e in ipairs(events) do if e.name == "BajaStella_SpeedZone" then kinds[#kinds + 1] = e.data.event end end
+eq(table.concat(kinds, ","), "enter,exit,enter", "the first begins, then ends as the second begins")
+eq(led().pattern, "limit:20", "and the dots spell the new limit")
+S.setSpeedZone(nil)
+
 print("")
 if fail > 0 then
   print(("%d passed, %d failed"):format(pass, fail))

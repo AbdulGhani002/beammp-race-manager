@@ -1053,8 +1053,8 @@ angular.module("beamng.apps")
         var l = $scope.s.race.lobby;
         if (!l) return [];
         var inRace = {};
-        (l.members || []).forEach(function (m) { inRace[m.id] = true; });
-        return ($scope.s.roster || []).filter(function (p) { return !inRace[p.id]; });
+        list(l.members).forEach(function (m) { inRace[m.id] = true; });
+        return list($scope.s.roster).filter(function (p) { return !inRace[p.id]; });
       };
 
       $scope.raceIdle = function () {
@@ -1092,7 +1092,7 @@ angular.module("beamng.apps")
       // array every digest never settles.
       var listFrom = null, listLevel = null, listCache = [];
       $scope.trackList = function () {
-        var all = $scope.s.tracks || [], lvl = $scope.s.level || "";
+        var all = list($scope.s.tracks), lvl = $scope.s.level || "";
         if (all !== listFrom || lvl !== listLevel) {
           listFrom = all; listLevel = lvl;
           var here = [], away = [];
@@ -1151,18 +1151,40 @@ angular.module("beamng.apps")
       // a thing of its own, and the server keeps the one copy.
       $scope.zoneForm = { from: 1, to: 2, mph: 37 };
 
+      // A list the game sends over empty arrives as {}, not []: its encoder
+      // cannot tell an empty list from an empty table. So .slice() on the
+      // zones of a course that had none yet threw, and the first zone anyone
+      // tried to add on any course was never sent. He pressed the button and
+      // nothing happened, and the server log never saw a zone saved.
+      function list(x) { return Array.isArray(x) ? x : []; }
+
       function shownZones() {
         var sh = ($scope.s.capture || {}).shown;
-        return (sh && sh.zones) ? sh.zones.slice() : [];
+        return sh ? list(sh.zones).slice() : [];
       }
+
+      // what is wrong with the zone about to be added, or nothing
+      $scope.zoneProblem = function () {
+        var sh = ($scope.s.capture || {}).shown;
+        if (!sh) return "";
+        var from = parseInt($scope.zoneForm.from, 10);
+        var to   = parseInt($scope.zoneForm.to, 10);
+        var mph  = parseInt($scope.zoneForm.mph, 10);
+        var n    = parseInt(sh.count, 10) || 0;
+        if (!(from >= 1) || !(to >= 1)) return "Both gates are needed.";
+        if (from > n || to > n) return "This course only has " + n + " gates.";
+        if (to <= from) return "To gate has to come after From gate. A zone runs from one gate on to a later one.";
+        if (!(mph >= 5)) return "The limit has to be at least 5 mph.";
+        return "";
+      };
 
       $scope.zoneAdd = function () {
         var sh = ($scope.s.capture || {}).shown;
-        if (!sh) return;
+        if (!sh || $scope.zoneProblem()) return;
         var z = shownZones();
-        z.push({ from: parseInt($scope.zoneForm.from, 10) || 1,
-                 to:   parseInt($scope.zoneForm.to, 10) || 1,
-                 mph:  parseInt($scope.zoneForm.mph, 10) || 37 });
+        z.push({ from: parseInt($scope.zoneForm.from, 10),
+                 to:   parseInt($scope.zoneForm.to, 10),
+                 mph:  parseInt($scope.zoneForm.mph, 10) });
         $scope.cap("setZones", [sh.id, z]);
       };
 

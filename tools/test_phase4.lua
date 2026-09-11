@@ -299,6 +299,83 @@ tick(10)
 eq(M.lastMessage(0, "zone.warn"), nil, "eleven mph is nothing to say")
 eq(#RM.race.get(0).penalties, before + 1, "and nothing more is charged")
 
+section("a zone that ends where it starts is refused, not kept")
+RM.tracks.setZonesDirect("loop", { { from = 3, to = 3, mph = 37 }, { from = 4, to = 2, mph = 37 },
+                                   { from = 2, to = 4, mph = 37 } })
+eq(#RM.tracks.get("loop").zones, 1, "only the one that runs somewhere is kept")
+eq(RM.tracks.get("loop").zones[1].from, 2, "from gate 2")
+eq(RM.tracks.get("loop").zones[1].to, 4, "to gate 4")
+
+section("two zones back to back each cover their own stretch")
+RM.tracks.setZonesDirect("loop", { { from = 2, to = 3, mph = 37 }, { from = 3, to = 5, mph = 20 } })
+eq(RM.zones.at("loop", 3) and RM.zones.at("loop", 3).mph, 37, "the drive to gate 3 is the first")
+eq(RM.zones.at("loop", 4) and RM.zones.at("loop", 4).mph, 20, "the drive to gate 4 is the second")
+eq(RM.zones.at("loop", 5) and RM.zones.at("loop", 5).mph, 20, "and so is the drive to gate 5")
+eq(RM.zones.at("loop", 2), nil, "before either there is nothing")
+
+section("a zone to the last gate ends there: the run back to the line is free")
+RM.tracks.setZonesDirect("loop", { { from = 4, to = 5, mph = 20 } })
+eq(RM.zones.at("loop", 5) and RM.zones.at("loop", 5).mph, 20, "the drive to gate 5 is limited")
+eq(RM.zones.at("loop", 6), nil, "the drive from gate 5 back to the line is not")
+
+section("the limit itself is not over it")
+RM.tracks.setZonesDirect("loop", { { from = 2, to = 4, mph = 37 } })
+RM.race.clear(0)
+RM.race.arm(0, { id = "loop", mode = "controller", laps = 2 })
+M.advance(5)
+RM.race.gate(0, 1, RM.now())
+M.advance(2)
+RM.race.gate(0, 2, RM.now())
+eq(RM.zones.sample(0, 37), nil, "thirty seven in a thirty seven zone is fine")
+eq(RM.zones.sample(0, 38), "warn", "thirty eight is not")
+
+section("the second lap is judged like the first")
+for _ = 1, 12 do RM.zones.sample(0, 50) end
+eq(#RM.race.get(0).penalties, 1, "charged once on lap one")
+M.advance(2) RM.race.gate(0, 3, RM.now())
+M.advance(2) RM.race.gate(0, 4, RM.now())
+M.advance(2) RM.race.gate(0, 5, RM.now())
+eq(RM.zones.sample(0, 50), nil, "out of the zone, the speed is nobody's business")
+M.advance(2) RM.race.gate(0, 1, RM.now())
+M.advance(2) RM.race.gate(0, 2, RM.now())
+eq(RM.race.get(0).currentLap, 2, "on lap two")
+eq(RM.zones.sample(0, 50), "warn", "the same zone warns again")
+for _ = 1, 12 do RM.zones.sample(0, 50) end
+eq(#RM.race.get(0).penalties, 2, "and charges again")
+RM.race.clear(0)
+
+section("saving a course over one that had zones says the zones went with it")
+RM.tracks.setZonesDirect("loop", { { from = 2, to = 4, mph = 37 } })
+M.clientSend(0, "track.begin",
+  { id = "loop", name = "Loop", kind = "race", level = "utah_sc", circuit = true, overwrite = true })
+tick(1)
+for i = 1, 3 do
+  M.advance(1)
+  M.clientSend(0, "track.mark", { pos = { x = i * 100, y = 0, z = 0 }, yaw = 0 })
+  tick(1)
+end
+M.clearOutbox(0)
+M.clientSend(0, "track.finish", {})
+tick(1)
+local fin = M.lastMessage(0, "capture.result")
+eq(fin and fin.action, "finish", "the save came back")
+eq(fin and fin.data and fin.data.droppedZones, 1, "and says one zone was dropped")
+eq(#RM.tracks.get("loop").zones, 0, "the new course has none")
+eq(RM.tracks.get("loop").droppedZones, nil, "and the count is not kept on the course")
+-- the loop is five gates again for what follows
+M.clientSend(0, "track.begin",
+  { id = "loop", name = "Loop", kind = "race", level = "utah_sc", circuit = true, overwrite = true })
+tick(1)
+for i = 1, 5 do
+  M.advance(1)
+  M.clientSend(0, "track.mark", { pos = { x = i * 100, y = 0, z = 0 }, yaw = 0 })
+  tick(1)
+end
+M.clearOutbox(0)
+M.clientSend(0, "track.finish", {})
+tick(1)
+eq(M.lastMessage(0, "capture.result").data.droppedZones, nil, "no zones on the old one, nothing to say")
+
 section("the zone console")
 RM.tracks.setZonesDirect("loop", {})
 RM.console.handle("rm zone loop 2 4 37")

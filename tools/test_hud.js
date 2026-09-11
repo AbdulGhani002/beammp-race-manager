@@ -25,6 +25,20 @@ const lapProgress = new Function("race",
   lift(/\$scope\.lapProgress = function \(\) \{[\s\S]*?\n      \};/, "lapProgress") +
   "return $scope.lapProgress();");
 
+// The zone editor, given what the game really sends for a course with no
+// zones yet: an empty object, because its encoder cannot tell an empty list
+// from an empty table. This is the button that did nothing.
+const zoneEditor = new Function("shown", "form",
+  "var sent = [];" +
+  "var $scope = { s: { capture: { shown: shown } }, zoneForm: form," +
+  "  cap: function (fn, v) { sent.push({ fn: fn, v: v }); } };" +
+  lift(/function list\(x\) \{[\s\S]*?\}/, "list") +
+  lift(/function shownZones\(\) \{[\s\S]*?\n      \}/, "shownZones") +
+  lift(/\$scope\.zoneProblem = function \(\) \{[\s\S]*?\n      \};/, "zoneProblem") +
+  lift(/\$scope\.zoneAdd = function \(\) \{[\s\S]*?\n      \};/, "zoneAdd") +
+  lift(/\$scope\.zoneRemove = function \(i\) \{[\s\S]*?\n      \};/, "zoneRemove") +
+  "return { add: $scope.zoneAdd, remove: $scope.zoneRemove, problem: $scope.zoneProblem, sent: sent };");
+
 // penaltyWords reads the scope too, and it caches on the breakdown it was
 // given, so each call gets a fresh copy of the whole thing
 function penaltyWords(race) {
@@ -172,6 +186,47 @@ eq(penaltyWords({ penalties: 2, penaltyBy: { missed_gate: 1, jumpstart: 1 } }),
    "1 cut, 1 penalty", "anything unknown is still counted, just not named");
 eq(penaltyWords({ penalties: 2 }),
    "2 penalties", "and an older server that sends no breakdown still says how many");
+
+function ok(cond, what) { if (cond) { pass++; return; } fail++; console.log(`  FAIL  ${what}`); }
+function section(t) { console.log("\n== " + t); }
+
+section("the first zone on a course goes through, with the game's empty object for a list");
+{
+  const ed = zoneEditor({ id: "c", name: "C", count: 6, zones: {} }, { from: 3, to: 5, mph: 37 });
+  eq(ed.problem(), "", "a zone from gate 3 to 5 is fine on a six gate course");
+  ed.add();
+  eq(ed.sent.length, 1, "it is sent");
+  eq(ed.sent[0] && ed.sent[0].fn, "setZones", "as the whole list");
+  eq(JSON.stringify(ed.sent[0] && ed.sent[0].v), '["c",[{"from":3,"to":5,"mph":37}]]', "with the one zone in it");
+}
+
+section("a second zone keeps the first, and removing one sends what is left");
+{
+  const ed = zoneEditor({ id: "c", name: "C", count: 6, zones: [{ from: 1, to: 2, mph: 20 }] }, { from: 3, to: 5, mph: 37 });
+  ed.add();
+  eq(JSON.stringify(ed.sent[0].v[1]), '[{"from":1,"to":2,"mph":20},{"from":3,"to":5,"mph":37}]', "both zones");
+  // the list on screen is the server's answer, so removing works off what
+  // the server kept, not off what was just sent
+  const ed2 = zoneEditor({ id: "c", count: 6, zones: [{ from: 1, to: 2, mph: 20 }, { from: 3, to: 5, mph: 37 }] }, {});
+  ed2.remove(0);
+  eq(JSON.stringify(ed2.sent[0].v[1]), '[{"from":3,"to":5,"mph":37}]', "the second one alone");
+}
+
+section("a zone that runs nowhere is refused before it is sent");
+{
+  let ed = zoneEditor({ id: "c", count: 6, zones: {} }, { from: 4, to: 4, mph: 37 });
+  ok(/after From/.test(ed.problem()), "to gate equal to from gate: " + ed.problem());
+  ed.add();
+  eq(ed.sent.length, 0, "and nothing goes out");
+  ed = zoneEditor({ id: "c", count: 6, zones: {} }, { from: 5, to: 3, mph: 37 });
+  ok(/after From/.test(ed.problem()), "to gate before from gate");
+  ed = zoneEditor({ id: "c", count: 6, zones: {} }, { from: 2, to: 9, mph: 37 });
+  ok(/only has 6 gates/.test(ed.problem()), "a gate the course does not have");
+  ed = zoneEditor({ id: "c", count: 6, zones: {} }, { from: undefined, to: 4, mph: 37 });
+  ok(/Both gates/.test(ed.problem()), "a gate left blank, which the number box hands over as undefined");
+  ed = zoneEditor({ id: "c", count: 6, zones: {} }, { from: 2, to: 4, mph: 0 });
+  ok(/at least 5/.test(ed.problem()), "no limit");
+}
 
 (async function () {
   console.log("\n== the sounds the bottom bar makes");

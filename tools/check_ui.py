@@ -336,6 +336,17 @@ def main():
           "the race panel no longer says which speed zones a course has")
     check("zones = type(t.zones) == \"table\" and t.zones or {}," in read("server/RaceManager/07_tracks.lua"),
           "the course list no longer carries the zones, so the race panel cannot show them")
+    # The game's encoder sends an empty list as {}. Anything that calls an
+    # array method on a list from the snapshot has to go through list() first,
+    # or the first zone on a course is never sent, which is what happened.
+    check("function list(x) { return Array.isArray(x) ? x : []; }" in js,
+          "the list() guard for empty lists from the game is gone")
+    for bad in re.findall(r"\(\$scope\.s\.\w+ \|\| \[\]\)\.(?:forEach|filter|map|slice)\(", js):
+        check(False, "app.js calls an array method on a snapshot list without list(): " + bad)
+    for bad in re.findall(r"\b(?:sh|l|e|t|p)\.\w+\.(?:slice|forEach|filter|map)\(", js):
+        check(False, "app.js calls an array method on a list from the game without list(): " + bad)
+    check("$scope.zoneProblem" in js and 'ng-disabled="zoneProblem()"' in html,
+          "the zone form no longer refuses a zone that runs nowhere")
     check("rm-bar-grip" not in html and "rm-bar-grip" not in css,
           "a bar has a special handle on it again, and he asked for none: "
           "wherever a bar is taken hold of, it moves")

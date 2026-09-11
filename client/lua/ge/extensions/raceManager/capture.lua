@@ -356,6 +356,12 @@ function M.onResult(d)
     extensions.raceManager_triggers.clearDraft()
     if type(d.data) == "table" then
       st.previewing = extensions.raceManager_triggers.preview(d.data) > 0
+      local dropped = tonumber(d.data.droppedZones) or 0
+      if dropped > 0 then
+        extensions.raceManager_state.notice(
+          ("Saved. The %d speed zone(s) on the old course are gone with it; set them again on the new gates")
+            :format(dropped))
+      end
     end
   elseif a == "cancel" or a == "delete" then
     st.active = false
