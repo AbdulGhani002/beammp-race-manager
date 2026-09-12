@@ -1,6 +1,6 @@
 local M = {}
 
-M.VERSION = "0.6.13-let-go"
+M.VERSION = "0.7.0-phase-6"
 
 -- ui goes last: it reads from every other module the moment it comes up
 local SUBS = {
@@ -14,6 +14,7 @@ local SUBS = {
   "raceManager_layout",
   "raceManager_bottombar",
   "raceManager_service",
+  "raceManager_copilot",
   "raceManager_hud",
   "raceManager_perf",
   "raceManager_ui",
@@ -96,6 +97,7 @@ end
 local function onClientEndMission()
   extensions.raceManager_layout.disarm()
   extensions.raceManager_service.onLevelUnloaded()
+  extensions.raceManager_copilot.onLevelUnloaded()
   extensions.raceManager_race.onLevelUnloaded()
   extensions.raceManager_triggers.clear()
   extensions.raceManager_capture.onLevelUnloaded()

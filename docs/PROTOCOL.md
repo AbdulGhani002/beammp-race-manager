@@ -214,3 +214,41 @@ nothing. `marked` means the clock could not vouch for part of the run.
 
 `v` is the schema version. Fields may be added; nothing already there changes
 meaning. If that ever has to break, `v` goes up and the bot can tell.
+
+## Phase 6: watching, challenges, tracking
+
+Client to server:
+
+| Channel | Payload | Meaning |
+| --- | --- | --- |
+| `copilot.offer` | `{ to, kind }` | `kind` is `invite` (come and watch me) or `request` (may I watch you). `to` is a player id. |
+| `copilot.accept`, `copilot.decline`, `copilot.stop`, `copilot.get` | `{}` | Answer an offer, stop watching or send every watcher home, ask for the state. |
+| `challenges.get` | `{}` | The board. |
+| `challenge.create` | `{ name, kind, track, laps, classes, tiers, startInHours }` | Admins. `kind` is `daily` or `weekly`, `classes` a list or absent, `tiers` a list of `{ time, xp }` with time in seconds, `startInHours` optional. |
+| `challenge.update` | the same with `id` | Admins. A course or lap change wipes the board. |
+| `challenge.delete`, `challenge.end` | `{ id }` | Admins. |
+| `options.tracking` | `{ on }` | XP and challenge tracking for yourself. |
+| `race.arm` | `{ ..., challenge }` | A run on a challenge. Refused unless the course, laps and class are the challenge's, the challenge is live, tracking is on, and the driver is not in a team. |
+
+Server to client:
+
+| Channel | Payload | Meaning |
+| --- | --- | --- |
+| `copilot.state` | `{ watching: { name }, watchers: [names], offer: { from, kind } }` | Who you watch, who watches you, what is being asked. |
+| `copilot.watch` | `{ pid, vid, name }` | Put the camera on this car. Sent again when the driver's car changes. |
+| `copilot.release` | `{ why }` | Back to your own car. |
+| `copilot.failed`, `copilot.gone` | `{ why }`, `{ why, who }` | A refusal, or a no. |
+| `challenges.list` | a list of challenges | Live first, then scheduled, then the last ten ended. Each carries `state`, `secondsLeft`, `startsIn`, `tiers`, `mine` and `top`. |
+| `challenge.result` | `{ action, ok, reason, id }` | The answer to an admin's create, update, delete or end. |
+| `me` | `{ ..., tracking }` | Whether tracking is on. |
+
+A finished run on a challenge carries `challengeResult` on its results row:
+`{ name, tier, xp, gained, best, improved }`. `gained` is what was paid this
+time; the rest is the ladder rung reached and the best time kept.
+
+Reason codes added: `already_watching`, `they_are_watching`, `you_are_racing`,
+`they_are_racing`, `you_have_no_car`, `they_have_no_car`, `nothing_to_stop`,
+`too_many_daily`, `too_many_weekly`, `no_tiers`, `bad_tier`, `too_many_tiers`,
+`no_such_challenge`, `challenge_not_live`, `wrong_course_for_challenge`,
+`wrong_laps_for_challenge`, `class_not_in_challenge`, `teams_cannot_enter`,
+`tracking_off`, `guests_cannot_enter`, `already_ended`.

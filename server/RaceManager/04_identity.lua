@@ -198,6 +198,7 @@ end
 function RM.identity.sendMe(pid)
   local s = session[pid]
   if not s then return end
+  local rec = RM.identity.record(s.key)
   RM.bus.queue(pid, "me", {
     id     = pid,
     key    = s.key,
@@ -206,6 +207,7 @@ function RM.identity.sendMe(pid)
     guest  = s.guest,
     ranked = RM.identity.isRanked(pid),
     level  = s.level,
+    tracking = not (rec and rec.tracking == false),
   })
 end
 

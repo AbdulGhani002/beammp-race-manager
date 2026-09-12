@@ -61,7 +61,7 @@
               ng-class="{on: panel === b.key, 'rm-danger': b.key === 'race' && raceActive()}"
               >{{ topLabel(b) }}</button>
       <button class="rm-players-toggle" ng-click="togglePlayers()"
-              ng-class="{on: s.rosterOpen}">Players</button>
+              ng-class="{on: s.rosterOpen}">{{ t('players') }}</button>
     </div>
 
     <!-- side player list -->
@@ -80,8 +80,8 @@
 
     <!-- panels -->
     <div class="rm-card rm-panel" rm-drag="discord" ng-if="panel === 'discord'">
-      <button class="rm-x" ng-click="close()">close</button>
-      <h2>Discord</h2>
+      <button class="rm-x" ng-click="close()">{{ t('close') }}</button>
+      <h2>{{ t('discord') }}</h2>
       <p class="rm-hint">Race nights, class rules and whatever everyone is
         arguing about this week. Bobby Slim is in there too: @ him, or just ask
         the room something like what is on the agenda.</p>
@@ -101,8 +101,8 @@
 
     <!-- race. time trial: grid, start line, a split at every gate, results. -->
     <div class="rm-card rm-panel rm-race" rm-drag="race" ng-if="panel === 'race'">
-      <button class="rm-x" ng-click="close()">close</button>
-      <h2>Race</h2>
+      <button class="rm-x" ng-click="close()">{{ t('close') }}</button>
+      <h2>{{ t('race') }}</h2>
 
       <div class="rm-problem" ng-if="s.race.problem">{{ raceProblem() }}</div>
 
@@ -258,8 +258,8 @@
 
     <!-- the books. best run per driver per course, and the fastest clean lap. -->
     <div class="rm-card rm-panel rm-records" rm-drag="records" ng-if="panel === 'records'">
-      <button class="rm-x" ng-click="close()">close</button>
-      <h2>Records</h2>
+      <button class="rm-x" ng-click="close()">{{ t('close') }}</button>
+      <h2>{{ t('records') }}</h2>
 
       <div class="rm-empty" ng-if="!s.tracks.length">
         No course is saved yet, so there is nothing to hold a record on.
@@ -317,8 +317,8 @@
 
     <!-- team. two drivers, same car model, one result. -->
     <div class="rm-card rm-panel rm-team" rm-drag="team" ng-if="panel === 'team'">
-      <button class="rm-x" ng-click="close()">close</button>
-      <h2>Team</h2>
+      <button class="rm-x" ng-click="close()">{{ t('close') }}</button>
+      <h2>{{ t('team') }}</h2>
 
       <div ng-if="myTeam()">
         <div class="rm-field">In a {{ myTeam().model || 'car' }} together</div>
@@ -364,19 +364,176 @@
       </div>
     </div>
 
-    <div class="rm-card rm-panel" rm-drag="info"
-         ng-if="panel && panel !== 'options' && panel !== 'capture'
-                && panel !== 'discord' && panel !== 'race' && panel !== 'records'
-                && panel !== 'team'">
-      <button class="rm-x" ng-click="close()">close</button>
-      <h2>{{ panel === 'bottom' ? 'Recovery' : (buttons | filter:{key: panel})[0].label }}</h2>
-      <p class="rm-soon">{{ SOON[panel] }}</p>
-      <p class="rm-hint">The button is here so the layout is final. What sits behind it is not built yet.</p>
+    <!-- copilot and chase: watch another driver from their car. the server
+         says who may watch whom; the camera does the rest. -->
+    <div class="rm-card rm-panel rm-copilot" rm-drag="copilot" ng-if="panel === 'copilot'">
+      <button class="rm-x" ng-click="close()">{{ t('close') }}</button>
+      <h2>{{ t('copilot') }}</h2>
+
+      <div ng-if="s.watching">
+        <div class="rm-field">{{ t('cp.watching') }} {{ s.watching.name }}</div>
+        <p class="rm-hint" ng-if="s.watching.found">{{ t('cp.camera') }}</p>
+        <p class="rm-hint" ng-if="!s.watching.found">{{ t('cp.waiting') }}</p>
+        <button class="rm-danger" ng-click="copilotStop()">{{ t('cp.stop') }}</button>
+      </div>
+
+      <div ng-if="!s.watching && copilotWatchers().length">
+        <div class="rm-field">{{ t('cp.watchers') }}</div>
+        <div class="rm-lobby-row" ng-repeat="w in copilotWatchers()"><span>{{ w }}</span></div>
+        <button ng-click="copilotStop()">{{ t('cp.sendhome') }}</button>
+      </div>
+
+      <div ng-if="!s.watching && copilotOffer()">
+        <div class="rm-field">{{ copilotOffer().from }}
+          {{ copilotOffer().kind === 'request' ? t('cp.asks') : t('cp.invites') }}</div>
+        <div class="rm-pickrow">
+          <button class="rm-primary" ng-click="copilotAccept()">{{ t('accept') }}</button>
+          <button ng-click="copilotDecline()">{{ t('nothanks') }}</button>
+        </div>
+      </div>
+
+      <div ng-if="!s.watching">
+        <p class="rm-hint">{{ t('cp.hint') }}</p>
+        <div class="rm-empty" ng-if="!teamable().length">{{ t('nobody') }}</div>
+        <div ng-if="teamable().length">
+          <div class="rm-field">{{ t('cp.who') }}</div>
+          <div class="rm-lobby-row" ng-repeat="p in teamable()">
+            <span>{{ p.name }}</span>
+            <span class="rm-pickrow">
+              <button ng-click="copilotAsk(p, 'invite')" title="{{ t('cp.invite.tip') }}">{{ t('cp.invite') }}</button>
+              <button ng-click="copilotAsk(p, 'request')" title="{{ t('cp.request.tip') }}">{{ t('cp.request') }}</button>
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- challenges: daily and weekly time attacks with XP by time bracket.
+         admins post them from here; everybody enters from here. -->
+    <div class="rm-card rm-panel rm-challenges" rm-drag="challenges" ng-if="panel === 'challenges'">
+      <button class="rm-x" ng-click="close()">{{ t('close') }}</button>
+      <h2>{{ t('challenges') }}</h2>
+
+      <div ng-if="!chOpen && !chForm">
+        <p class="rm-hint">{{ t('ch.hint') }}</p>
+        <p class="rm-warn" ng-if="!s.me.tracking">{{ t('ch.trackingoff') }}</p>
+        <div class="rm-empty" ng-if="!challengeList().length">{{ t('ch.none') }}</div>
+
+        <div class="rm-picklist rm-chlist">
+          <button ng-repeat="c in challengeList() track by c.id" ng-click="chOpen = c.id"
+                  ng-class="{away: c.state !== 'live'}">
+            <span class="rm-pick-name">{{ c.name }}
+              <em class="rm-ch-kind">{{ t('ch.' + c.kind) }}</em></span>
+            <span class="rm-pick-note">{{ chWhen(c) }}</span>
+          </button>
+        </div>
+
+        <div class="rm-group" ng-if="s.isAdmin">
+          <button class="rm-primary" ng-click="chNew()">{{ t('ch.new') }}</button>
+        </div>
+      </div>
+
+      <div ng-if="chOpen && chShown()">
+        <button class="rm-quiet" ng-click="chOpen = null">{{ t('back') }}</button>
+        <h3>{{ chShown().name }} <em class="rm-ch-kind">{{ t('ch.' + chShown().kind) }}</em></h3>
+        <div class="rm-track-meta">
+          {{ chShown().trackName }} &middot; {{ chShown().laps }} {{ chShown().laps === 1 ? t('lap') : t('laps') }}
+          &middot; {{ chWhen(chShown()) }}
+        </div>
+        <div class="rm-track-meta" ng-if="chShown().classes.length">
+          {{ t('ch.classes') }}: {{ chShown().classes.join(', ') }}</div>
+        <div class="rm-track-meta" ng-if="!chShown().classes.length">{{ t('ch.anyclass') }}</div>
+
+        <div class="rm-field">{{ t('ch.ladder') }}</div>
+        <div class="rm-tier" ng-repeat="r in chShown().tiers track by $index">
+          <span>{{ t('ch.under') }} {{ clock(r.time) }}</span>
+          <span class="rm-zone-mph">{{ r.xp }} XP</span>
+        </div>
+
+        <div class="rm-field" ng-if="chShown().mine">{{ t('ch.yours') }}</div>
+        <div class="rm-tier rm-mine" ng-if="chShown().mine">
+          <span>{{ clock(chShown().mine.best) }}</span>
+          <span>{{ chShown().mine.tier ? t('ch.rung') + ' ' + chShown().mine.tier : t('ch.norung') }}</span>
+          <span class="rm-zone-mph">{{ chShown().mine.xp }} XP</span>
+        </div>
+
+        <div class="rm-field">{{ t('ch.board') }}</div>
+        <div class="rm-empty" ng-if="!chShown().top.length">{{ t('ch.noone') }}</div>
+        <div class="rm-tier" ng-repeat="r in chShown().top track by r.key">
+          <span>{{ r.pos }}. {{ r.name }}</span>
+          <span>{{ clock(r.best) }}</span>
+          <span class="rm-zone-mph">{{ r.xp }} XP</span>
+        </div>
+
+        <div ng-if="chShown().state === 'live'">
+          <div class="rm-field" ng-if="chShown().classes.length">{{ t('ch.enteras') }}</div>
+          <div class="rm-pickrow" ng-if="chShown().classes.length">
+            <button ng-repeat="k in chShown().classes" ng-click="chClass = k"
+                    ng-class="{on: chClass === k}">{{ k }}</button>
+          </div>
+          <div class="rm-field">{{ t('drivingwith') }}</div>
+          <div class="rm-pickrow">
+            <button ng-click="pickMode('controller')" ng-class="{on: entry.mode === 'controller'}">{{ t('controller') }}</button>
+            <button ng-click="pickMode('wheel')" ng-class="{on: entry.mode === 'wheel'}">{{ t('wheel') }}</button>
+          </div>
+          <div class="rm-problem" ng-if="chProblem()">{{ chProblem() }}</div>
+          <button class="rm-primary" ng-disabled="chProblem()" ng-click="chEnter()">{{ t('ch.enter') }}</button>
+        </div>
+
+        <div class="rm-group rm-pickrow" ng-if="s.isAdmin">
+          <button ng-click="chEdit(chShown())">{{ t('edit') }}</button>
+          <button ng-if="chShown().state !== 'ended'" ng-click="chEndNow(chShown().id)">{{ t('ch.endnow') }}</button>
+          <button class="rm-danger" ng-click="chDelete(chShown().id)">{{ t('delete') }}</button>
+        </div>
+      </div>
+
+      <div ng-if="chForm">
+        <button class="rm-quiet" ng-click="chForm = null">{{ t('back') }}</button>
+        <h3>{{ chForm.id ? t('ch.change') : t('ch.post') }}</h3>
+        <div class="rm-field">{{ t('name') }}</div>
+        <input type="text" ng-model="chForm.name" maxlength="40" placeholder="Morning loop" />
+        <div class="rm-field">{{ t('ch.kind') }}</div>
+        <div class="rm-pickrow">
+          <button ng-click="chForm.kind = 'daily'" ng-class="{on: chForm.kind === 'daily'}">{{ t('ch.daily') }}</button>
+          <button ng-click="chForm.kind = 'weekly'" ng-class="{on: chForm.kind === 'weekly'}">{{ t('ch.weekly') }}</button>
+        </div>
+        <div class="rm-field">{{ t('course') }}</div>
+        <div class="rm-picklist">
+          <button ng-repeat="tr in trackList() track by tr.id" ng-click="chForm.track = tr.id"
+                  ng-class="{on: chForm.track === tr.id, away: trackAway(tr)}">
+            <span class="rm-pick-name">{{ tr.name }}</span>
+            <span class="rm-pick-note">{{ tr.count }} gates</span>
+          </button>
+        </div>
+        <div class="rm-field" ng-if="chFormTrack() && chFormTrack().circuit">{{ t('laps') }}</div>
+        <input type="number" min="1" max="99" ng-model="chForm.laps" ng-if="chFormTrack() && chFormTrack().circuit" />
+        <div class="rm-field">{{ t('ch.classes') }} <span class="rm-field-note">{{ t('ch.classes.note') }}</span></div>
+        <div class="rm-classgrid">
+          <button ng-repeat="k in classNames()" ng-click="chToggleClass(k)"
+                  ng-class="{on: chForm.classes.indexOf(k) >= 0}">{{ k }}</button>
+        </div>
+        <div class="rm-field">{{ t('ch.ladder') }} <span class="rm-field-note">{{ t('ch.ladder.note') }}</span></div>
+        <div class="rm-tier rm-tier-edit" ng-repeat="r in chForm.tiers track by $index">
+          <input type="text" ng-model="r.time" placeholder="1:32.43" />
+          <input type="number" min="0" ng-model="r.xp" placeholder="100" />
+          <button ng-click="chRemoveTier($index)">{{ t('remove') }}</button>
+        </div>
+        <button ng-click="chAddTier()" ng-if="chForm.tiers.length < 8">{{ t('ch.addrung') }}</button>
+        <div class="rm-field">{{ t('ch.start') }}</div>
+        <div class="rm-pickrow">
+          <button ng-click="chForm.startInHours = 0" ng-class="{on: chForm.startInHours === 0}">{{ t('now') }}</button>
+          <button ng-click="chForm.startInHours = 1" ng-class="{on: chForm.startInHours === 1}">{{ t('ch.in1h') }}</button>
+          <button ng-click="chForm.startInHours = 6" ng-class="{on: chForm.startInHours === 6}">{{ t('ch.in6h') }}</button>
+          <button ng-click="chForm.startInHours = 24" ng-class="{on: chForm.startInHours === 24}">{{ t('ch.in24h') }}</button>
+        </div>
+        <div class="rm-problem" ng-if="chFormProblem()">{{ chFormProblem() }}</div>
+        <button class="rm-primary" ng-disabled="chFormProblem()" ng-click="chSave()">{{ chForm.id ? t('save') : t('ch.postit') }}</button>
+      </div>
     </div>
 
     <div class="rm-card rm-panel" rm-drag="options" ng-if="panel === 'options'">
-      <button class="rm-x" ng-click="close()">close</button>
-      <h2>Options</h2>
+      <button class="rm-x" ng-click="close()">{{ t('close') }}</button>
+      <h2>{{ t('options') }}</h2>
 
       <div class="rm-you">
         <strong>{{ s.me.name }}</strong>
@@ -430,8 +587,21 @@
       </div>
 
       <div class="rm-group">
-        <h3>Later</h3>
-        <p class="rm-soon">Language and XP tracking arrive in phase 6.</p>
+        <h3>{{ t('language') }}</h3>
+        <div class="rm-pickrow">
+          <button ng-click="setLang('en')" ng-class="{on: lang === 'en'}">English</button>
+          <button ng-click="setLang('es')" ng-class="{on: lang === 'es'}">Español</button>
+        </div>
+        <p class="rm-hint">{{ t('language_note') }}</p>
+      </div>
+
+      <div class="rm-group">
+        <h3>{{ t('tracking') }}</h3>
+        <div class="rm-pickrow">
+          <button ng-click="setTracking(true)" ng-class="{on: s.me.tracking}">{{ t('on') }}</button>
+          <button ng-click="setTracking(false)" ng-class="{on: !s.me.tracking}">{{ t('off') }}</button>
+        </div>
+        <p class="rm-hint">{{ t('tracking_note') }}</p>
       </div>
 
       <div class="rm-group">
@@ -443,7 +613,7 @@
 
     <!-- checkpoint capture. drive the route, press the key at each point. -->
     <div class="rm-card rm-panel rm-capture" rm-drag="capture" ng-if="panel === 'capture'">
-      <button class="rm-x" ng-click="close()">close</button>
+      <button class="rm-x" ng-click="close()">{{ t('close') }}</button>
       <h2>Checkpoint capture</h2>
 
       <div class="rm-problem" ng-if="captureProblem()">{{ captureProblem() }}</div>
@@ -673,7 +843,9 @@
               class="rm-rec-chip" ng-if="e.record === 'track'">course record</em><em
               class="rm-rec-chip" ng-if="e.classRecord">{{ e.classRecord }} record</em><em
               class="rm-rec-chip" ng-if="e.record === 'personal' && !e.classRecord"
-              >personal best</em></span>
+              >personal best</em><em
+              class="rm-rec-chip rm-ch-chip" ng-if="e.challengeResult"
+              title="{{ e.challengeResult.name }}">{{ chChip(e.challengeResult) }}</em></span>
             <span class="rm-time">{{ clock(e.corrected) }}</span>
             <span class="rm-pen-col" ng-class="{clean: !penaltySeconds(e)}"
                   title="{{ e.penalties.length }} penalt{{ e.penalties.length === 1 ? 'y' : 'ies' }}">{{

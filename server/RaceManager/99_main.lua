@@ -21,6 +21,8 @@ local function onTick()
   -- a team whose cars stopped matching, and offers nobody answered
   if ticks % rosterEvery == 0 then RM.team.tick() end
   if ticks % rosterEvery == 0 then RM.stella.tick() end
+  if ticks % rosterEvery == 0 then RM.copilot.tick() end
+  if ticks % rosterEvery == 0 then RM.challenges.tick() end
 
   -- a hold that has run its course, so the game can do the job
   RM.service.tick(RM.now())
@@ -78,6 +80,7 @@ local function onPlayerDisconnect(pid)
   RM.race.onLeave(pid)
   RM.results.onRunEnded(pid)
   RM.team.forget(pid)
+  RM.copilot.forget(pid)
   RM.stella.forget(pid)
   RM.race.clear(pid)
   RM.results.forget(pid)
@@ -94,12 +97,17 @@ end
 
 -- the speed reading needs to know which vehicle to look at, and BeamMP has no
 -- currently-driving flag. the newest one they touched is the best available.
-local function onVehicleSpawn(pid, vid, data)  RM.players.onVehicle(pid, vid, data) end
+local function onVehicleSpawn(pid, vid, data)
+  RM.players.onVehicle(pid, vid, data)
+  -- whoever is watching this driver is pointed at the new car
+  if RM.copilot then RM.copilot.onVehicle(pid) end
+end
 local function onVehicleReset(pid, vid, data) RM.players.onVehicle(pid, vid, data) end
 local function onVehicleEdited(pid, vid, data)
   RM.players.onVehicle(pid, vid, data)
   -- swapping the car out from under a team is how a team stops matching
   if RM.team then RM.team.recheck(pid) end
+  if RM.copilot then RM.copilot.onVehicle(pid) end
 end
 local function onVehicleDeleted(pid, vid) RM.players.onVehicleGone(pid, vid) end
 
@@ -133,6 +141,7 @@ local function wireChannels()
     RM.tracks.sendList(pid)
     RM.tracks.sendDraft(pid)
     RM.bus.queue(pid, "race.lobbies", RM.lobby.list())
+    RM.challenges.sendList(pid)
   end)
 
   RM.bus.on("name.set", function(pid, d)
@@ -192,6 +201,63 @@ local function wireChannels()
     RM.tracks.sendTrack(pid, type(d) == "table" and d.id or d)
   end)
 
+  -- XP and challenge tracking, on or off for yourself. off means practice
+  -- that touches nothing: no XP, no challenge times.
+  RM.bus.on("options.tracking", function(pid, d)
+    local s = RM.identity.session(pid)
+    local rec = s and RM.identity.record(s.key)
+    if not rec then
+      RM.bus.queue(pid, "options.result", { action = "tracking", ok = false, reason = "no_session" })
+      return
+    end
+    local on = not (type(d) == "table" and d.on == false)
+    -- false has to be stored as false: "x and false or nil" is nil in lua
+    if on then rec.tracking = nil else rec.tracking = false end
+    RM.identity.markDirty()
+    RM.identity.sendMe(pid)
+    RM.bus.queue(pid, "options.result", { action = "tracking", ok = true, value = on })
+    RM.info(("%s turned XP and challenge tracking %s"):format(RM.identity.displayName(pid), on and "on" or "off"))
+  end)
+
+  -- watching another driver
+  local function copilotReply(pid, ok, result)
+    if ok then return end
+    RM.bus.queue(pid, "copilot.failed", { why = result })
+  end
+  RM.bus.on("copilot.offer", function(pid, d)
+    local target = type(d) == "table" and tonumber(d.to) or nil
+    if target == nil or not RM.identity.session(target) then
+      copilotReply(pid, false, "not_here")
+      return
+    end
+    copilotReply(pid, RM.copilot.offer(pid, target, type(d) == "table" and d.kind or "invite"))
+  end)
+  RM.bus.on("copilot.accept",  function(pid) copilotReply(pid, RM.copilot.accept(pid)) end)
+  RM.bus.on("copilot.decline", function(pid) copilotReply(pid, RM.copilot.decline(pid)) end)
+  RM.bus.on("copilot.stop",    function(pid) copilotReply(pid, RM.copilot.stop(pid)) end)
+  RM.bus.on("copilot.get", function(pid)
+    local s = RM.identity.session(pid)
+    RM.bus.queue(pid, "copilot.state", RM.copilot.wire(s and s.key))
+  end)
+
+  -- challenges: the board for everybody, the tools for admins
+  local function challengeReply(pid, action, ok, result)
+    RM.bus.queue(pid, "challenge.result", {
+      action = action, ok = ok and true or false,
+      reason = (not ok) and result or nil,
+      id = ok and type(result) == "table" and result.id or nil,
+    })
+  end
+  RM.bus.on("challenges.get",   function(pid) RM.challenges.sendList(pid) end)
+  RM.bus.on("challenge.create", function(pid, d) challengeReply(pid, "create", RM.challenges.create(pid, d)) end)
+  RM.bus.on("challenge.update", function(pid, d) challengeReply(pid, "update", RM.challenges.update(pid, d)) end)
+  RM.bus.on("challenge.delete", function(pid, d)
+    challengeReply(pid, "delete", RM.challenges.delete(pid, type(d) == "table" and d.id or d))
+  end)
+  RM.bus.on("challenge.end", function(pid, d)
+    challengeReply(pid, "end", RM.challenges.endNow(pid, type(d) == "table" and d.id or d))
+  end)
+
   RM.bus.on("options.demoteSelf", function(pid)
     local ok, result = RM.roles.demoteSelf(pid)
     RM.bus.queue(pid, "options.result", { action = "demoteSelf", ok = ok, value = result })
@@ -207,6 +273,9 @@ local function wireChannels()
       RM.bus.queue(pid, "race.result", { ok = false, reason = result })
       return
     end
+
+    -- your own car is the one that races, so watching somebody else ends
+    RM.copilot.onRaceArmed(pid)
 
     -- whatever they were entered for before, they are not in it now
     RM.results.forget(pid)
@@ -491,6 +560,7 @@ local function onInit()
   RM.identity.init()
   RM.mod.init()
   RM.tracks.init()
+  RM.challenges.init()
   RM.store.load("perf", { runs = {} })
 
   local function every(ms) return math.max(1, math.floor(ms / RM.config.tickMs)) end

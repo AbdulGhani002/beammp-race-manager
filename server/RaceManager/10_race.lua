@@ -94,9 +94,19 @@ function RM.race.arm(pid, d)
     end
   end
 
+  -- a run on a challenge has to be the challenge's course, laps and class,
+  -- and the driver has to be allowed in
+  local challenge = nil
+  if d.challenge ~= nil and d.challenge ~= "" then
+    local okc, why = RM.challenges.check(pid, d.challenge, track.id, laps, class)
+    if not okc then return false, why end
+    challenge = tostring(d.challenge)
+  end
+
   runs[pid] = {
     key        = s.key,
     track      = track.id,
+    challenge  = challenge,
     kind       = track.kind,
     circuit    = track.circuit and true or false,
     mode       = mode,
@@ -123,9 +133,10 @@ function RM.race.arm(pid, d)
     spares     = nil,
   }
 
-  RM.info(("%s armed %s, %s, %d lap(s)%s"):format(
+  RM.info(("%s armed %s, %s, %d lap(s)%s%s"):format(
     RM.identity.displayName(pid), track.id, mode, laps,
-    class and (", " .. class) or ""))
+    class and (", " .. class) or "",
+    challenge and (", challenge " .. challenge) or ""))
   return true, runs[pid]
 end
 
@@ -517,6 +528,7 @@ end
 function RM.race.wire(pid)
   local r = runs[pid]
   if not r then return { state = "idle" } end
+  -- the challenge rides on the state so the screen can say so during the run
   return {
     state    = r.state,
     track    = r.track,
@@ -538,6 +550,7 @@ function RM.race.wire(pid)
 
     -- and what they were for, so a reposition is not read out as a cut
     penaltyBy = RM.race.penaltyBy(r),
+    challenge = r.challenge,
     inPit    = r.inPit and true or false,
     why      = r.why,
 

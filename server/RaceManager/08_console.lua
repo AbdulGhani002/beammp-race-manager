@@ -21,6 +21,10 @@ local HELP = {
   "rm zones <id>          the speed zones on a course",
   "rm zone <id> <from> <to> <mph>   add one, e.g. rm zone baja-1000 12 14 37",
   "rm zoneclear <id>      remove every zone from a course",
+  "rm challenges          the challenges on the board",
+  "rm challenge end <id>  end a challenge now",
+  "rm challenge delete <id>  take a challenge off the board",
+  "rm watching            who is watching whom",
   "rm kick <name> [why]   remove somebody now",
   "rm ban <name> [why]    remove them and turn them away next time",
   "rm unban <name>        lift a ban",
@@ -393,6 +397,45 @@ function RM.console.handle(input)
         say("could not do it: " .. tostring(got))
       end
     end
+  elseif cmd == "challenges" then
+    local rows = RM.challenges.wire(nil)
+    if #rows == 0 then say("no challenges") end
+    for _, c in ipairs(rows) do
+      say(("%s  %s  %s  %s  %d lap(s)  %d tier(s)  %d entered  %s"):format(
+        c.id, c.kind, c.state, c.track, c.laps, #(c.tiers or {}), c.entered or 0,
+        c.state == "live" and (("%dh left"):format(math.floor(c.secondsLeft / 3600)))
+          or (c.state == "scheduled" and (("starts in %dh"):format(math.floor(c.startsIn / 3600))) or "over")))
+    end
+  elseif cmd == "challenge" then
+    local what, id = rest:match("^challenge%s+(%a+)%s+(%S+)%s*$")
+    local c = id and RM.challenges.get(id)
+    if not what or not c then
+      say("rm challenge end <id>  or  rm challenge delete <id>")
+    elseif what == "end" then
+      c.endsAt = RM.challenges.clock()
+      RM.store.markDirty("challenges") RM.store.flushNow("challenges")
+      RM.challenges.broadcastList()
+      say("challenge " .. id .. " ended")
+    elseif what == "delete" then
+      RM.challenges.all()[id] = nil
+      RM.store.markDirty("challenges") RM.store.flushNow("challenges")
+      RM.challenges.broadcastList()
+      say("challenge " .. id .. " deleted")
+    else
+      say("rm challenge end <id>  or  rm challenge delete <id>")
+    end
+  elseif cmd == "watching" then
+    local n = 0
+    for pid in pairs(RM.identity.sessions()) do
+      local s = RM.identity.session(pid)
+      local d = s and RM.copilot.watchingOf(s.key)
+      if d then
+        n = n + 1
+        say(("%s is watching %s"):format(RM.identity.displayName(pid),
+          RM.identity.displayName(RM.identity.pidForKey(d) or -1)))
+      end
+    end
+    if n == 0 then say("nobody is watching anybody") end
   elseif cmd == "zoneclear" then
     local id = rest:match("^zoneclear%s+(%S+)%s*$")
     local ok, why = id and RM.tracks.setZonesDirect(id, {})

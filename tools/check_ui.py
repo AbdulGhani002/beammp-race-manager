@@ -359,6 +359,15 @@ def main():
     check("function M.onLevelUnloaded" in svc_hold
           and "raceManager_service.onLevelUnloaded()" in read(os.path.join(LUA, "main.lua")),
           "leaving the level no longer forgets a hold")
+    # call() takes one value and spreads a list. A fourth argument is dropped
+    # on the floor, which is how "Ask to join" went out as an invite.
+    for m in re.finditer(r'call\(\s*"raceManager_\w+"\s*,\s*"\w+"\s*,(.*?)\);', js):
+        args, depth, commas = m.group(1), 0, 0
+        for ch in args:
+            if ch in "([{": depth += 1
+            elif ch in ")]}": depth -= 1
+            elif ch == "," and depth == 0: commas += 1
+        check(commas == 0, "app.js passes more than one value to call(): " + m.group(0).strip()[:80])
     check("rm-bar-grip" not in html and "rm-bar-grip" not in css,
           "a bar has a special handle on it again, and he asked for none: "
           "wherever a bar is taken hold of, it moves")

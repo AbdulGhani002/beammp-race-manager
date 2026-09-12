@@ -6,7 +6,10 @@ local M = {}
 local S = {
   ready      = false,
   needsName  = false,
-  me         = { id = -1, key = nil, name = nil, role = "player", level = 1, guest = false },
+  me         = { id = -1, key = nil, name = nil, role = "player", level = 1, guest = false,
+                 tracking = true },
+  copilot    = nil,         -- { watching, watchers, offer } from the server
+  challenges = {},          -- the board, as the server last sent it
   config     = {},
   roster     = {},          -- id -> row
   rosterOpen = false,
@@ -158,9 +161,55 @@ local function onMe(d)
   if d.role  ~= nil then S.me.role  = d.role end
   if d.level ~= nil then S.me.level = d.level end
   if d.guest ~= nil then S.me.guest = d.guest and true or false end
+  if d.tracking ~= nil then S.me.tracking = d.tracking and true or false end
   S.needsName = (S.me.name == nil or S.me.name == "")
   log("I", "raceManager", "you are now " .. tostring(S.me.role))
   changed()
+end
+
+-- watching: the server's word on who watches whom
+local function onCopilotState(d)
+  S.copilot = type(d) == "table" and d or nil
+  changed()
+end
+
+-- the challenge board, whole, whenever it changes
+local function onChallenges(d)
+  S.challenges = type(d) == "table" and d or {}
+  changed()
+end
+
+local CHALLENGE_NO = {
+  not_allowed        = "Only admins can do that",
+  bad_name           = "Give the challenge a name, two to forty letters",
+  bad_kind           = "Daily or weekly",
+  no_such_track      = "Pick a course",
+  bad_laps           = "Between one and ninety nine laps",
+  not_a_circuit      = "That course is point to point, so it is one lap",
+  no_such_class      = "One of those classes is not on the list",
+  no_tiers           = "Give it at least one time and the XP it pays",
+  bad_tier           = "Every rung needs a time above zero and XP of zero or more",
+  too_many_tiers     = "Eight rungs at most",
+  too_many_daily     = "Three daily challenges is the most at once. End one first.",
+  too_many_weekly    = "Five weekly challenges is the most at once. End one first.",
+  no_such_challenge  = "That challenge is gone",
+  already_ended      = "That one has already ended",
+}
+
+local CHALLENGE_DONE = {
+  create = "Challenge posted",
+  update = "Challenge changed",
+  delete = "Challenge taken down",
+  ["end"] = "Challenge ended",
+}
+
+local function onChallengeResult(d)
+  if type(d) ~= "table" then return end
+  if d.ok then
+    M.notice(CHALLENGE_DONE[tostring(d.action)] or "Done")
+  else
+    M.notice(CHALLENGE_NO[tostring(d.reason)] or ("That did not work: " .. tostring(d.reason)))
+  end
 end
 
 local function onToast(d)
@@ -186,6 +235,11 @@ end
 local function onOptionsResult(d)
   if type(d) == "table" and d.ok and d.action == "demoteSelf" then
     S.me.role = d.value or "player"
+  end
+  if type(d) == "table" and d.ok and d.action == "tracking" then
+    S.me.tracking = d.value and true or false
+    M.notice(S.me.tracking and "XP and challenge tracking is on"
+                            or "XP and challenge tracking is off: runs count for nothing until it is back on")
   end
   changed()
 end
@@ -258,6 +312,9 @@ local function onExtensionLoaded()
   net.on("team.gone",      onTeamGone)
   net.on("team.failed",    onTeamFailed)
   net.on("xp.gain",        onXpGain)
+  net.on("copilot.state",  onCopilotState)
+  net.on("challenges.list", onChallenges)
+  net.on("challenge.result", onChallengeResult)
 end
 
 M.onExtensionLoaded = onExtensionLoaded

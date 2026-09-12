@@ -219,6 +219,14 @@ local function close(trackId)
   -- paid before it goes out, so the row can carry what it earned
   if RM.xp then RM.xp.forRace(payload) end
 
+  -- and the challenge ladder, for anyone who was on one
+  if RM.challenges then
+    for i = 1, #payload.finished do
+      local e = payload.finished[i]
+      if e.challenge then e.challengeResult = RM.challenges.onFinish(e) end
+    end
+  end
+
   -- and the team standing beside the rows, both drivers added together
   if RM.team then payload.teams = RM.team.standings(payload.finished) end
 
@@ -250,6 +258,7 @@ function RM.results.onRunEnded(pid)
       -- class and the discord bot can read a class off the log
       entry.vehicle = RM.players.modelOf(pid)
       entry.class   = r.class
+      entry.challenge = r.challenge
       h.done[#h.done + 1] = entry
     end
   else

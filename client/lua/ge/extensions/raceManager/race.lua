@@ -45,7 +45,7 @@ end
 
 ------------------------------------------------------------ asked from html
 
-function M.arm(trackId, mode, laps, class)
+function M.arm(trackId, mode, laps, class, challenge)
   if type(trackId) ~= "string" or trackId == "" then return end
   st.problem = nil
   extensions.raceManager_net.send("race.arm", {
@@ -53,6 +53,7 @@ function M.arm(trackId, mode, laps, class)
     mode  = tostring(mode or "controller"),
     laps  = math.floor(tonumber(laps) or 1),
     class = type(class) == "string" and class ~= "" and class or nil,
+    challenge = type(challenge) == "string" and challenge ~= "" and challenge or nil,
   })
 end
 
@@ -161,6 +162,7 @@ local function onState(d)
   local was = st.state
   st.state     = d.state or "idle"
   st.track     = d.track
+  st.challenge = d.challenge
   st.mode      = d.mode or st.mode
   st.laps      = d.laps or st.laps
   st.lap       = d.lap or 0

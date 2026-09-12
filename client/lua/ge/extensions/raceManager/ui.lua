@@ -40,6 +40,12 @@ local function build()
   snap.me.role  = S.me.role
   snap.me.level = S.me.level
   snap.me.guest = S.me.guest
+  snap.me.tracking = S.me.tracking ~= false
+
+  -- watching: what the server says, and whether the car has been found here
+  snap.copilot  = S.copilot
+  snap.watching = extensions.raceManager_copilot.status().watching
+  snap.challenges = S.challenges
 
   -- angular wants a list, and it wants it sorted the same way every time
   local n = 0
@@ -186,8 +192,38 @@ function M.clearToast()
   M.push()
 end
 
-function M.armRace(id, mode, laps, class)
-  extensions.raceManager_race.arm(id, mode, laps, class)
+function M.armRace(id, mode, laps, class, challenge)
+  extensions.raceManager_race.arm(id, mode, laps, class, challenge)
+end
+
+-- the challenge board and its tools
+function M.challengesGet()
+  extensions.raceManager_net.send("challenges.get", {})
+end
+
+function M.challengeCreate(form)
+  if type(form) ~= "table" then return end
+  extensions.raceManager_net.send("challenge.create", form)
+end
+
+function M.challengeUpdate(form)
+  if type(form) ~= "table" or not form.id then return end
+  extensions.raceManager_net.send("challenge.update", form)
+end
+
+function M.challengeDelete(id)
+  if type(id) ~= "string" then return end
+  extensions.raceManager_net.send("challenge.delete", { id = id })
+end
+
+function M.challengeEnd(id)
+  if type(id) ~= "string" then return end
+  extensions.raceManager_net.send("challenge.end", { id = id })
+end
+
+-- XP and challenge tracking, on or off for yourself
+function M.setTracking(on)
+  extensions.raceManager_net.send("options.tracking", { on = on and true or false })
 end
 
 function M.endRace()

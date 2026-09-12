@@ -4,10 +4,30 @@ Race management for a private BeamMP server: timing, records, roles, XP,
 challenges and a checkpoint capture tool. Built from scratch against the
 BeamMP and BeamNG APIs.
 
-**Status: phase 2 of six, built and deployed.** Phase 1 is the base and the
-checkpoint tool, verified in game on the client server. Phase 2 is the time
-trial: grid, honest split timing, missed checkpoints, penalties and the full
-results screen. Qualifying and Race on a shared grid are phase 4.
+**Status: all six phases built and deployed.** Phase 1 is the base and the
+checkpoint tool. Phase 2 is the time trial: grid, honest split timing, missed
+checkpoints, penalties and the results screen. Phase 3 is the bottom bar with
+its holds and penalties, and the speed zones. Phase 4 is qualifying, races on
+a shared grid and teams. Phase 5 is records, roles and XP. Phase 6 is CoPilot
+and Chase (watching a driver by invite or request), daily and weekly
+challenges with XP by time bracket, a language switch and a switch for XP and
+challenge tracking.
+
+## Phase 6 in short
+
+- **CoPilot.** Invite somebody to watch you, or ask to watch a driver. Both
+  sides say yes or no. On yes the watcher's camera goes onto the driver's car
+  and the C key picks the view. TAB onto anybody else's car is undone.
+  `server/RaceManager/21_copilot.lua`, `client/lua/ge/extensions/raceManager/copilot.lua`.
+- **Challenges.** Admins post daily (three at most) and weekly (five at most)
+  time attacks from the panel: course, laps, classes, a ladder of times with
+  the XP each pays, and when it starts. Everybody enters from the panel; the
+  best time is kept and XP is paid for the best rung reached, once. Teams
+  cannot enter. `server/RaceManager/22_challenges.lua`.
+- **Options.** English or Spanish for the bars, titles and the new panels.
+  XP and challenge tracking on or off for yourself.
+
+Tests: `lua tools/test_phase6.lua`, `lua tools/test_copilot_client.lua`.
 
 ## The three pieces
 

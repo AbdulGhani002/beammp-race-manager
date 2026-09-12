@@ -53,6 +53,8 @@ function RM.xp.give(key, amount, why)
   local rec = RM.identity.record(key)
   if not rec then return nil, "no_such_player" end
   if rec.guest then return nil, "guest" end
+  -- turned off under Options: practice that touches nothing
+  if rec.tracking == false then return nil, "tracking_off" end
 
   local add = math.floor(tonumber(amount) or 0)
   if add == 0 then return nil, "nothing_to_give" end

@@ -583,11 +583,93 @@ angular.module("beamng.apps")
 
       ui("requestState");
 
-      // which phase each unfinished button lands in. the shell says so rather
-      // than looking broken.
-      $scope.SOON = {
-        copilot: "CoPilot and Chase arrive in phase 6.",
-        challenges: "Challenges arrive in phase 6."
+      // ------------------------------------------------------------ language
+      // Two languages, kept small: the bars, the panel titles and the new
+      // panels. Everything not in the table stays English, which is what he
+      // said he could live with. Spanish because his Stella came in it.
+      var LANG_KEY = "rm.lang";
+      var WORDS = {
+        en: {
+          race: "Race", records: "Records", team: "Team", copilot: "CoPilot",
+          challenges: "Challenges", options: "Options", discord: "Discord", players: "Players",
+          endrace: "End race", close: "close", back: "Back", accept: "Accept", nothanks: "No thanks",
+          nobody: "Nobody else is on the server yet.", edit: "Edit", delete: "Delete",
+          remove: "Remove", save: "Save", name: "Name", course: "Course", lap: "lap", laps: "laps",
+          now: "Now", on: "On", off: "Off", drivingwith: "Driving with", controller: "Controller",
+          wheel: "Wheel", language: "Language", tracking: "XP and challenge tracking",
+          "language_note": "The bars, the titles and the CoPilot and Challenges windows change. The rest stays in English.",
+          "tracking_note": "Off means a run counts for nothing: no XP, no challenge time. For practice.",
+          "cp.watching": "Watching", "cp.stop": "Stop watching",
+          "cp.camera": "You are in their car. C changes the camera: CoPilot from the seat, Chase from behind.",
+          "cp.waiting": "Their car has not loaded here yet. A moment.",
+          "cp.watchers": "Watching you", "cp.sendhome": "Send them back to their cars",
+          "cp.asks": "wants to watch you", "cp.invites": "invited you to watch them",
+          "cp.hint": "Invite somebody to ride with you, or ask to watch a driver. Both sides have to say yes. TAB does not switch cars here; this does.",
+          "cp.who": "Somebody on the server", "cp.invite": "Invite", "cp.request": "Ask to watch",
+          "cp.invite.tip": "Come and watch me", "cp.request.tip": "May I watch you",
+          "ch.hint": "Daily and weekly time attacks. Beat a time on the ladder and the XP is yours, once, with the difference paid when you climb higher. Teams cannot enter.",
+          "ch.trackingoff": "Your tracking is off under Options, so you cannot enter one.",
+          "ch.none": "Nothing posted yet.", "ch.new": "Post a challenge", "ch.daily": "daily",
+          "ch.weekly": "weekly", "ch.classes": "Classes", "ch.anyclass": "Any class",
+          "ch.ladder": "The ladder", "ch.under": "Under", "ch.yours": "Your best", "ch.rung": "rung",
+          "ch.norung": "outside the ladder", "ch.board": "The board", "ch.noone": "Nobody has finished it yet.",
+          "ch.enteras": "Enter as", "ch.enter": "Enter and go to the grid", "ch.endnow": "End it now",
+          "ch.change": "Change the challenge", "ch.post": "Post a challenge", "ch.kind": "Daily or weekly",
+          "ch.classes.note": "none picked means any class", "ch.ladder.note": "a time as 1:32.43 and the XP it pays",
+          "ch.addrung": "Add a rung", "ch.start": "Starts", "ch.in1h": "In 1 hour", "ch.in6h": "In 6 hours",
+          "ch.in24h": "Tomorrow", "ch.postit": "Post it",
+          "ch.live": "live", "ch.scheduled": "starts in", "ch.ended": "ended", "ch.left": "left",
+          "ch.pickclass": "Pick the class you are entering as.", "ch.notlive": "This one is not live.",
+          "ch.needtracking": "Turn tracking on under Options first.",
+          "ch.p.name": "It needs a name.", "ch.p.track": "Pick a course.", "ch.p.tiers": "Give it at least one rung.",
+          "ch.p.time": "A rung's time reads like 1:32.43 or 92.43.", "ch.p.xp": "XP is a whole number, zero or more.",
+        },
+        es: {
+          race: "Carrera", records: "Récords", team: "Equipo", copilot: "Copiloto",
+          challenges: "Retos", options: "Opciones", discord: "Discord", players: "Pilotos",
+          endrace: "Terminar", close: "cerrar", back: "Volver", accept: "Aceptar", nothanks: "No, gracias",
+          nobody: "Todavía no hay nadie más en el servidor.", edit: "Editar", delete: "Borrar",
+          remove: "Quitar", save: "Guardar", name: "Nombre", course: "Circuito", lap: "vuelta", laps: "vueltas",
+          now: "Ahora", on: "Sí", off: "No", drivingwith: "Conduces con", controller: "Mando",
+          wheel: "Volante", language: "Idioma", tracking: "Registro de XP y retos",
+          "language_note": "Cambian las barras, los títulos y las ventanas de Copiloto y Retos. El resto sigue en inglés.",
+          "tracking_note": "En No, una carrera no cuenta para nada: ni XP ni tiempo de reto. Para practicar.",
+          "cp.watching": "Viendo a", "cp.stop": "Dejar de ver",
+          "cp.camera": "Estás en su coche. C cambia la cámara: Copiloto desde el asiento, Persecución desde atrás.",
+          "cp.waiting": "Su coche aún no ha cargado aquí. Un momento.",
+          "cp.watchers": "Te están viendo", "cp.sendhome": "Devolverlos a sus coches",
+          "cp.asks": "quiere verte", "cp.invites": "te invita a verle",
+          "cp.hint": "Invita a alguien a ir contigo, o pide ver a un piloto. Los dos tienen que decir que sí. TAB no cambia de coche aquí; esto sí.",
+          "cp.who": "Alguien en el servidor", "cp.invite": "Invitar", "cp.request": "Pedir ver",
+          "cp.invite.tip": "Ven a verme", "cp.request.tip": "¿Puedo verte?",
+          "ch.hint": "Contrarrelojes diarias y semanales. Baja de un tiempo de la escalera y el XP es tuyo, una vez, con la diferencia al subir. Los equipos no entran.",
+          "ch.trackingoff": "Tienes el registro apagado en Opciones, así que no puedes entrar.",
+          "ch.none": "Aún no hay nada.", "ch.new": "Publicar un reto", "ch.daily": "diario",
+          "ch.weekly": "semanal", "ch.classes": "Clases", "ch.anyclass": "Cualquier clase",
+          "ch.ladder": "La escalera", "ch.under": "Menos de", "ch.yours": "Tu mejor", "ch.rung": "peldaño",
+          "ch.norung": "fuera de la escalera", "ch.board": "La tabla", "ch.noone": "Nadie lo ha terminado aún.",
+          "ch.enteras": "Entrar como", "ch.enter": "Entrar e ir a la parrilla", "ch.endnow": "Terminarlo ya",
+          "ch.change": "Cambiar el reto", "ch.post": "Publicar un reto", "ch.kind": "Diario o semanal",
+          "ch.classes.note": "sin elegir, cualquier clase", "ch.ladder.note": "un tiempo como 1:32.43 y el XP que paga",
+          "ch.addrung": "Añadir peldaño", "ch.start": "Empieza", "ch.in1h": "En 1 hora", "ch.in6h": "En 6 horas",
+          "ch.in24h": "Mañana", "ch.postit": "Publicar",
+          "ch.live": "en marcha", "ch.scheduled": "empieza en", "ch.ended": "terminado", "ch.left": "quedan",
+          "ch.pickclass": "Elige la clase con la que entras.", "ch.notlive": "Este no está en marcha.",
+          "ch.needtracking": "Enciende el registro en Opciones primero.",
+          "ch.p.name": "Necesita un nombre.", "ch.p.track": "Elige un circuito.", "ch.p.tiers": "Dale al menos un peldaño.",
+          "ch.p.time": "El tiempo de un peldaño se escribe 1:32.43 o 92.43.", "ch.p.xp": "El XP es un número entero, cero o más.",
+        }
+      };
+      $scope.lang = "en";
+      try { if (WORDS[localStorage.getItem(LANG_KEY)]) $scope.lang = localStorage.getItem(LANG_KEY); } catch (e) { }
+      $scope.t = function (key) {
+        var d = WORDS[$scope.lang] || WORDS.en;
+        return d[key] != null ? d[key] : (WORDS.en[key] != null ? WORDS.en[key] : key);
+      };
+      $scope.setLang = function (l) {
+        if (!WORDS[l]) return;
+        $scope.lang = l;
+        try { localStorage.setItem(LANG_KEY, l); } catch (e) { }
       };
 
       $scope.buttons = [
@@ -606,6 +688,8 @@ angular.module("beamng.apps")
         if (key === "race" && $scope.raceActive()) { $scope.endRace(); return; }
         $scope.panel = ($scope.panel === key) ? null : key;
         if ($scope.panel === "team") call("raceManager_race", "teamGet");
+        if ($scope.panel === "copilot") call("raceManager_copilot", "get");
+        if ($scope.panel === "challenges") { $scope.chOpen = null; $scope.chForm = null; ui("challengesGet"); }
         if ($scope.panel === "records") {
           var id = $scope.recPick.track ||
                    ($scope.s.tracks[0] && $scope.s.tracks[0].id);
@@ -900,8 +984,146 @@ angular.module("beamng.apps")
       };
 
       $scope.teamAsk = function (p, kind) {
-        call("raceManager_race", "teamOffer", p.id, kind);
+        // one value, spread when it is a list. two bare arguments dropped the
+        // second, so "Ask to join" went out as an invite for a whole phase.
+        call("raceManager_race", "teamOffer", [p.id, kind]);
       };
+      // ------------------------------------------------------------ copilot
+      $scope.copilotOffer = function () { return ($scope.s.copilot || {}).offer || null; };
+      $scope.copilotWatchers = function () { return list(($scope.s.copilot || {}).watchers); };
+      $scope.copilotAsk = function (p, kind) { call("raceManager_copilot", "offer", [p.id, kind]); };
+      $scope.copilotAccept  = function () { call("raceManager_copilot", "accept"); };
+      $scope.copilotDecline = function () { call("raceManager_copilot", "decline"); };
+      $scope.copilotStop    = function () { call("raceManager_copilot", "stop"); };
+
+      // ---------------------------------------------------------- challenges
+      $scope.chOpen = null;
+      $scope.chForm = null;
+      $scope.chClass = null;
+
+      $scope.challengeList = function () { return list($scope.s.challenges); };
+      $scope.chShown = function () {
+        var l = list($scope.s.challenges);
+        for (var i = 0; i < l.length; i++) if (l[i].id === $scope.chOpen) return l[i];
+        return null;
+      };
+
+      function spanText(secs) {
+        var h = Math.floor(secs / 3600);
+        if (h >= 48) return Math.floor(h / 24) + " d";
+        if (h >= 1) return h + " h";
+        return Math.max(1, Math.floor(secs / 60)) + " min";
+      }
+      $scope.chWhen = function (c) {
+        if (!c) return "";
+        if (c.state === "live") return spanText(c.secondsLeft) + " " + $scope.t("ch.left");
+        if (c.state === "scheduled") return $scope.t("ch.scheduled") + " " + spanText(c.startsIn);
+        return $scope.t("ch.ended");
+      };
+      $scope.chChip = function (r) {
+        if (!r) return "";
+        if (r.suspect) return "challenge, marked";
+        if (!r.tier) return "challenge: outside the ladder";
+        return "challenge rung " + r.tier + (r.gained ? ", +" + r.gained + " XP" : "");
+      };
+
+      $scope.chProblem = function () {
+        var c = $scope.chShown();
+        if (!c) return "";
+        if (c.state !== "live") return $scope.t("ch.notlive");
+        if (!$scope.s.me.tracking) return $scope.t("ch.needtracking");
+        if (list(c.classes).length && list(c.classes).indexOf($scope.chClass) < 0) return $scope.t("ch.pickclass");
+        return "";
+      };
+      $scope.chEnter = function () {
+        var c = $scope.chShown();
+        if (!c || $scope.chProblem()) return;
+        var klass = list(c.classes).length ? $scope.chClass : null;
+        ui("armRace", [c.track, $scope.entry.mode, c.laps, klass, c.id]);
+        $scope.panel = null;
+      };
+
+      // the form: an admin posting or changing one. tiers are typed as
+      // 1:32.43 and sent as seconds.
+      function parseTime(text) {
+        var s = String(text == null ? "" : text).trim();
+        if (!s) return null;
+        var m = s.match(/^(\d+):(\d{1,2})(?:\.(\d{1,3}))?$/);
+        if (m) return parseInt(m[1], 10) * 60 + parseInt(m[2], 10) + (m[3] ? parseFloat("0." + m[3]) : 0);
+        if (/^\d+(\.\d{1,3})?$/.test(s)) return parseFloat(s);
+        return null;
+      }
+      function timeText(sec) {
+        var m = Math.floor(sec / 60), r = sec - m * 60;
+        return m + ":" + (r < 10 ? "0" : "") + r.toFixed(2);
+      }
+      $scope.classNames = function () {
+        var out = [], groups = $scope.classGroups();
+        for (var i = 0; i < groups.length; i++) out = out.concat(groups[i].classes);
+        return out;
+      };
+      $scope.chNew = function () {
+        $scope.chForm = { kind: "daily", track: null, laps: 1, classes: [],
+                          tiers: [{ time: "", xp: 100 }, { time: "", xp: 75 }, { time: "", xp: 50 }],
+                          startInHours: 0, name: "" };
+      };
+      $scope.chEdit = function (c) {
+        var tiers = [];
+        list(c.tiers).forEach(function (r) { tiers.push({ time: timeText(r.time), xp: r.xp }); });
+        $scope.chForm = { id: c.id, name: c.name, kind: c.kind, track: c.track, laps: c.laps,
+                          classes: list(c.classes).slice(), tiers: tiers, startInHours: null };
+        $scope.chOpen = null;
+      };
+      $scope.chFormTrack = function () {
+        if (!$scope.chForm) return null;
+        var l = list($scope.s.tracks);
+        for (var i = 0; i < l.length; i++) if (l[i].id === $scope.chForm.track) return l[i];
+        return null;
+      };
+      $scope.chAddTier = function () {
+        if ($scope.chForm && $scope.chForm.tiers.length < 8) $scope.chForm.tiers.push({ time: "", xp: 0 });
+      };
+      $scope.chRemoveTier = function (i) {
+        if ($scope.chForm) $scope.chForm.tiers.splice(i, 1);
+      };
+      $scope.chToggleClass = function (k) {
+        var c = $scope.chForm.classes, i = c.indexOf(k);
+        if (i >= 0) c.splice(i, 1); else c.push(k);
+      };
+      $scope.chFormProblem = function () {
+        var f = $scope.chForm;
+        if (!f) return "";
+        if (!(f.name || "").trim() || (f.name || "").trim().length < 2) return $scope.t("ch.p.name");
+        if (!f.track) return $scope.t("ch.p.track");
+        var tiers = list(f.tiers);
+        if (!tiers.length) return $scope.t("ch.p.tiers");
+        for (var i = 0; i < tiers.length; i++) {
+          if (parseTime(tiers[i].time) == null || parseTime(tiers[i].time) <= 0) return $scope.t("ch.p.time");
+          var xp = parseInt(tiers[i].xp, 10);
+          if (isNaN(xp) || xp < 0) return $scope.t("ch.p.xp");
+        }
+        return "";
+      };
+      $scope.chSave = function () {
+        var f = $scope.chForm;
+        if (!f || $scope.chFormProblem()) return;
+        var t = $scope.chFormTrack();
+        var tiers = [];
+        list(f.tiers).forEach(function (r) { tiers.push({ time: parseTime(r.time), xp: parseInt(r.xp, 10) }); });
+        var out = { name: (f.name || "").trim(), kind: f.kind, track: f.track,
+                    laps: (t && t.circuit) ? Math.max(1, parseInt(f.laps, 10) || 1) : 1,
+                    classes: f.classes.length ? f.classes : null, tiers: tiers };
+        if (f.startInHours != null) out.startInHours = f.startInHours;
+        if (f.id) { out.id = f.id; ui("challengeUpdate", [out]); }
+        else ui("challengeCreate", [out]);
+        $scope.chForm = null;
+      };
+      $scope.chEndNow = function (id) { ui("challengeEnd", id); $scope.chOpen = null; };
+      $scope.chDelete = function (id) { ui("challengeDelete", id); $scope.chOpen = null; };
+
+      // ------------------------------------------------------------ tracking
+      $scope.setTracking = function (on) { ui("setTracking", on ? true : false); };
+
       $scope.teamAccept  = function () { call("raceManager_race", "teamAccept"); };
       $scope.teamDecline = function () { call("raceManager_race", "teamDecline"); };
       $scope.teamLeave   = function () { call("raceManager_race", "teamLeave"); };
@@ -961,7 +1183,15 @@ angular.module("beamng.apps")
         already_running: "You are already on a run. End it first.",
         no_such_class:   "That class is not on the list. Pick another.",
         wrong_car_for_class: "Your car is not allowed in that class.",
-        no_session:      "The server has not finished recognising you yet."
+        no_session:      "The server has not finished recognising you yet.",
+        no_such_challenge: "That challenge is gone.",
+        challenge_not_live: "That challenge is not live.",
+        wrong_course_for_challenge: "That is not the challenge's course.",
+        wrong_laps_for_challenge: "The laps are set by the challenge.",
+        class_not_in_challenge: "Pick one of the challenge's classes.",
+        teams_cannot_enter: "Teams cannot enter a challenge. Break up first.",
+        tracking_off:    "Turn XP and challenge tracking on under Options first.",
+        guests_cannot_enter: "Guests cannot enter a challenge. Pick a name first."
       };
 
       // round first, then split off the minutes. taking the minutes from the
@@ -1075,7 +1305,7 @@ angular.module("beamng.apps")
       };
 
       $scope.topLabel = function (b) {
-        return (b.key === "race" && $scope.raceActive()) ? "End race" : b.label;
+        return (b.key === "race" && $scope.raceActive()) ? $scope.t("endrace") : $scope.t(b.key);
       };
 
       // A native select does not open in the game's interface layer. None of

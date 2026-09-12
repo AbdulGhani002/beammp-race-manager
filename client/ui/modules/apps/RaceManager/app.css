@@ -1093,3 +1093,28 @@
    reads as somewhere else rather than as something to pick today */
 .rm-picklist button.away { opacity: 0.5; }
 .rm-picklist button.away.on { opacity: 0.8; }
+
+/* challenges: the list, the ladder and the form */
+.rm-ch-kind {
+  font-style: normal;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--rm-orange);
+  margin-left: 6px;
+}
+.rm-tier {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 5px 0;
+  border-bottom: 1px solid var(--rm-line);
+  font-variant-numeric: tabular-nums;
+}
+.rm-tier.rm-mine { background: rgba(168, 29, 34, 0.15); padding: 5px 6px; border-radius: 3px; }
+.rm-tier-edit { align-items: center; }
+.rm-tier-edit input[type="text"] { width: 90px; }
+.rm-tier-edit input[type="number"] { width: 70px; }
+.rm-ch-chip { background: rgba(232, 128, 30, 0.18); }
+.rm-chlist { max-height: 240px; }
+.rm-copilot .rm-lobby-row .rm-pickrow { flex: 0 0 auto; }
