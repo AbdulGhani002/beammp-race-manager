@@ -1,6 +1,6 @@
 local M = {}
 
-M.VERSION = "0.7.0-phase-6"
+M.VERSION = "0.7.1-full-disk"
 
 -- ui goes last: it reads from every other module the moment it comes up
 local SUBS = {

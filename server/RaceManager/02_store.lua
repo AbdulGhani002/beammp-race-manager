@@ -42,11 +42,24 @@ local function writeFileAtomic(path, body)
     RM.error("cannot open", tmp, err)
     return false
   end
-  local wrote = f:write(body)
-  f:flush()
-  f:close()
-  if not wrote then
-    RM.error("write failed for", tmp)
+  -- A full disk is the one failure that hides: a small write sits in the
+  -- buffer and looks done, the flush fails on the way out, and the file
+  -- lands empty. So every step is checked, and what landed is measured
+  -- against what was sent before the old file is touched. His mods filled
+  -- the disk and the store found out this way.
+  local wrote, werr = f:write(body)
+  local flushed, ferr = f:flush()
+  local closed, cerr = f:close()
+  if not wrote or not flushed or not closed then
+    RM.error(("write failed for %s: %s"):format(tmp, tostring(werr or ferr or cerr or "unknown")))
+    FS.Remove(tmp)
+    return false
+  end
+  local check = io.open(tmp, "rb")
+  local size = check and check:seek("end") or -1
+  if check then check:close() end
+  if size ~= #body then
+    RM.error(("write of %s came up short: %d of %d bytes. Is the disk full?"):format(tmp, size, #body))
     FS.Remove(tmp)
     return false
   end
@@ -168,13 +181,31 @@ function RM.store.flushNow(name)
   return written
 end
 
+-- a store that will not save is said once a minute, not every half minute
+-- until the disk is fixed, and said again the moment it saves
+local failing = {}
+
 function RM.store.flushDirty()
   local n = 0
   for name in pairs(dirty) do
-    if RM.store.flushNow(name) then n = n + 1 end
+    if RM.store.flushNow(name) then
+      n = n + 1
+      if failing[name] then
+        RM.info("store '" .. name .. "' saved again")
+        failing[name] = nil
+      end
+    else
+      failing[name] = (failing[name] or 0) + 1
+      if failing[name] == 1 or failing[name] % 10 == 0 then
+        RM.warn(("store '%s' has not saved %d time(s) running; everything done since is only in memory"):format(
+          name, failing[name]))
+      end
+    end
   end
   return n
 end
+
+function RM.store.failing() return failing end
 
 function RM.store.flushAll()
   local n = 0

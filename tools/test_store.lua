@@ -125,6 +125,82 @@ local fresh = RM.store.load("thing", { made = "new" })
 eq(fresh.made, "new", "the default is used")
 ok(RM.store.isDirty("thing"), "and it is written on the next save")
 
+section("a full disk cannot rotate a good file out for a short one")
+-- io.open is handed a file that swallows writes and lands short, the way a
+-- full disk does: the buffer takes the bytes, the flush loses them, and the
+-- file on disk is empty. The store has to notice and keep the old copy.
+do
+  local store = RM.store.load("full-test", {})
+  store.kept = "yes"
+  ok(RM.store.flushNow("full-test"), "a normal save works")
+  local function slurp(path)
+    local f = io.open(path, "rb")
+    if not f then return nil end
+    local body = f:read("*a")
+    f:close()
+    return body
+  end
+  local before = slurp(pathOf("full-test"))
+
+  local realOpen = io.open
+  io.open = function(path, mode)
+    if mode == "wb" and path:find("full%-test%.json%.tmp$") then
+      local real = realOpen(path, "wb")
+      real:close()
+      return {
+        write = function() return true end,
+        flush = function() return true end,
+        close = function() return true end,
+      }
+    end
+    return realOpen(path, mode)
+  end
+  store.kept = "no, this one is lost"
+  RM.store.markDirty("full-test")
+  eq(RM.store.flushNow("full-test"), false, "the short save is refused")
+  io.open = realOpen
+  local after = slurp(pathOf("full-test"))
+  eq(after, before, "and the file on disk is the good one from before")
+  eq(slurp(pathOf("full-test") .. ".tmp"), nil, "with no short tmp file left behind")
+  eq(RM.store.isDirty("full-test"), true, "and the store is still dirty, to try again")
+
+  -- a write the file refuses outright is refused the same way
+  io.open = function(path, mode)
+    if mode == "wb" and path:find("full%-test%.json%.tmp$") then
+      local real = realOpen(path, "wb")
+      real:close()
+      return {
+        write = function() return nil, "No space left on device" end,
+        flush = function() return true end,
+        close = function() return true end,
+      }
+    end
+    return realOpen(path, mode)
+  end
+  eq(RM.store.flushNow("full-test"), false, "a write the disk refuses is refused")
+  io.open = realOpen
+  eq(slurp(pathOf("full-test")), before, "and the good copy is still there")
+
+  -- and it is said, once, not every time
+  local said = 0
+  local realWarn = RM.warn
+  RM.warn = function() said = said + 1 end
+  io.open = function(path, mode)
+    if mode == "wb" and path:find("full%-test%.json%.tmp$") then
+      local real = realOpen(path, "wb") real:close()
+      return { write = function() return nil, "No space left on device" end,
+               flush = function() return true end, close = function() return true end }
+    end
+    return realOpen(path, mode)
+  end
+  for _ = 1, 12 do RM.store.flushDirty() end
+  RM.warn = realWarn
+  io.open = realOpen
+  eq(said, 2, "said on the first failure and the tenth, not twelve times")
+  ok(RM.store.flushNow("full-test"), "and it saves once the disk is back")
+  RM.store.forget("full-test")
+end
+
 section("a broken backup does not take the store down with it")
 RM.store.flushNow("thing")
 put(pathOf("thing"), "")
