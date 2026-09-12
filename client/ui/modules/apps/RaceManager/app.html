@@ -410,22 +410,32 @@
 
     <!-- challenges: daily and weekly time attacks with XP by time bracket.
          admins post them from here; everybody enters from here. -->
-    <div class="rm-card rm-panel rm-challenges" rm-drag="challenges" ng-if="panel === 'challenges'">
+    <!-- the daily table above the weekly one, each row a name with its
+         classes and course in grey under it. a click opens the challenge
+         out into the wider window, with everything about it and the button
+         to enter at the bottom, the way he asked. -->
+    <div class="rm-card rm-panel rm-challenges" rm-drag="challenges" ng-if="panel === 'challenges'"
+         ng-class="{'rm-wide': chOpen || chForm}">
       <button class="rm-x" ng-click="close()">{{ t('close') }}</button>
       <h2>{{ t('challenges') }}</h2>
 
       <div ng-if="!chOpen && !chForm">
         <p class="rm-hint">{{ t('ch.hint') }}</p>
         <p class="rm-warn" ng-if="!s.me.tracking">{{ t('ch.trackingoff') }}</p>
-        <div class="rm-empty" ng-if="!challengeList().length">{{ t('ch.none') }}</div>
 
-        <div class="rm-picklist rm-chlist">
-          <button ng-repeat="c in challengeList() track by c.id" ng-click="chOpen = c.id"
-                  ng-class="{away: c.state !== 'live'}">
-            <span class="rm-pick-name">{{ c.name }}
-              <em class="rm-ch-kind">{{ t('ch.' + c.kind) }}</em></span>
-            <span class="rm-pick-note">{{ chWhen(c) }}</span>
-          </button>
+        <div class="rm-ch-table" ng-repeat="kind in ['daily', 'weekly']">
+          <h3>{{ t('ch.' + kind + '.title') }}</h3>
+          <div class="rm-empty" ng-if="!chRows(kind).length">{{ t('ch.nonekind') }}</div>
+          <div class="rm-picklist rm-chlist" ng-if="chRows(kind).length">
+            <button class="rm-ch-row" ng-repeat="c in chRows(kind) track by c.id" ng-click="chShow(c.id)"
+                    ng-class="{away: c.state !== 'live'}">
+              <span class="rm-ch-main">
+                <span class="rm-pick-name">{{ c.name }}</span>
+                <span class="rm-ch-meta">{{ chMeta(c) }}</span>
+              </span>
+              <span class="rm-pick-note">{{ chWhen(c) }}</span>
+            </button>
+          </div>
         </div>
 
         <div class="rm-group" ng-if="s.isAdmin">
@@ -434,15 +444,17 @@
       </div>
 
       <div ng-if="chOpen && chShown()">
-        <button class="rm-quiet" ng-click="chOpen = null">{{ t('back') }}</button>
+        <button class="rm-quiet" ng-click="chBack()">{{ t('back') }}</button>
         <h3>{{ chShown().name }} <em class="rm-ch-kind">{{ t('ch.' + chShown().kind) }}</em></h3>
-        <div class="rm-track-meta">
-          {{ chShown().trackName }} &middot; {{ chShown().laps }} {{ chShown().laps === 1 ? t('lap') : t('laps') }}
-          &middot; {{ chWhen(chShown()) }}
+        <p class="rm-ch-desc" ng-if="chShown().description">{{ chShown().description }}</p>
+        <div class="rm-ch-facts">
+          <div class="rm-ch-fact"><span class="rm-ch-meta">{{ t('course') }}</span>
+            <span>{{ chShown().trackName }}, {{ chShown().laps }} {{ chShown().laps === 1 ? t('lap') : t('laps') }}</span></div>
+          <div class="rm-ch-fact"><span class="rm-ch-meta">{{ t('ch.classes') }}</span>
+            <span>{{ chClasses(chShown()) }}</span></div>
+          <div class="rm-ch-fact"><span class="rm-ch-meta">{{ t('ch.when') }}</span>
+            <span>{{ chWhen(chShown()) }}</span></div>
         </div>
-        <div class="rm-track-meta" ng-if="chShown().classes.length">
-          {{ t('ch.classes') }}: {{ chShown().classes.join(', ') }}</div>
-        <div class="rm-track-meta" ng-if="!chShown().classes.length">{{ t('ch.anyclass') }}</div>
 
         <div class="rm-field">{{ t('ch.ladder') }}</div>
         <div class="rm-tier" ng-repeat="r in chShown().tiers track by $index">
@@ -468,7 +480,7 @@
         <div ng-if="chShown().state === 'live'">
           <div class="rm-field" ng-if="chShown().classes.length">{{ t('ch.enteras') }}</div>
           <div class="rm-pickrow" ng-if="chShown().classes.length">
-            <button ng-repeat="k in chShown().classes" ng-click="chClass = k"
+            <button ng-repeat="k in chShown().classes" ng-click="chPickClass(k)"
                     ng-class="{on: chClass === k}">{{ k }}</button>
           </div>
           <div class="rm-field">{{ t('drivingwith') }}</div>
@@ -488,10 +500,12 @@
       </div>
 
       <div ng-if="chForm">
-        <button class="rm-quiet" ng-click="chForm = null">{{ t('back') }}</button>
+        <button class="rm-quiet" ng-click="chCancelForm()">{{ t('back') }}</button>
         <h3>{{ chForm.id ? t('ch.change') : t('ch.post') }}</h3>
         <div class="rm-field">{{ t('name') }}</div>
         <input type="text" ng-model="chForm.name" maxlength="40" placeholder="Morning loop" />
+        <div class="rm-field">{{ t('ch.description') }} <span class="rm-field-note">{{ t('ch.description.note') }}</span></div>
+        <textarea ng-model="chForm.description" maxlength="300" rows="3"></textarea>
         <div class="rm-field">{{ t('ch.kind') }}</div>
         <div class="rm-pickrow">
           <button ng-click="chForm.kind = 'daily'" ng-class="{on: chForm.kind === 'daily'}">{{ t('ch.daily') }}</button>

@@ -74,7 +74,7 @@ local function wireOne(c, key, at)
   return {
     id = c.id, name = c.name, kind = c.kind,
     track = c.track, trackName = c.trackName, laps = c.laps,
-    classes = c.classes, tiers = c.tiers,
+    classes = c.classes, tiers = c.tiers, description = c.description,
     startsAt = c.startsAt, endsAt = c.endsAt,
     state = stateOf(c, at),
     secondsLeft = math.max(0, (c.endsAt or 0) - at),
@@ -196,6 +196,16 @@ local function readFields(d, into)
   end
   if not tiers then return false, "no_tiers" end
 
+  -- a few lines from the admin about the challenge, shown under its name
+  local description
+  if d.description ~= nil then
+    description = RM.util.tidy(d.description)
+    if #description > 300 then return false, "description_too_long" end
+    if description == "" then description = nil end
+  else
+    description = into and into.description or nil
+  end
+
   local startsAt
   if d.startsAt ~= nil then
     startsAt = math.floor(tonumber(d.startsAt) or 0)
@@ -210,7 +220,7 @@ local function readFields(d, into)
 
   return true, {
     name = name, kind = kind, track = track.id, trackName = track.name or track.id,
-    laps = laps, classes = classes, tiers = tiers,
+    laps = laps, classes = classes, tiers = tiers, description = description,
     startsAt = startsAt, endsAt = startsAt + LENGTH[kind],
   }
 end
@@ -226,7 +236,7 @@ function RM.challenges.create(pid, d)
   local c = {
     id = freshId(f.name), name = f.name, kind = f.kind,
     track = f.track, trackName = f.trackName, laps = f.laps,
-    classes = f.classes, tiers = f.tiers,
+    classes = f.classes, tiers = f.tiers, description = f.description,
     startsAt = f.startsAt, endsAt = f.endsAt,
     createdBy = RM.identity.displayName(pid), createdAt = now(),
     results = {},
@@ -255,6 +265,7 @@ function RM.challenges.update(pid, d)
   if f.track ~= c.track or f.laps ~= c.laps then c.results = {} end
   c.name, c.kind, c.track, c.trackName = f.name, f.kind, f.track, f.trackName
   c.laps, c.classes, c.tiers = f.laps, f.classes, f.tiers
+  c.description = f.description
   c.startsAt, c.endsAt = f.startsAt, f.endsAt
   lastSeen[c.id] = stateOf(c)
   save()

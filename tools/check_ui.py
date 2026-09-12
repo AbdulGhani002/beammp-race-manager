@@ -171,6 +171,13 @@ def main():
     for model in re.findall(r'ng-model="([^"]+)"', html):
         check("." in model, 'ng-model="%s" has no dot, so a child scope will swallow it' % model)
 
+    # 5b. the same trap on a click: "chOpen = c.id" inside ng-repeat or ng-if
+    #     writes a copy on the child scope, and the controller never sees it.
+    #     His challenge detail never opened for exactly this reason.
+    for expr in re.findall(r'ng-click="([^"]*)"', html):
+        for name in re.findall(r"(?:^|[;\s])([a-zA-Z_]\w*)\s*=(?!=)", expr):
+            check(False, 'ng-click="%s" assigns %s on a child scope; call a function instead' % (expr[:60], name))
+
     # 6. no native select. it does not open in the game's interface layer, and
     #    the panel just sits there when you click it. None of the 116 apps that
     #    ship with the game use one either.

@@ -1,6 +1,6 @@
 RM = RM or {}
 
-RM.VERSION = "0.7.1-full-disk"
+RM.VERSION = "0.7.2-two-tables"
 
 RM.config = {
   nameMinLen  = 3,

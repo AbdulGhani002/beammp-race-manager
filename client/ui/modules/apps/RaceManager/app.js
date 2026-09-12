@@ -623,6 +623,9 @@ angular.module("beamng.apps")
           "ch.needtracking": "Turn tracking on under Options first.",
           "ch.p.name": "It needs a name.", "ch.p.track": "Pick a course.", "ch.p.tiers": "Give it at least one rung.",
           "ch.p.time": "A rung's time reads like 1:32.43 or 92.43.", "ch.p.xp": "XP is a whole number, zero or more.",
+          "ch.daily.title": "Daily challenges", "ch.weekly.title": "Weekly challenges", "ch.nonekind": "None right now.",
+          "ch.when": "When", "ch.description": "Description", "ch.description.note": "a few lines, shown under the name",
+          "ch.ends": "ends in",
         },
         es: {
           race: "Carrera", records: "Récords", team: "Equipo", copilot: "Copiloto",
@@ -658,6 +661,9 @@ angular.module("beamng.apps")
           "ch.needtracking": "Enciende el registro en Opciones primero.",
           "ch.p.name": "Necesita un nombre.", "ch.p.track": "Elige un circuito.", "ch.p.tiers": "Dale al menos un peldaño.",
           "ch.p.time": "El tiempo de un peldaño se escribe 1:32.43 o 92.43.", "ch.p.xp": "El XP es un número entero, cero o más.",
+          "ch.daily.title": "Retos diarios", "ch.weekly.title": "Retos semanales", "ch.nonekind": "Ninguno ahora mismo.",
+          "ch.when": "Cuándo", "ch.description": "Descripción", "ch.description.note": "unas líneas, bajo el nombre",
+          "ch.ends": "termina en",
         }
       };
       $scope.lang = "en";
@@ -1002,6 +1008,39 @@ angular.module("beamng.apps")
       $scope.chClass = null;
 
       $scope.challengeList = function () { return list($scope.s.challenges); };
+
+      // A click inside ng-repeat lands on the row's own scope, so a bare
+      // "chOpen = c.id" set a copy nobody read and the detail never opened.
+      // These write to the controller's scope.
+      $scope.chShow = function (id) { $scope.chOpen = id; $scope.chClass = null; };
+      $scope.chBack = function () { $scope.chOpen = null; };
+      $scope.chPickClass = function (k) { $scope.chClass = k; };
+      $scope.chCancelForm = function () { $scope.chForm = null; };
+
+      // the daily rows and the weekly rows, each cached on the board they
+      // came from: a fresh array every digest never settles
+      var rowsFrom = null, rowsCache = { daily: [], weekly: [] };
+      $scope.chRows = function (kind) {
+        var all = list($scope.s.challenges);
+        if (all !== rowsFrom) {
+          rowsFrom = all;
+          rowsCache = { daily: [], weekly: [] };
+          for (var i = 0; i < all.length; i++) {
+            var k = all[i].kind === "weekly" ? "weekly" : "daily";
+            rowsCache[k].push(all[i]);
+          }
+        }
+        return rowsCache[kind] || [];
+      };
+      $scope.chClasses = function (c) {
+        var k = list(c && c.classes);
+        return k.length ? k.join(", ") : $scope.t("ch.anyclass");
+      };
+      $scope.chMeta = function (c) {
+        if (!c) return "";
+        return $scope.chClasses(c) + " \u00b7 " + (c.trackName || c.track || "");
+      };
+
       $scope.chShown = function () {
         var l = list($scope.s.challenges);
         for (var i = 0; i < l.length; i++) if (l[i].id === $scope.chOpen) return l[i];
@@ -1016,7 +1055,7 @@ angular.module("beamng.apps")
       }
       $scope.chWhen = function (c) {
         if (!c) return "";
-        if (c.state === "live") return spanText(c.secondsLeft) + " " + $scope.t("ch.left");
+        if (c.state === "live") return $scope.t("ch.ends") + " " + spanText(c.secondsLeft);
         if (c.state === "scheduled") return $scope.t("ch.scheduled") + " " + spanText(c.startsIn);
         return $scope.t("ch.ended");
       };
@@ -1065,13 +1104,14 @@ angular.module("beamng.apps")
       $scope.chNew = function () {
         $scope.chForm = { kind: "daily", track: null, laps: 1, classes: [],
                           tiers: [{ time: "", xp: 100 }, { time: "", xp: 75 }, { time: "", xp: 50 }],
-                          startInHours: 0, name: "" };
+                          startInHours: 0, name: "", description: "" };
       };
       $scope.chEdit = function (c) {
         var tiers = [];
         list(c.tiers).forEach(function (r) { tiers.push({ time: timeText(r.time), xp: r.xp }); });
         $scope.chForm = { id: c.id, name: c.name, kind: c.kind, track: c.track, laps: c.laps,
-                          classes: list(c.classes).slice(), tiers: tiers, startInHours: null };
+                          classes: list(c.classes).slice(), tiers: tiers, startInHours: null,
+                          description: c.description || "" };
         $scope.chOpen = null;
       };
       $scope.chFormTrack = function () {
@@ -1112,7 +1152,8 @@ angular.module("beamng.apps")
         list(f.tiers).forEach(function (r) { tiers.push({ time: parseTime(r.time), xp: parseInt(r.xp, 10) }); });
         var out = { name: (f.name || "").trim(), kind: f.kind, track: f.track,
                     laps: (t && t.circuit) ? Math.max(1, parseInt(f.laps, 10) || 1) : 1,
-                    classes: f.classes.length ? f.classes : null, tiers: tiers };
+                    classes: f.classes.length ? f.classes : null, tiers: tiers,
+                    description: (f.description || "").trim() };
         if (f.startInHours != null) out.startInHours = f.startInHours;
         if (f.id) { out.id = f.id; ui("challengeUpdate", [out]); }
         else ui("challengeCreate", [out]);

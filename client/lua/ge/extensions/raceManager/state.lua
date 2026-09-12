@@ -194,6 +194,7 @@ local CHALLENGE_NO = {
   too_many_weekly    = "Five weekly challenges is the most at once. End one first.",
   no_such_challenge  = "That challenge is gone",
   already_ended      = "That one has already ended",
+  description_too_long = "Keep the description under three hundred letters",
 }
 
 local CHALLENGE_DONE = {

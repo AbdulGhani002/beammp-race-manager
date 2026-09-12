@@ -1118,3 +1118,33 @@
 .rm-ch-chip { background: rgba(232, 128, 30, 0.18); }
 .rm-chlist { max-height: 240px; }
 .rm-copilot .rm-lobby-row .rm-pickrow { flex: 0 0 auto; }
+
+/* the challenge board the way he asked: daily above weekly, grey class and
+   course under each name, and a wider window once one is open */
+.rm-panel.rm-wide { width: 600px; }
+.rm-ch-table h3 { margin-top: 12px; }
+.rm-ch-row { align-items: center; }
+.rm-ch-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.rm-ch-meta {
+  font-size: 11px;
+  color: #9a9fa6;
+  text-transform: none;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.rm-ch-desc { color: var(--rm-text); font-size: 13px; line-height: 1.5; white-space: pre-line; }
+.rm-ch-facts { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px 14px; margin: 6px 0 10px; }
+.rm-ch-fact { display: flex; flex-direction: column; gap: 2px; }
+.rm-challenges textarea {
+  width: 100%;
+  box-sizing: border-box;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--rm-line);
+  color: var(--rm-text);
+  padding: 6px 8px;
+  border-radius: 3px;
+  font: inherit;
+  resize: vertical;
+}

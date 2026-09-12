@@ -148,6 +148,25 @@ function M.openDiscord()
     return
   end
 
+  -- The engine's own call is behind a domain filter that only lets BeamNG's
+  -- sites through, and discord is not one of them: it logged "unable to open
+  -- webpage due to domain filter" and did nothing. BeamMP's launcher runs
+  -- outside the game and opens whatever it is handed, so on a server that
+  -- goes first.
+  local viaLauncher = false
+  pcall(function()
+    if MPCoreNetwork and type(MPCoreNetwork.openURL) == "function"
+       and MPCoreNetwork.isMPSession and MPCoreNetwork.isMPSession() then
+      MPCoreNetwork.openURL(url)
+      viaLauncher = true
+    end
+  end)
+  if viaLauncher then
+    log("I", "raceManager", "discord: asked the BeamMP launcher to open " .. url)
+    notice("Opened it through BeamMP. The game keeps focus, so Alt-Tab to your browser")
+    return
+  end
+
   if type(openWebBrowser) ~= "function" then
     log("W", "raceManager", "no browser hook in this build. the link is " .. url)
     notice("This build cannot open a browser. Use Copy link instead")
