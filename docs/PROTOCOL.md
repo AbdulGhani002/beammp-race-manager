@@ -252,3 +252,15 @@ Reason codes added: `already_watching`, `they_are_watching`, `you_are_racing`,
 `no_such_challenge`, `challenge_not_live`, `wrong_course_for_challenge`,
 `wrong_laps_for_challenge`, `class_not_in_challenge`, `teams_cannot_enter`,
 `tracking_off`, `guests_cannot_enter`, `already_ended`.
+
+## Guests and accounts (0.7.4)
+
+Guests are ranked like everybody: named once, keyed on their address, XP,
+records and challenges. Whether a guest may join at all follows the file
+their discord bot keeps at `Resources/Server/PatreonAuth/allowed_discord_ids.json`:
+guests are allowed while its `enabled` is false, and turned away at the door
+(BeamMP's `onPlayerAuth`) with `config.guestRefusal` while it is true. The
+file is read every ten seconds. `rm guests` on the console says the current
+state. A player logged into a BeamMP account is named after the account on
+first join when the name passes the name rule and is free; otherwise the
+name card comes up as before. Names already picked are never replaced.

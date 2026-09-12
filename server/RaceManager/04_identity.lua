@@ -58,6 +58,60 @@ function RM.identity.pidForKey(key)
 end
 
 -- name, or nil. matches on the display name people actually type.
+------------------------------------------------------------ the guest gate
+
+-- Bobby's file, read again every few seconds. What it says decides whether
+-- a guest gets past the door.
+local gate = { allowed = true, known = nil, readAt = nil }
+
+function RM.identity.readGate()
+  local g = RM.config.guestGate
+  if type(g) ~= "table" or type(g.file) ~= "string" then
+    gate.allowed = true
+    return true
+  end
+  local allowed = true
+  local f = io.open(g.file, "rb")
+  if f then
+    local body = f:read("*a")
+    f:close()
+    local ok, t = pcall(Util.JsonDecode, body or "")
+    if ok and type(t) == "table" then
+      local v = t[g.key or "enabled"]
+      if v ~= nil then allowed = (v == g.allowedWhen) end
+    end
+  end
+  if gate.known ~= nil and gate.known ~= allowed then
+    RM.info(("guests are now %s, from %s"):format(allowed and "allowed" or "turned away", g.file))
+  elseif gate.known == nil then
+    RM.info(("guests are %s to begin with, from %s"):format(allowed and "allowed" or "turned away", g.file))
+  end
+  gate.known, gate.allowed = allowed, allowed
+  return allowed
+end
+
+function RM.identity.guestsAllowed() return gate.allowed end
+
+-- BeamMP asks before the door opens. A guest while the gate is on is told
+-- why, and never becomes a session.
+function RM.identity.onAuth(name, role, isGuest)
+  if isGuest and not gate.allowed then
+    RM.info(("turned away guest '%s': the gate is on"):format(tostring(name)))
+    return RM.config.guestRefusal or "Guest accounts are off right now."
+  end
+  return nil
+end
+
+local gateSince = 0
+function RM.identity.tick(dt)
+  gateSince = gateSince + (tonumber(dt) or 0)
+  local every = tonumber((RM.config.guestGate or {}).everySec) or 10
+  if gateSince < every then return false end
+  gateSince = 0
+  RM.identity.readGate()
+  return true
+end
+
 function RM.identity.keyForName(name)
   local n = RM.util.tidy(name):lower()
   if n == "" then return nil end
@@ -128,6 +182,17 @@ function RM.identity.onJoin(pid)
   s.hello               = false
   s.rosterSub           = false
   session[pid] = s
+
+  -- Somebody logged into a BeamMP account is called what BeamMP calls them,
+  -- with no card to fill in, as long as that name is one this server can
+  -- take and nobody here has it already. Otherwise the card, as before.
+  -- Guests keep the card: the name BeamMP hands them is a random number.
+  if not guest and (not rec.name or rec.name == "") then
+    local ok, given = RM.identity.setName(pid, MP.GetPlayerName(pid))
+    if ok then
+      RM.info(("player %d is %s, from their BeamMP account"):format(pid, given))
+    end
+  end
 
   return s, rec
 end

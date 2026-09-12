@@ -41,6 +41,7 @@ local function build()
   snap.me.level = S.me.level
   snap.me.guest = S.me.guest
   snap.me.tracking = S.me.tracking ~= false
+  snap.me.ranked = S.me.ranked ~= false
 
   -- watching: what the server says, and whether the car has been found here
   snap.copilot  = S.copilot

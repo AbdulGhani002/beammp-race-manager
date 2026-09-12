@@ -7,7 +7,7 @@ local S = {
   ready      = false,
   needsName  = false,
   me         = { id = -1, key = nil, name = nil, role = "player", level = 1, guest = false,
-                 tracking = true },
+                 tracking = true, ranked = true },
   copilot    = nil,         -- { watching, watchers, offer } from the server
   challenges = {},          -- the board, as the server last sent it
   config     = {},
@@ -54,6 +54,7 @@ local function onWelcome(d)
   S.me.role   = d.role or "player"
   S.me.level  = d.level or 1
   S.me.guest  = d.guest and true or false
+  S.me.ranked = d.ranked ~= false
   S.config    = d.config or {}
   S.needsName = (d.name == nil or d.name == "")
   extensions.raceManager_main.handshakeDone()
@@ -161,6 +162,7 @@ local function onMe(d)
   if d.role  ~= nil then S.me.role  = d.role end
   if d.level ~= nil then S.me.level = d.level end
   if d.guest ~= nil then S.me.guest = d.guest and true or false end
+  if d.ranked ~= nil then S.me.ranked = d.ranked and true or false end
   if d.tracking ~= nil then S.me.tracking = d.tracking and true or false end
   S.needsName = (S.me.name == nil or S.me.name == "")
   log("I", "raceManager", "you are now " .. tostring(S.me.role))

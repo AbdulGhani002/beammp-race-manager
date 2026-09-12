@@ -1232,7 +1232,7 @@ angular.module("beamng.apps")
         class_not_in_challenge: "Pick one of the challenge's classes.",
         teams_cannot_enter: "Teams cannot enter a challenge. Break up first.",
         tracking_off:    "Turn XP and challenge tracking on under Options first.",
-        guests_cannot_enter: "Guests cannot enter a challenge. Pick a name first."
+        guests_cannot_enter: "Guest accounts cannot enter a challenge on this server."
       };
 
       // round first, then split off the minutes. taking the minutes from the

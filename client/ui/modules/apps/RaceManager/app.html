@@ -559,7 +559,7 @@
         <strong>{{ s.me.name }}</strong>
         <span class="rm-role">{{ s.me.role }}</span>
         <span class="rm-lvl">level {{ s.me.level }}</span>
-        <span class="rm-warn" ng-if="s.me.guest">guest, results are not recorded</span>
+        <span class="rm-warn" ng-if="!s.me.ranked">unranked, results are not recorded</span>
       </div>
 
       <div class="rm-group">

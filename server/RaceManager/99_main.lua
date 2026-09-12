@@ -61,6 +61,7 @@ local function onTick()
 
   if ticks % saveEvery  == 0 then RM.store.flushDirty() end
   if ticks % helloEvery == 0 then RM.identity.checkHello() end
+  if ticks % rosterEvery == 0 then RM.identity.tick(RM.config.rosterMs / 1000) end
 end
 
 local function onPlayerJoining(pid)
@@ -558,6 +559,7 @@ local function onInit()
   RM.util.startClock()
 
   RM.identity.init()
+  RM.identity.readGate()
   RM.mod.init()
   RM.tracks.init()
   RM.challenges.init()
@@ -586,6 +588,7 @@ end
 
 RM.handler("onInit",             onInit)
 RM.handler("onPlayerJoining",    onPlayerJoining)
+RM.handler("onPlayerAuth",       function(name, role, isGuest) return RM.identity.onAuth(name, role, isGuest) end)
 RM.handler("onPlayerDisconnect", onPlayerDisconnect)
 RM.handler("onShutdown",         onShutdown)
 RM.handler("onVehicleSpawn",     onVehicleSpawn)

@@ -25,6 +25,7 @@ local HELP = {
   "rm challenge end <id>  end a challenge now",
   "rm challenge delete <id>  take a challenge off the board",
   "rm watching            who is watching whom",
+  "rm guests              whether guests may join, and where that is decided",
   "rm kick <name> [why]   remove somebody now",
   "rm ban <name> [why]    remove them and turn them away next time",
   "rm unban <name>        lift a ban",
@@ -424,6 +425,12 @@ function RM.console.handle(input)
     else
       say("rm challenge end <id>  or  rm challenge delete <id>")
     end
+  elseif cmd == "guests" then
+    local g = RM.config.guestGate or {}
+    say(("guests are %s"):format(RM.identity.guestsAllowed() and "allowed" or "turned away at the door"))
+    say(("decided by %s, key '%s': allowed when it is %s"):format(
+      tostring(g.file), tostring(g.key), tostring(g.allowedWhen)))
+    say(("guests are %s when they are here"):format(RM.config.guestsRanked and "ranked like everybody" or "unranked"))
   elseif cmd == "watching" then
     local n = 0
     for pid in pairs(RM.identity.sessions()) do

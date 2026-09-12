@@ -318,7 +318,7 @@ function RM.challenges.check(pid, id, trackId, laps, class)
   local s = RM.identity.session(pid)
   local rec = s and RM.identity.record(s.key)
   if rec and rec.tracking == false then return false, "tracking_off" end
-  if rec and rec.guest then return false, "guests_cannot_enter" end
+  if rec and rec.guest and not RM.config.guestsRanked then return false, "guests_cannot_enter" end
   return true, c
 end
 

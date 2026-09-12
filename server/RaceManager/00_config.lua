@@ -1,15 +1,32 @@
 RM = RM or {}
 
-RM.VERSION = "0.7.3-scroll-boxes"
+RM.VERSION = "0.7.4-guests"
 
 RM.config = {
   nameMinLen  = 3,
   nameMaxLen  = 20,
   namePattern = "^[%w_%-%. ]+$",
 
-  -- guests have no stable BeamMP id, so nothing they do can be attributed
-  -- across sessions. set AllowGuests = false in ServerConfig.toml to drop the case.
-  guestsRanked = false,
+  -- Guests count. His whole community plays as guests, because BeamMP's
+  -- registration was down for months and his own account is gone, so a
+  -- guest here is a regular with a name, a level and records. The address
+  -- key below is what makes them the same person tomorrow, and the recovery
+  -- code covers a changed address.
+  guestsRanked = true,
+
+  -- Whether guests may join at all follows the file Bobby, their discord
+  -- bot, keeps on the server for the patreon gate. When the gate is on the
+  -- server is patrons only and a guest is turned away at the door with the
+  -- message below. The file is read every few seconds, so Bobby's switch
+  -- works live. Read as: guests are allowed when file[key] == allowedWhen;
+  -- no file, or no such key, means allowed.
+  guestGate = {
+    file = "Resources/Server/PatreonAuth/allowed_discord_ids.json",
+    key = "enabled",
+    allowedWhen = false,
+    everySec = 10,
+  },
+  guestRefusal = "Guest accounts are off right now. Log in with a BeamMP account to join.",
 
   -- How a guest is recognised on a later visit.
   --   "ip"   the connection, hashed. survives the new name BeamMP hands out
