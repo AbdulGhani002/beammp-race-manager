@@ -1,0 +1,193 @@
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage[margin=22mm]{geometry}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{enumitem}
+\usepackage{titlesec}
+\usepackage{fancyhdr}
+\usepackage{listings}
+\usepackage[hidelinks]{hyperref}
+
+\pagestyle{fancy}
+\fancyhf{}
+\lhead{\small BeamMP Race Manager}
+\rhead{\small Phase 6}
+\cfoot{\small \thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+
+\titleformat{\section}{\large\bfseries}{\thesection}{0.6em}{}
+\titlespacing{\section}{0pt}{14pt}{6pt}
+
+\setlist[itemize]{leftmargin=*,itemsep=2pt,topsep=4pt}
+\setlist[enumerate]{leftmargin=*,itemsep=2pt,topsep=4pt}
+\setlength{\parskip}{6pt}
+\setlength{\parindent}{0pt}
+
+\lstset{
+  basicstyle=\ttfamily\scriptsize,
+  frame=single,
+  framesep=5pt,
+  columns=fullflexible,
+  keepspaces=true,
+  breaklines=true,
+  showstringspaces=false,
+  xleftmargin=0pt,
+  aboveskip=8pt,
+  belowskip=8pt,
+}
+
+\newcommand{\code}[1]{\texttt{\small #1}}
+
+\begin{document}
+
+\begin{center}
+{\LARGE\bfseries Phase 6: what was built}\\[4pt]
+{\small BeamMP Race Manager \quad Client: dhardesty99}
+\end{center}
+
+\vspace{4pt}
+\hrule
+\vspace{8pt}
+
+Phase 6 is on the server. It is the last phase of the plan: CoPilot and
+Chase, the challenges, the language switch and the tracking switch. This
+is what each part does and how to use it. The build is 0.7.5.
+
+\section{CoPilot and Chase}
+
+Watch another driver from their car. There are two ways in, and both sides
+have to agree.
+
+\begin{itemize}
+  \item \textbf{Invite.} You are driving and want somebody to ride with
+        you. Open CoPilot, press Invite next to their name. They accept or
+        say no.
+  \item \textbf{Ask to watch.} You want to watch a driver. Press Ask to
+        watch next to their name. They accept or say no.
+\end{itemize}
+
+On yes, the watcher's camera goes into the driver's car. The C key changes
+the camera as usual, so CoPilot is the view from the seat and Chase is the
+view from behind. The watcher's own car stays where it was parked, and
+their own timing is not touched.
+
+\begin{itemize}
+  \item Stop watching brings you back to your own car. A driver can also
+        send everybody watching them back with one button.
+  \item The plain TAB switch is shut on the server. A switch onto anybody
+        else's car is undone at once, so watching is by invite or request
+        only.
+  \item Arming a run ends watching, because your own car is the one that
+        races. Somebody mid run cannot be made to watch, and cannot ask
+        to.
+  \item If the driver changes car, the watcher is moved to the new one. If
+        the driver leaves, the watcher is sent home. An offer nobody
+        answers goes away after a minute.
+\end{itemize}
+
+\section{Challenges}
+
+Daily and weekly time attacks, posted by admins, entered by everybody.
+
+\subsection*{Posting one}
+
+Open Challenges and press Post a challenge. Give it a name and a few lines
+of description, pick daily or weekly, the course, the laps if the course
+is a circuit, the classes that may enter, and the ladder of times: each
+rung is a time to beat and the XP it pays, typed as \code{1:32.43} or
+\code{92.43}. Up to twenty rungs. Pick when it starts: now, in one hour,
+in six, or tomorrow. A daily runs for a day from its start, a weekly for
+seven days.
+
+Three daily and five weekly challenges can be open at once. Ending one, or
+one running out, makes room. Edit changes any of it live; a change of
+course or laps clears its board, because those times were driven on the
+old one. End it now and Delete are there too.
+
+\subsection*{Entering one}
+
+The board shows daily challenges in one table and weekly in another, each
+a set size that scrolls. Under each name, in grey, the classes and the
+course. Click a challenge and the window opens out with everything about
+it: the description, the course and laps, the classes, when it ends, the
+ladder, your best time, and the board of everyone who has finished it.
+Pick your class if it asks for one, controller or wheel, and press Enter
+and go to the grid. From there it is a normal run.
+
+\subsection*{Scoring}
+
+Your best time on each challenge is kept. Finishing under a rung pays
+that rung's XP, once. A faster run later pays only the difference up to
+the higher rung. A slower run changes nothing. A time outside the ladder
+still goes on the board. The results row of the run says which rung you
+reached and what it paid.
+
+\begin{itemize}
+  \item Teams cannot enter a challenge. Break up the team first.
+  \item Guests count, the same as everybody.
+  \item A challenge that is over stays on the board a while, greyed, so
+        the times can still be read.
+\end{itemize}
+
+\section{Options}
+
+\begin{itemize}
+  \item \textbf{Language.} English or Spanish. The bars, the window titles
+        and the CoPilot and Challenges windows change. The rest stays in
+        English.
+  \item \textbf{XP and challenge tracking.} On or off for yourself. Off
+        means a run counts for nothing: no XP, no challenge time. It is
+        for practice. Turn it back on before a race.
+\end{itemize}
+
+\section{Guests and accounts}
+
+Everybody on the server counts, guest or not: a name picked once, a level,
+records, XP and challenges. A guest is recognised on the next visit by
+their connection, and the six character code from the first join brings
+their name back if that ever changes.
+
+Whether guests may join at all follows Bobby's file on the server,
+\code{Resources/Server/PatreonAuth/allowed\_discord\_ids.json}. While its
+\code{enabled} is false, guests join as normal. When Bobby switches it on,
+a guest is turned away at the door with a message to log in with a BeamMP
+account, and accounts still get in. The file is read every ten seconds,
+so the switch works live. On the console, \code{rm guests} says the
+current state. Note that anyone who joins as a guest, including yourself,
+is turned away while it is on.
+
+Somebody logged into a BeamMP account is named after their account on
+first join, with no card to fill in, as long as that name is one the
+server can take and nobody has it. Names already picked are never
+replaced.
+
+\section{Discord}
+
+The Open in browser button goes through the BeamMP launcher, which opens
+the link in your browser. The game keeps focus, so Alt-Tab to it. Copy
+link is still there.
+
+\section{The console}
+
+\begin{lstlisting}
+rm challenges             the challenges on the board
+rm challenge end <id>     end a challenge now
+rm challenge delete <id>  take a challenge off the board
+rm watching               who is watching whom
+rm guests                 whether guests may join, and where that is decided
+\end{lstlisting}
+
+\section{Testing}
+
+Every part of phase 6 runs against the same test host as the earlier
+phases, without the game. The watching flow, the challenge board, the
+ladder, the limits, the schedule, the tracking switch, guests and
+accounts, and the camera side in the car are all covered: 166 checks in
+three new suites, and every earlier suite still passes. The interface is
+audited for the mistakes that only show in the game, and each fix was
+checked against a broken version to be sure the test would catch it.
+
+\end{document}
