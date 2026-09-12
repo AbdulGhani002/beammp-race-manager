@@ -1,6 +1,6 @@
 RM = RM or {}
 
-RM.VERSION = "0.7.4-guests"
+RM.VERSION = "0.7.5-framed"
 
 RM.config = {
   nameMinLen  = 3,

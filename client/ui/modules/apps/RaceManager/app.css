@@ -1119,7 +1119,17 @@
 /* the two tables are a set size, so they split the window the same way
    whether there is one challenge or thirty, and each scrolls on its own.
    The ladder, the board and the rungs being edited get the same box. */
-.rm-chlist { height: 176px; max-height: none; }
+/* framed, so a table reads as a table with one challenge in it or thirty:
+   the frame stays put and the rows scroll inside it */
+.rm-chlist {
+  height: 176px;
+  max-height: none;
+  border: 1px solid var(--rm-line);
+  border-radius: 3px;
+  padding: 4px;
+  background: rgba(255, 255, 255, 0.025);
+  box-sizing: border-box;
+}
 /* a flex column with a set height squeezes its rows to fit instead of
    scrolling; the rows keep their height and the box scrolls */
 .rm-chlist > * { flex-shrink: 0; }
