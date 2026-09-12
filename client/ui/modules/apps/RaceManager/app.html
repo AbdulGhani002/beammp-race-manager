@@ -425,8 +425,8 @@
 
         <div class="rm-ch-table" ng-repeat="kind in ['daily', 'weekly']">
           <h3>{{ t('ch.' + kind + '.title') }}</h3>
-          <div class="rm-empty" ng-if="!chRows(kind).length">{{ t('ch.nonekind') }}</div>
-          <div class="rm-picklist rm-chlist" ng-if="chRows(kind).length">
+          <div class="rm-picklist rm-chlist">
+            <div class="rm-empty" ng-if="!chRows(kind).length">{{ t('ch.nonekind') }}</div>
             <button class="rm-ch-row" ng-repeat="c in chRows(kind) track by c.id" ng-click="chShow(c.id)"
                     ng-class="{away: c.state !== 'live'}">
               <span class="rm-ch-main">
@@ -457,9 +457,11 @@
         </div>
 
         <div class="rm-field">{{ t('ch.ladder') }}</div>
-        <div class="rm-tier" ng-repeat="r in chShown().tiers track by $index">
-          <span>{{ t('ch.under') }} {{ clock(r.time) }}</span>
-          <span class="rm-zone-mph">{{ r.xp }} XP</span>
+        <div class="rm-scrollbox">
+          <div class="rm-tier" ng-repeat="r in chShown().tiers track by $index">
+            <span>{{ t('ch.under') }} {{ clock(r.time) }}</span>
+            <span class="rm-zone-mph">{{ r.xp }} XP</span>
+          </div>
         </div>
 
         <div class="rm-field" ng-if="chShown().mine">{{ t('ch.yours') }}</div>
@@ -470,11 +472,13 @@
         </div>
 
         <div class="rm-field">{{ t('ch.board') }}</div>
-        <div class="rm-empty" ng-if="!chShown().top.length">{{ t('ch.noone') }}</div>
-        <div class="rm-tier" ng-repeat="r in chShown().top track by r.key">
-          <span>{{ r.pos }}. {{ r.name }}</span>
-          <span>{{ clock(r.best) }}</span>
-          <span class="rm-zone-mph">{{ r.xp }} XP</span>
+        <div class="rm-scrollbox">
+          <div class="rm-empty" ng-if="!chShown().top.length">{{ t('ch.noone') }}</div>
+          <div class="rm-tier" ng-repeat="r in chShown().top track by r.key">
+            <span>{{ r.pos }}. {{ r.name }}</span>
+            <span>{{ clock(r.best) }}</span>
+            <span class="rm-zone-mph">{{ r.xp }} XP</span>
+          </div>
         </div>
 
         <div ng-if="chShown().state === 'live'">
@@ -527,12 +531,14 @@
                   ng-class="{on: chForm.classes.indexOf(k) >= 0}">{{ k }}</button>
         </div>
         <div class="rm-field">{{ t('ch.ladder') }} <span class="rm-field-note">{{ t('ch.ladder.note') }}</span></div>
-        <div class="rm-tier rm-tier-edit" ng-repeat="r in chForm.tiers track by $index">
-          <input type="text" ng-model="r.time" placeholder="1:32.43" />
-          <input type="number" min="0" ng-model="r.xp" placeholder="100" />
-          <button ng-click="chRemoveTier($index)">{{ t('remove') }}</button>
+        <div class="rm-scrollbox">
+          <div class="rm-tier rm-tier-edit" ng-repeat="r in chForm.tiers track by $index">
+            <input type="text" ng-model="r.time" placeholder="1:32.43" />
+            <input type="number" min="0" ng-model="r.xp" placeholder="100" />
+            <button ng-click="chRemoveTier($index)">{{ t('remove') }}</button>
+          </div>
         </div>
-        <button ng-click="chAddTier()" ng-if="chForm.tiers.length < 8">{{ t('ch.addrung') }}</button>
+        <button ng-click="chAddTier()" ng-if="chForm.tiers.length < 20">{{ t('ch.addrung') }}</button>
         <div class="rm-field">{{ t('ch.start') }}</div>
         <div class="rm-pickrow">
           <button ng-click="chForm.startInHours = 0" ng-class="{on: chForm.startInHours === 0}">{{ t('now') }}</button>

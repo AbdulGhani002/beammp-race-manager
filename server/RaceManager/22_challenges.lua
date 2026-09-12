@@ -19,7 +19,7 @@ local STORE  = "challenges"
 local list   = {}
 local LIMITS = { daily = 3, weekly = 5 }
 local LENGTH = { daily = 24 * 3600, weekly = 7 * 24 * 3600 }
-local MAX_TIERS = 8
+local MAX_TIERS = 20
 local KEEP_ENDED = 10
 
 RM.challenges.clock = function() return os.time() end
@@ -69,7 +69,7 @@ local function topOf(c, n)
 end
 
 local function wireOne(c, key, at)
-  local top, entered = topOf(c, 5)
+  local top, entered = topOf(c, 10)
   local mine = key and c.results and c.results[key] or nil
   return {
     id = c.id, name = c.name, kind = c.kind,

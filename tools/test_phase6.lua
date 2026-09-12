@@ -433,6 +433,19 @@ M.clientSend(0, "challenge.create", { name = "Broken", kind = "weekly", track = 
 tick(1)
 eq((M.lastMessage(0, "challenge.result") or {}).reason, "no_such_track", "a course that is not there")
 
+section("a long ladder: twenty rungs go, twenty one do not")
+local long = {}
+for i = 1, 20 do long[i] = { time = 60 + i, xp = 200 - i } end
+M.clearOutbox(0)
+M.clientSend(0, "challenge.update", { id = "morning-loop", tiers = long })
+tick(1)
+eq((M.lastMessage(0, "challenge.result") or {}).ok, true, "twenty rungs are kept")
+eq(#RM.challenges.get("morning-loop").tiers, 20, "all twenty")
+long[21] = { time = 90, xp = 1 }
+M.clientSend(0, "challenge.update", { id = "morning-loop", tiers = long })
+tick(1)
+eq((M.lastMessage(0, "challenge.result") or {}).reason, "too_many_tiers", "twenty one is refused")
+
 section("the board survives a restart")
 RM.store.flushAll()
 local reloaded = RM.store.load("challenges")

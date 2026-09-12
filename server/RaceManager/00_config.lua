@@ -1,6 +1,6 @@
 RM = RM or {}
 
-RM.VERSION = "0.7.2-two-tables"
+RM.VERSION = "0.7.3-scroll-boxes"
 
 RM.config = {
   nameMinLen  = 3,

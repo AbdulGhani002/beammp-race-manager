@@ -1121,7 +1121,7 @@ angular.module("beamng.apps")
         return null;
       };
       $scope.chAddTier = function () {
-        if ($scope.chForm && $scope.chForm.tiers.length < 8) $scope.chForm.tiers.push({ time: "", xp: 0 });
+        if ($scope.chForm && $scope.chForm.tiers.length < 20) $scope.chForm.tiers.push({ time: "", xp: 0 });
       };
       $scope.chRemoveTier = function (i) {
         if ($scope.chForm) $scope.chForm.tiers.splice(i, 1);

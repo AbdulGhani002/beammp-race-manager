@@ -1116,7 +1116,23 @@
 .rm-tier-edit input[type="text"] { width: 90px; }
 .rm-tier-edit input[type="number"] { width: 70px; }
 .rm-ch-chip { background: rgba(232, 128, 30, 0.18); }
-.rm-chlist { max-height: 240px; }
+/* the two tables are a set size, so they split the window the same way
+   whether there is one challenge or thirty, and each scrolls on its own.
+   The ladder, the board and the rungs being edited get the same box. */
+.rm-chlist { height: 176px; max-height: none; }
+/* a flex column with a set height squeezes its rows to fit instead of
+   scrolling; the rows keep their height and the box scrolls */
+.rm-chlist > * { flex-shrink: 0; }
+.rm-scrollbox {
+  height: 150px;
+  overflow-y: auto;
+  border: 1px solid var(--rm-line);
+  border-radius: 3px;
+  padding: 0 8px;
+  margin-bottom: 8px;
+}
+.rm-scrollbox .rm-tier:last-child { border-bottom: 0; }
+.rm-scrollbox .rm-empty { padding: 8px 0; }
 .rm-copilot .rm-lobby-row .rm-pickrow { flex: 0 0 auto; }
 
 /* the challenge board the way he asked: daily above weekly, grey class and
