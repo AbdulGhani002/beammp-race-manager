@@ -126,26 +126,19 @@ function M.setRaceState(data)
   if race.checkpoints and #course == 0 then course=race.checkpoints end
   if race.currentCheckpoint then nextCheckpoint=num(race.currentCheckpoint, nextCheckpoint) end
   local active = not not race.active
-  if not active then
-    odo=0; lastPos=nil
-    -- Leaving a race must drop temporary pass/VCP LED state or green sticks forever
-    if blueFlag.state == "go" or blueFlag.state == "delivered" or blueFlag.state == "requested"
-        or blueFlag.state == "accepted" or blueFlag.state == "incoming" then
-      blueFlag = {state="none", playerName=""}
-    end
+  if not active then odo=0; lastPos=nil end
+  -- the race ending takes the pass and the zone with it, once, on the way
+  -- out. Done on every call it lit and cleared the unit ten times a second
+  -- while idle.
+  if prevActive and not active then
+    blueFlag = {state="none", playerName=""}
     zone = nil
     speedWarning = nil
     lastExceeding = false
     ledUntil = 0
+    emit("BajaStella_BlueFlag", blueFlag)
     restoreLed()
     publishAlert()
-  elseif active and not prevActive then
-    -- Fresh race: start from a clean LED, not a leftover pass-green
-    if blueFlag.state == "go" or blueFlag.state == "delivered" then
-      blueFlag = {state="none", playerName=""}
-    end
-    ledUntil = 0
-    restoreLed()
   end
 end
 function M.setCourse(track, checkpoints)
@@ -227,6 +220,8 @@ end
 M.stellaSOS = M.requestSOS
 M.stellaOK = M.acknowledgeBlueFlag
 M.stellaFlag = M.requestBlueFlag
+-- what the flag stands at, for a key that has to know whether to ask or answer
+function M.blueFlagState() return blueFlag.state end
 
 function M.onRaceManagerPassAlert(data)
   if type(data) ~= "table" then return end
@@ -241,21 +236,16 @@ function M.onRaceManagerPassStatus(data)
   if type(data) ~= "table" then return end
   local state=tostring(data.state or "")
   if state=="delivered" or state=="requested" or state=="accepted" or state=="cancelled" or state=="expired" or state=="complete" then
+    -- The server owns how long a pass lasts: thirty seconds for an answer,
+    -- twenty for the pass itself, then it says complete. A timer here as
+    -- well cleared the pass on its own, and a gate crossed during it took
+    -- the pass off the screen two seconds later.
     if state=="cancelled" or state=="expired" or state=="complete" then
       blueFlag = {state="none", playerName=""}
-      ledUntil = 0
     else
       blueFlag.state = state
       blueFlag.playerName=tostring(data.aheadName or data.playerName or "")
       blueFlag.requestId=data.requestId
-      -- delivered green is a short ack only
-      if state == "delivered" then
-        setLed("green", true, "lines")
-        ledUntil = clock + 4
-        emit("BajaStella_BlueFlag", blueFlag)
-        publishAlert()
-        return
-      end
     end
     emit("BajaStella_BlueFlag", blueFlag)
     restoreLed(); publishAlert()
@@ -265,9 +255,7 @@ function M.onRaceManagerPassGo(data)
   blueFlag={state="go", playerName=tostring(type(data)=="table" and (data.aheadName or data.playerName) or "")}
   emit("BajaStella_BlueFlag", blueFlag)
   emit("BajaStella_AlertSound", {kind="passGo", loud=false, beep=true})
-  setLed("green", true, "all")
-  ledUntil = clock + 8  -- green "GO" is temporary; never sticky for a whole race
-  publishAlert()
+  restoreLed(); publishAlert()
 end
 function M.onRaceManagerBreakdownState(data)
   if type(data) ~= "table" or data.active == nil then return end
@@ -340,14 +328,9 @@ function M.onUpdate(dt)
   local pos=v:getPosition(); if not pos then return end
   local speed,heading,fwd=speedAndHeading(v)
   fwd=fwd or {x=0,y=1,z=0}
-  if ledUntil > 0 and clock >= ledUntil then
-    ledUntil = 0
-    if blueFlag.state == "go" or blueFlag.state == "delivered" then
-      blueFlag = {state="none", playerName=""}
-      emit("BajaStella_BlueFlag", blueFlag)
-    end
-    restoreLed()
-  end
+  -- the two seconds of green for a gate are over: back to whatever else is
+  -- on, a pass included
+  if ledUntil > 0 and clock >= ledUntil then ledUntil=0; restoreLed() end
   if lastPos and race.active and race.started then
     local dx,dy,dz=pos.x-lastPos.x,pos.y-lastPos.y,pos.z-lastPos.z
     local d=math.sqrt(dx*dx+dy*dy+dz*dz); if d<50 then odo=odo+d end

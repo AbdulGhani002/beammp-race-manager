@@ -19,17 +19,19 @@ local netWired = false
 local boxInsideKey = nil
 local boxSpent = {}
 local mirror = nil
+local mirrorTrackAsked = nil
 
 local function stella()
   local ok, s = pcall(function() return extensions.bajaStella end)
   return ok and type(s) == "table" and s or nil
 end
 
+-- the car the unit is about: the driver's while copiloting, else your own
 local function watchedVehicle()
   local ok, cop = pcall(function()
     return extensions.raceManager_copilot and extensions.raceManager_copilot.status()
   end)
-  if ok and cop and cop.gameId and be and be.getObjectByID then
+  if ok and cop and cop.watching and cop.gameId and be and be.getObjectByID then
     local obj = be:getObjectByID(cop.gameId)
     if obj then return obj end
   end
@@ -65,10 +67,13 @@ local function wireNetwork()
   net.on("stella.pass.go", function(d) call("onRaceManagerPassGo", d) end)
   net.on("stella.breakdown.state", function(d) call("onRaceManagerBreakdownState", d) end)
   net.on("stella.breakdown.alert", function(d) call("onRaceManagerBreakdownAlert", d) end)
+  -- the driver's race, twice a second while copiloting. Their course is
+  -- asked for once per course, not on every mirror.
   net.on("stella.mirror", function(d)
     if type(d) ~= "table" then return end
     mirror = d
-    if d.track then
+    if d.track and d.track ~= mirrorTrackAsked then
+      mirrorTrackAsked = d.track
       pcall(function() net.send("track.get", { id = d.track }) end)
     end
   end)
@@ -265,19 +270,20 @@ local function sync()
     boxInsideKey, boxSpent = nil, {}
   end
 
-  -- Always push race state so Stella LCD leaves idle / race modes even if a
-  -- client joined mid-session or missed a single status transition.
-  if status ~= lastState or active ~= (lastState == "armed" or lastState == "running") then
-    lastState = status
+  -- told when it changes, and the first time, which is enough: the unit
+  -- keeps what it was told. Told every tick it cleared itself ten times a
+  -- second while idle.
+  local stateKey = status .. "|" .. tostring(trackId)
+  if stateKey ~= lastState then
+    lastState = stateKey
+    call("setRaceState", {
+      active = active,
+      started = running,
+      state = status,
+      track = trackId,
+      trackName = type(track) == "table" and (track.name or track.id) or trackId,
+    })
   end
-  call("setRaceState", {
-    active = active,
-    started = running,
-    state = status,
-    track = trackId,
-    trackName = type(track) == "table" and (track.name or track.id) or trackId,
-    currentCheckpoint = tonumber(rs.next) or 1,
-  })
 
   local nextCp = tonumber(rs.next) or 1
   local done = tonumber(rs.done) or 0
@@ -286,8 +292,12 @@ local function sync()
     lastNext = nextCp
     call("setNextCheckpoint", nextCp)
   end
+  -- done is the server's count and climbs across laps, unlike next, so it
+  -- is what says a gate was crossed. The gate named is the one behind next.
   if lastDone ~= nil and done > lastDone then
-    local crossed = math.max(1, done)
+    local crossed = nextCp - 1
+    local count = type(track) == "table" and type(track.checkpoints) == "table" and #track.checkpoints or 0
+    if crossed < 1 and count > 0 then crossed = count end
     call("onVCPCrossed", crossed)
   end
   lastDone = done

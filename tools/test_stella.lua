@@ -240,6 +240,88 @@ eq(M.lastMessage(0, "stella.breakdown.alert").active, false,
    "Alfa is not left staring at a warning for a car that is gone")
 eq((RM.stella.count()), 0, "and the list is empty")
 
+-- ================================================================ the copilot's Stella
+
+-- his ask: somebody copiloting a driver works the Stella for them. A press
+-- from the copilot is the driver's press, and everything the driver's unit
+-- is told, the copilot's unit is told too, so the two read the same.
+section("a copilot's Stella is the driver's: the press acts for the driver, the answers reach both")
+M.addPlayer(1, "Bravo", "7001", false, "203.0.113.2")
+M.fire("onPlayerJoining", 1)
+M.clientSend(1, "hello", { version = RM.VERSION })
+M.clientSend(1, "name.set", { name = "Bravo" })
+M.fire("onVehicleSpawn", 1, 10, 'pickup:{"jbm":"pickup"}')
+M.addPlayer(4, "Echo", "7004", false, "203.0.113.5")
+M.fire("onPlayerJoining", 4)
+M.clientSend(4, "hello", { version = RM.VERSION })
+M.clientSend(4, "name.set", { name = "Echo" })
+M.fire("onVehicleSpawn", 4, 40, 'pickup:{"jbm":"pickup"}')
+tick(1)
+for _, pid in ipairs({ 0, 1 }) do
+  M.clientSend(pid, "stella.breakdown.set", { active = false })
+  RM.race.clear(pid)
+  M.clientSend(pid, "race.arm", { id = "line", mode = "controller", laps = 1 })
+end
+tick(1)
+put(0, 120, 0)
+put(1, 250, 0)
+put(4, 900, 0)
+hit(0, 1)
+hit(1, 1)
+hit(1, 2)
+tick(1)
+-- Echo sits with Alfa
+M.clientSend(0, "copilot.offer", { to = 4, kind = "invite" })
+tick(1)
+M.clientSend(4, "copilot.accept", {})
+tick(1)
+eq((M.lastMessage(4, "copilot.watch") or {}).pid, 0, "Echo watches Alfa")
+
+tick(RM.config.rosterMs / RM.config.tickMs)
+local mirror = M.lastMessage(4, "stella.mirror")
+ok(mirror ~= nil, "Echo's unit is sent Alfa's race")
+eq(mirror and mirror.state, "running", "running")
+eq(mirror and mirror.next, 2, "with Alfa's next gate")
+eq(M.lastMessage(0, "stella.mirror"), nil, "Alfa's own unit is not")
+
+for _, pid in ipairs({ 0, 1, 4 }) do M.clearOutbox(pid) end
+M.clientSend(4, "stella.pass.request", {})
+tick(1)
+local alert = M.lastMessage(1, "stella.pass.alert")
+ok(alert ~= nil, "Echo's press reaches Bravo as a request")
+eq(alert and alert.requesterName, "Alfa", "in Alfa's name")
+eq((M.lastMessage(0, "stella.pass.status") or {}).state, "delivered", "Alfa's unit shows it delivered")
+eq((M.lastMessage(4, "stella.pass.status") or {}).state, "delivered", "and so does Echo's")
+
+M.clientSend(1, "stella.pass.accept", { requestId = alert.requestId })
+tick(1)
+ok(M.lastMessage(0, "stella.pass.go") ~= nil, "Bravo's OK is Alfa's green")
+ok(M.lastMessage(4, "stella.pass.go") ~= nil, "on Echo's unit too")
+
+for _, pid in ipairs({ 0, 1, 4 }) do M.clearOutbox(pid) end
+M.clientSend(4, "stella.breakdown.set", { active = true })
+tick(1)
+eq(RM.stella.isBrokenDown(0), true, "Echo's red button stops Alfa's car, not Echo's")
+eq(RM.stella.isBrokenDown(4), false, "Echo is not the one stopped")
+eq((M.lastMessage(0, "stella.breakdown.state") or {}).active, true, "Alfa's unit shows stopped")
+eq((M.lastMessage(4, "stella.breakdown.state") or {}).active, true, "and Echo's")
+M.clientSend(4, "stella.breakdown.set", { active = false })
+tick(1)
+eq(RM.stella.isBrokenDown(0), false, "and starts it again")
+
+section("the copilot leaving takes the mirror with them, and their presses are their own again")
+M.clientSend(4, "copilot.stop", {})
+tick(1)
+for _, pid in ipairs({ 0, 1, 4 }) do M.clearOutbox(pid) end
+tick(RM.config.rosterMs / RM.config.tickMs)
+eq(M.lastMessage(4, "stella.mirror"), nil, "no mirror once Echo is back in their own car")
+M.clientSend(4, "stella.breakdown.set", { active = true })
+tick(1)
+eq(RM.stella.isBrokenDown(4), true, "Echo's red button is Echo's")
+eq(RM.stella.isBrokenDown(0), false, "not Alfa's")
+M.clientSend(4, "stella.breakdown.set", { active = false })
+tick(1)
+
 print("")
 print(("%d passed, %d failed"):format(pass, fail))
 for _, f in ipairs(failures) do print("  - " .. f) end

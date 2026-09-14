@@ -68,5 +68,33 @@
     "desc": "Open the lights submenu: headlights, lightbar, fog, siren, hazards, horn and flash",
     "cat": "gameplay",
     "order": 24
+  },
+  "rm_stella_toggle": {
+    "onDown": "extensions.raceManager_keys.stellaToggle()",
+    "title": "Race Manager: Stella on or off",
+    "desc": "Power the Stella unit off, or back on",
+    "cat": "gameplay",
+    "order": 30
+  },
+  "rm_stella_pass": {
+    "onDown": "extensions.raceManager_keys.stellaPass()",
+    "title": "Race Manager: Stella push to pass",
+    "desc": "Ask the car ahead to let you by. With a car asking you, it lets them by",
+    "cat": "gameplay",
+    "order": 31
+  },
+  "rm_stella_ok": {
+    "onDown": "extensions.raceManager_keys.stellaOk()",
+    "title": "Race Manager: Stella OK",
+    "desc": "Let the car asking to pass by",
+    "cat": "gameplay",
+    "order": 32
+  },
+  "rm_stella_sos": {
+    "onDown": "extensions.raceManager_keys.stellaSos()",
+    "title": "Race Manager: Stella red button",
+    "desc": "Tell the cars around you that you are stopped. Press again when you are moving",
+    "cat": "gameplay",
+    "order": 33
   }
 }
