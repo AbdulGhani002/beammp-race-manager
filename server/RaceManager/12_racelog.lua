@@ -82,8 +82,16 @@ function RM.racelog.record(payload, at)
     return false
   end
 
-  f:write(body, "\n")
-  f:close()
+  -- checked, because on a full disk the write sits in a buffer and looks
+  -- done, and the result was lost without a word
+  local wrote = f:write(body, "\n")
+  local flushed = f:flush()
+  local closed = f:close()
+  if not wrote or not flushed or not closed then
+    failed = failed + 1
+    RM.warn("a race did not reach the race log. Is the disk full?")
+    return false
+  end
 
   written = written + 1
   return true

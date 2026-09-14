@@ -33,7 +33,9 @@ end
 -- moment the swap succeeded, which meant the recovery in load below had
 -- nothing to recover from: a file that went empty between restarts was a
 -- silent fresh start, and every name, level and record on it was gone.
-local function writeFileAtomic(path, body)
+-- noBackup: the old file is dropped rather than kept as .bak, for a file
+-- that is itself a copy, or one that is not the store's to leave copies of
+local function writeFileAtomic(path, body, noBackup)
   local tmp = path .. ".tmp"
   local bak = path .. ".bak"
 
@@ -65,7 +67,10 @@ local function writeFileAtomic(path, body)
   end
 
   local had = FS.Exists(path)
-  if had then
+  if had and noBackup then
+    FS.Remove(path)
+    had = false
+  elseif had then
     FS.Remove(bak)
     if not FS.Rename(path, bak) then
       RM.error("cannot move", path, "aside")

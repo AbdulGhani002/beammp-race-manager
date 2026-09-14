@@ -11,6 +11,7 @@ local function onTick()
 
   if MP.GetPlayerCount() == 0 then
     if ticks % saveEvery == 0 then RM.store.flushDirty() end
+    if ticks % rosterEvery == 0 then RM.serverconfig.tick(RM.config.rosterMs / 1000) end
     return
   end
 
@@ -75,6 +76,7 @@ local function onTick()
   if ticks % saveEvery  == 0 then RM.store.flushDirty() end
   if ticks % helloEvery == 0 then RM.identity.checkHello() end
   if ticks % rosterEvery == 0 then RM.identity.tick(RM.config.rosterMs / 1000) end
+  if ticks % rosterEvery == 0 then RM.serverconfig.tick(RM.config.rosterMs / 1000) end
 end
 
 local function onPlayerJoining(pid)
@@ -678,6 +680,7 @@ local function onInit()
   RM.tracks.init()
   RM.challenges.init()
   RM.store.load("perf", { runs = {} })
+  RM.serverconfig.check()
 
   local function every(ms) return math.max(1, math.floor(ms / RM.config.tickMs)) end
   rosterEvery = every(RM.config.rosterMs)

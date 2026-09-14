@@ -14,12 +14,21 @@ local function encode(t)
 end
 
 -- written the way the store writes, checked against a full disk, so a
--- short write is thrown away rather than put over the good file
+-- short write is thrown away rather than put over the good file. A file
+-- that would not write is left alone for a minute: the roster goes out
+-- every second, and a full disk was an error line every second.
+local RETRY_AFTER = 60
+local failedAt = {}
+
 local function write(name, payload)
+  local last = failedAt[name]
+  if last and RM.now() - last < RETRY_AFTER then return false end
   if not FS.Exists(DIR) then FS.CreateDirectory(DIR) end
   local body = encode(payload)
   if not body then return false end
-  return RM.store.writeFileAtomic(DIR .. "/" .. name, body)
+  local ok = RM.store.writeFileAtomic(DIR .. "/" .. name, body)
+  failedAt[name] = (not ok) and RM.now() or nil
+  return ok
 end
 
 function RM.live.rosterPayload()
