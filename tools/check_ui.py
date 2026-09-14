@@ -382,8 +382,7 @@ def main():
     check("var rmFrame = " in js and "rmFrame.read(" in js and "rmFrame.write(" in js,
           "the frame helper for window and bar positions is gone")
     for name in ("rmDrag", "rmSpot", "rmMove"):
-        body = re.search(r'\.directive\("%s"[\s\S]*?
-\}\]\)' % name, js)
+        body = re.search(r'\.directive\("%s"[\s\S]*?\n\}\]\)' % name, js)
         check(body is not None and "window.innerWidth" not in body.group(0)
               and "localStorage.setItem" not in body.group(0),
               "%s measures from the screen or saves a raw position again" % name)
