@@ -1,6 +1,6 @@
 local M = {}
 
-M.VERSION = "0.7.5-framed"
+M.VERSION = "0.7.6-in-the-box"
 
 -- ui goes last: it reads from every other module the moment it comes up
 local SUBS = {

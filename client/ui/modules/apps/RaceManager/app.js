@@ -1,5 +1,58 @@
 angular.module("beamng.apps")
 
+// Where a window or a bar is, measured from the app's own corner and not the
+// screen's. The game gives the app a box, and that box is meant to be the
+// whole screen, but it is not always: a layout somebody edited, or a game
+// that has not been told yet, can leave it a smaller box off in the middle.
+// Positions used to be saved in screen pixels and put back as box pixels, so
+// every restore slid by the box's offset and a bar could walk off the edge
+// for good. A saved position also remembers the size of the box it was
+// saved in, and is thrown away if the box is a different size now, because
+// a spot picked for one screen is nowhere in particular on another.
+var rmFrame = (function () {
+  function root(node) {
+    var n = node;
+    while (n && !(n.classList && n.classList.contains("rm-root"))) n = n.parentNode;
+    return n || null;
+  }
+  return {
+    // the box the coordinates live in
+    box: function (node) {
+      var r = root(node);
+      var b = r ? r.getBoundingClientRect() : null;
+      if (!b || !(b.width > 0)) {
+        return { left: 0, top: 0, width: window.innerWidth, height: window.innerHeight };
+      }
+      return { left: b.left, top: b.top, width: b.width, height: b.height };
+    },
+    // screen to box
+    local: function (node, screenX, screenY) {
+      var b = rmFrame.box(node);
+      return { x: screenX - b.left, y: screenY - b.top };
+    },
+    // a saved spot, if it was saved in a box this size and lies inside it
+    read: function (node, key) {
+      var saved = null;
+      try { saved = JSON.parse(localStorage.getItem(key)); } catch (e) { }
+      if (!saved || typeof saved.x !== "number" || typeof saved.y !== "number") return null;
+      var b = rmFrame.box(node);
+      if (typeof saved.fw !== "number" || typeof saved.fh !== "number") return null;
+      if (Math.abs(saved.fw - b.width) > 4 || Math.abs(saved.fh - b.height) > 4) return null;
+      if (saved.x < -b.width || saved.x > b.width || saved.y < 0 || saved.y > b.height) return null;
+      return saved;
+    },
+    write: function (node, key, spot) {
+      var b = rmFrame.box(node);
+      var out = { x: spot.x, y: spot.y, fw: b.width, fh: b.height };
+      if (typeof spot.w === "number") out.w = spot.w;
+      if (typeof spot.h === "number") out.h = spot.h;
+      try { localStorage.setItem(key, JSON.stringify(out)); } catch (e) { }
+    }
+  };
+})();
+
+angular.module("beamng.apps")
+
 // Drag a panel by its heading, resize it from the bottom right corner, and
 // remember where it was put. He asked for this after using it: a window that
 // sits where the mod decided is fine until it covers the bit of road you are
@@ -30,8 +83,9 @@ angular.module("beamng.apps")
       }
 
       function place(box) {
-        var maxX = window.innerWidth - EDGE;
-        var maxY = window.innerHeight - EDGE;
+        var f = rmFrame.box(node);
+        var maxX = f.width - EDGE;
+        var maxY = f.height - EDGE;
         node.style.left = clamp(box.x, -MIN_W + EDGE, maxX) + "px";
         node.style.top = clamp(box.y, 0, maxY) + "px";
         node.style.transform = "none";
@@ -51,12 +105,11 @@ angular.module("beamng.apps")
       }
 
       function remember(box) {
-        try { localStorage.setItem(key, JSON.stringify(box)); } catch (e) { }
+        rmFrame.write(node, key, box);
       }
 
-      var saved = null;
-      try { saved = JSON.parse(localStorage.getItem(key)); } catch (e) { }
-      if (saved && typeof saved.x === "number") place(saved);
+      var saved = rmFrame.read(node, key);
+      if (saved) place(saved);
 
       // What is in a window arrives after it is built: courses land when the
       // server answers, lobby rows come and go. So the fit is checked on every
@@ -65,7 +118,7 @@ angular.module("beamng.apps")
       // opens rather than being made permanent by a measurement taken early.
       function unclip() {
         if (!node.style.height) return;
-        var room = window.innerHeight * 0.72;
+        var room = rmFrame.box(node).height * 0.72;
         if (room < MIN_H) return;              // no viewport to measure against
         var need = contentHeight();
         if (need > node.clientHeight + 1) {
@@ -77,8 +130,9 @@ angular.module("beamng.apps")
       function beginDrag(startEvent, mode) {
         startEvent.preventDefault();
         var rect = node.getBoundingClientRect();
+        var at = rmFrame.local(node, rect.left, rect.top);
         var ox = startEvent.clientX, oy = startEvent.clientY;
-        var box = { x: rect.left, y: rect.top, w: rect.width, h: rect.height };
+        var box = { x: at.x, y: at.y, w: rect.width, h: rect.height };
 
         function onMove(e) {
           var dx = e.clientX - ox, dy = e.clientY - oy;
@@ -93,7 +147,8 @@ angular.module("beamng.apps")
           document.removeEventListener("mousemove", onMove);
           document.removeEventListener("mouseup", onUp);
           var r = node.getBoundingClientRect();
-          remember({ x: r.left, y: r.top, w: r.width, h: r.height });
+          var at = rmFrame.local(node, r.left, r.top);
+          remember({ x: at.x, y: at.y, w: r.width, h: r.height });
         }
 
         document.addEventListener("mousemove", onMove);
@@ -193,9 +248,8 @@ angular.module("beamng.apps")
       var key = "rm.panel." + attrs.rmSpot;
 
       function restore() {
-        var saved = null;
-        try { saved = JSON.parse(localStorage.getItem(key)); } catch (e) { }
-        if (saved && typeof saved.x === "number") {
+        var saved = rmFrame.read(node, key);
+        if (saved) {
           node.style.left = saved.x + "px";
           node.style.top = saved.y + "px";
           node.style.right = "auto";
@@ -208,7 +262,7 @@ angular.module("beamng.apps")
         function done() {
           document.removeEventListener("mouseup", done);
           var r = node.getBoundingClientRect();
-          try { localStorage.setItem(key, JSON.stringify({ x: r.left, y: r.top })); } catch (e) { }
+          rmFrame.write(node, key, rmFrame.local(node, r.left, r.top));
         }
         document.addEventListener("mouseup", done);
       });
@@ -236,16 +290,16 @@ angular.module("beamng.apps")
 
       function put(x, y) {
         var r = node.getBoundingClientRect();
-        node.style.left = clamp(x, EDGE - r.width, window.innerWidth - EDGE) + "px";
-        node.style.top = clamp(y, 0, window.innerHeight - EDGE) + "px";
+        var f = rmFrame.box(node);
+        node.style.left = clamp(x, EDGE - r.width, f.width - EDGE) + "px";
+        node.style.top = clamp(y, 0, f.height - EDGE) + "px";
         node.style.right = "auto";
         node.style.bottom = "auto";
         node.style.transform = "none";
       }
 
-      var saved = null;
-      try { saved = JSON.parse(localStorage.getItem(key)); } catch (e) { }
-      if (saved && typeof saved.x === "number") put(saved.x, saved.y);
+      var saved = rmFrame.read(node, key);
+      if (saved) put(saved.x, saved.y);
 
       // The whole bar takes hold, buttons included. Nearly all of a bar is
       // buttons, with five pixels between them and six around, and that
@@ -281,19 +335,15 @@ angular.module("beamng.apps")
             moving = true;
             dragged = true;
           }
-          put(ev.clientX - dx + window.scrollX, ev.clientY - dy + window.scrollY);
+          var at = rmFrame.local(node, ev.clientX - dx, ev.clientY - dy);
+          put(at.x, at.y);
         }
         function done() {
           document.removeEventListener("mousemove", move);
           document.removeEventListener("mouseup", done);
           if (!moving) return;
-          // written down in page coordinates, which is what left and top
-          // are. the game never scrolls this page, but the preview does.
           var q = node.getBoundingClientRect();
-          try {
-            localStorage.setItem(key, JSON.stringify({
-              x: q.left + window.scrollX, y: q.top + window.scrollY }));
-          } catch (er) { }
+          rmFrame.write(node, key, rmFrame.local(node, q.left, q.top));
         }
         document.addEventListener("mousemove", move);
         document.addEventListener("mouseup", done);
@@ -383,6 +433,30 @@ angular.module("beamng.apps")
 
       function ui(fn, value) { call("raceManager_ui", fn, value); }
       $scope.cap = function (fn, value) { call("raceManager_capture", fn, value); };
+
+      // The app's box is meant to be the whole screen, and the game side puts
+      // it there when the level loads. A layout edited afterwards, or a game
+      // that restored some other layout, can leave it a smaller box in the
+      // middle with the bars stuck inside it. So the box is measured now and
+      // then, and when it is not the screen the game side is asked again.
+      // Once a minute at most, so an open layout editor is not fought with.
+      var boxAskedAt = 0;
+      function watchBox() {
+        var root = document.querySelector(".rm-root");
+        if (!root) return;
+        var b = root.getBoundingClientRect();
+        if (!(b.width > 0) || !(window.innerWidth > 0)) return;
+        var off = Math.abs(b.left) > 4 || Math.abs(b.top) > 4
+               || Math.abs(b.width - window.innerWidth) > 4
+               || Math.abs(b.height - window.innerHeight) > 4;
+        if (!off) return;
+        var now = Date.now();
+        if (now - boxAskedAt < 60000) return;
+        boxAskedAt = now;
+        call("raceManager_layout", "arm");
+      }
+      var boxTimer = setInterval(watchBox, 3000);
+      $scope.$on("$destroy", function () { clearInterval(boxTimer); });
 
       // the car has to be stopped for the bottom bar. electrics is already
       // streamed to the ui by the game, so reading it here costs us no lua.
@@ -1556,18 +1630,23 @@ angular.module("beamng.apps")
 
       // a window dragged somewhere silly on one monitor is hard to find on
       // another, so there is a way back
+      // Every window, bar and dash spot back where the css puts it, and the
+      // game asked to give the app the whole screen again. The same thing
+      // runs when somebody types !resetui in chat, which is what they try.
       $scope.resetPanels = function () {
         try {
           var kill = [];
           for (var i = 0; i < localStorage.length; i++) {
             var k = localStorage.key(i);
-            if (k && k.indexOf("rm.panel.") === 0) kill.push(k);
+            if (k && (k.indexOf("rm.panel.") === 0 || k.indexOf("rm.bar.") === 0)) kill.push(k);
           }
           for (var j = 0; j < kill.length; j++) localStorage.removeItem(kill[j]);
         } catch (e) { }
         $scope.panel = null;
         $scope.$broadcast("rmReset");
+        call("raceManager_layout", "arm");
       };
+      $scope.$on("rmResetAsked", function () { $scope.resetPanels(); });
 
       $scope.nameProblem = function () {
         var map = {

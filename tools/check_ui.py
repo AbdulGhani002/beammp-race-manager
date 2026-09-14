@@ -375,6 +375,22 @@ def main():
             elif ch in ")]}": depth -= 1
             elif ch == "," and depth == 0: commas += 1
         check(commas == 0, "app.js passes more than one value to call(): " + m.group(0).strip()[:80])
+    # Positions are measured from the app's own box, not the screen, and a
+    # saved spot carries the size of the box it was saved in. A user whose
+    # app sat in a small box in the middle of the screen had the bars walk
+    # off with every restore until this.
+    check("var rmFrame = " in js and "rmFrame.read(" in js and "rmFrame.write(" in js,
+          "the frame helper for window and bar positions is gone")
+    for name in ("rmDrag", "rmSpot", "rmMove"):
+        body = re.search(r'\.directive\("%s"[\s\S]*?
+\}\]\)' % name, js)
+        check(body is not None and "window.innerWidth" not in body.group(0)
+              and "localStorage.setItem" not in body.group(0),
+              "%s measures from the screen or saves a raw position again" % name)
+    check("function watchBox()" in js and 'call("raceManager_layout", "arm")' in js,
+          "the app no longer asks for the whole screen back when its box is not the screen")
+    check("rmResetAsked" in js and 'guihooks.trigger("rmResetAsked"' in read(os.path.join(LUA, "ui.lua")),
+          "!resetui no longer reaches the screen")
     check("rm-bar-grip" not in html and "rm-bar-grip" not in css,
           "a bar has a special handle on it again, and he asked for none: "
           "wherever a bar is taken hold of, it moves")

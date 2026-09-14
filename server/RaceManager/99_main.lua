@@ -596,3 +596,16 @@ RM.handler("onVehicleReset",     onVehicleReset)
 RM.handler("onVehicleEdited",    onVehicleEdited)
 RM.handler("onVehicleDeleted",   onVehicleDeleted)
 RM.handler("onConsoleInput",     function(input) return RM.console.handle(input) end)
+
+-- !resetui in chat puts that player's windows back and asks their game for
+-- the whole screen again. Returning 1 keeps it out of everybody's chat.
+local function onChatMessage(pid, name, message)
+  local text = RM.util.tidy(message):lower()
+  if text == "!resetui" or text == "!ui" then
+    RM.bus.queue(pid, "ui.reset", {})
+    RM.info(("%s asked for their interface back with %s"):format(RM.identity.displayName(pid), text))
+    return 1
+  end
+  return nil
+end
+RM.handler("onChatMessage", onChatMessage)
