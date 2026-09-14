@@ -1,25 +1,21 @@
 -- Level editor (F11 / rebound / console) is owner-only.
 -- Non-owners are blocked from opening it and force-closed if it ever activates.
+-- Only while on a server: driving alone, the editor is the player's own.
 local M = {}
 
+-- the game's own names for the keys that open an editor. Anything else in
+-- this list was a guess, and one of the guesses was the C key, the camera.
 local ACTIONS = {
-  "toggleWorldEditor",
   "editorToggle",
-  "toggleEditor",
-  "worldEditor",
-  "openWorldEditor",
-  "closeWorldEditor",
-  "editor_toggle",
-  "toggle_world_editor",
-  "editorActivate",
-  "editorDeactivate",
-  "toggleCamera",
-  "editorToggleActive",
+  "objectEditorToggle",
+  "editorSafeModeToggle",
 }
+local GROUP = "raceManagerEditorLock"
 
 local filtered = nil
-local lastNotice = 0
+local noticeCooldown = 0
 local closing = false
+local sinceLook = 0
 
 local function isOwner()
   local st = extensions.raceManager_state
@@ -28,31 +24,24 @@ local function isOwner()
   return me and me.role == "owner"
 end
 
+local function onAServer()
+  local ok, is = pcall(function()
+    return MPCoreNetwork and MPCoreNetwork.isMPSession and MPCoreNetwork.isMPSession()
+  end)
+  return ok and is == true
+end
+
 local function filterActions(on)
   on = on and true or false
   if filtered == on then return end
   filtered = on
   pcall(function()
     local f = core_input_actionFilter
-    if not f then return end
-    for i = 1, #ACTIONS do
-      local name = ACTIONS[i]
-      -- BeamNG has used both (filterId, action, enabled) and (action, enabled)
-      if f.addAction then
-        pcall(f.addAction, f, 0, name, on)
-        pcall(f.addAction, 0, name, on)
-        pcall(f.addAction, name, on)
-      end
-      if f.setActionEnabled then
-        pcall(f.setActionEnabled, name, not on)
-      end
-    end
-  end)
-  -- Also try the input system action filter used by some builds
-  pcall(function()
-    if ActionMap and ActionMap.enableBindingsExceptFilter then
-      -- no-op: keep map, we only filter named actions above
-    end
+    if not (f and f.addAction) then return end
+    -- addAction(filterId, groupOrAction, blocked): the filter the game
+    -- itself uses is 0, and a named group blocks its actions together
+    if f.setGroup then f.setGroup(GROUP, ACTIONS) end
+    f.addAction(0, GROUP, on)
   end)
 end
 
@@ -121,9 +110,8 @@ local function closeEditor()
 end
 
 local function noticeBlocked()
-  local now = os.clock()
-  if now - lastNotice < 2.5 then return end
-  lastNotice = now
+  if noticeCooldown > 0 then return end
+  noticeCooldown = 2.5
   pcall(function()
     if extensions.raceManager_state and extensions.raceManager_state.notice then
       extensions.raceManager_state.notice("World Editor is locked on this server.")
@@ -131,8 +119,12 @@ local function noticeBlocked()
   end)
 end
 
+local function locked()
+  return onAServer() and not isOwner()
+end
+
 function M.sync()
-  if isOwner() then
+  if not locked() then
     filterActions(false)
     return
   end
@@ -143,20 +135,19 @@ function M.sync()
   end
 end
 
-function M.onUpdate()
-  if isOwner() then
-    if filtered then filterActions(false) end
-    return
-  end
-  if filtered ~= true then filterActions(true) end
-  if editorIsOpen() then
-    closeEditor()
-    noticeBlocked()
-  end
+-- looked at a few times a second, not every frame: the role and the server
+-- do not change faster than that
+function M.onUpdate(dt)
+  dt = tonumber(dt) or 0
+  if noticeCooldown > 0 then noticeCooldown = noticeCooldown - dt end
+  sinceLook = sinceLook + dt
+  if sinceLook < 0.25 then return end
+  sinceLook = 0
+  M.sync()
 end
 
 function M.onEditorActivated()
-  if isOwner() then return end
+  if not locked() then return end
   closeEditor()
   noticeBlocked()
 end
@@ -170,13 +161,13 @@ function M.onEditorInitialized()
 end
 
 function M.onEditorToggled()
-  if isOwner() then return end
+  if not locked() then return end
   closeEditor()
   noticeBlocked()
 end
 
 function M.onWorldEditorToggled()
-  if isOwner() then return end
+  if not locked() then return end
   closeEditor()
   noticeBlocked()
 end

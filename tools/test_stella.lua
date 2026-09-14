@@ -117,12 +117,17 @@ eq(ahead, 1, "Bravo is ahead of Alfa")
 ok(math.abs(dist - 130) < 0.01, ("and a hundred and thirty metres away, not %s"):format(tostring(dist)))
 
 -- Colt is two gates further on than Bravo, so by progress he is in front,
--- but six hundred and fifty metres off is outside the window
+-- but six hundred and fifty metres off is outside the window. His rule from
+-- 2026-09-14: with nobody ahead inside the window, the request goes to the
+-- nearest car inside it anyway, because on a real course the car in your
+-- way is often one that has not crossed the gate you have. So Bravo's
+-- request goes to Alfa, a hundred and thirty metres behind.
 hit(2, 2)
 hit(2, 3)
 eq(RM.race.get(2).nextGate, 4, "Colt really is through gate 3")
-eq(select(2, RM.stella.ahead(1)), "nobody_ahead",
-   "Colt is further round but six hundred and fifty metres off, outside the window")
+local near1, nearDist = RM.stella.ahead(1)
+eq(near1, 0, "Colt is six hundred and fifty metres off, so the nearest car in the window gets it, and that is Alfa")
+ok(math.abs(nearDist - 130) < 0.01, ("a hundred and thirty metres back, not %s"):format(tostring(nearDist)))
 
 section("a request reaches the car in front and the asker is told it was delivered")
 for _, d in ipairs(DRIVERS) do M.clearOutbox(d.pid) end
@@ -176,12 +181,13 @@ tick(RM.config.rosterMs / RM.config.tickMs)
 eq(M.lastMessage(0, "stella.pass.status").state, "expired", "the asker is told")
 eq(M.lastMessage(1, "stella.pass.status").state, "expired", "and so is the car ahead")
 
-section("with nobody in front the asker is told, not left waiting")
-M.clearOutbox(1)
-M.clientSend(1, "stella.pass.request", {})
+section("with nobody in the window at all the asker is told, not left waiting")
+put(2, 900, 0)
+M.clearOutbox(2)
+M.clientSend(2, "stella.pass.request", {})
 tick(1)
-local none = M.lastMessage(1, "stella.pass.status")
-eq(none and none.state, "cancelled", "cancelled straight away")
+local none = M.lastMessage(2, "stella.pass.status")
+eq(none and none.state, "cancelled", "Colt, alone out front, is cancelled straight away")
 eq(none and none.reason, "nobody_ahead", "with the reason")
 
 -- ================================================================ breakdown

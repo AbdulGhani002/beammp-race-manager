@@ -1,3 +1,16 @@
+// Where a thing is drawn, in the coordinates its left and top are set in:
+// its box's corner taken off the screen position. offsetLeft and offsetTop
+// know nothing of the css transform that centres a bar, and a nudge worked
+// out from them threw the bottom bar half its width to the right on every
+// load, because the bar sat four pixels closer to the edge than the nudge
+// allowed.
+function rmDrawnAt(node) {
+  var r = node.getBoundingClientRect();
+  var host = node.offsetParent || node.parentElement;
+  var h = host ? host.getBoundingClientRect() : { left: 0, top: 0 };
+  return { x: r.left - h.left, y: r.top - h.top, rect: r };
+}
+
 angular.module("beamng.apps")
 
 // Drag a panel by its heading, resize it from the bottom right corner, and
@@ -87,7 +100,11 @@ angular.module("beamng.apps")
       function beginDrag(startEvent, mode) {
         startEvent.preventDefault();
         var ox = startEvent.clientX, oy = startEvent.clientY;
-        var box = { x: node.offsetLeft, y: node.offsetTop, w: node.offsetWidth, h: node.offsetHeight };
+        // from where the window is drawn: a window still centred by the css
+        // transform has an offsetLeft half its width to the right of that,
+        // and the first drag used to jump it there
+        var at = rmDrawnAt(node);
+        var box = { x: at.x, y: at.y, w: node.offsetWidth, h: node.offsetHeight };
 
         function onMove(e) {
           var dx = e.clientX - ox, dy = e.clientY - oy;
@@ -242,15 +259,16 @@ angular.module("beamng.apps")
           resetDefault();
           return;
         }
-        var r = node.getBoundingClientRect();
+        var at = rmDrawnAt(node);
+        var r = at.rect;
         var vw = window.innerWidth || 1280;
         var vh = window.innerHeight || 720;
         var dx = 0, dy = 0;
-        if (r.left < EDGE) dx = EDGE - r.left;
-        if (r.right > vw - EDGE) dx = (vw - EDGE) - r.right;
-        if (r.top < EDGE) dy = EDGE - r.top;
-        if (r.bottom > vh - EDGE) dy = (vh - EDGE) - r.bottom;
-        if (dx || dy) place(node.offsetLeft + dx, node.offsetTop + dy);
+        if (r.left < 0) dx = -r.left;
+        if (r.right > vw) dx = vw - r.right;
+        if (r.top < 0) dy = -r.top;
+        if (r.bottom > vh) dy = vh - r.bottom;
+        if (dx || dy) place(at.x + dx, at.y + dy);
       }
 
       var saved = null;
@@ -347,16 +365,19 @@ angular.module("beamng.apps")
           resetCenter();
           return;
         }
-        // Nudge fully into view if partially clipped.
-        var r = node.getBoundingClientRect();
+        // Nudge fully into view if partially clipped. Where the css puts a
+        // bar is inside the screen already, so a bar at its default is left
+        // exactly as it is.
+        var at = rmDrawnAt(node);
+        var r = at.rect;
         var vs = viewSize();
         var dx = 0, dy = 0;
-        if (r.left < EDGE) dx = EDGE - r.left;
-        if (r.right > vs.w - EDGE) dx = (vs.w - EDGE) - r.right;
+        if (r.left < 0) dx = -r.left;
+        if (r.right > vs.w) dx = vs.w - r.right;
         if (r.top < 0) dy = -r.top;
-        if (r.bottom > vs.h - EDGE) dy = (vs.h - EDGE) - r.bottom;
+        if (r.bottom > vs.h) dy = vs.h - r.bottom;
         if (dx || dy) {
-          put(node.offsetLeft + dx, node.offsetTop + dy, true);
+          put(at.x + dx, at.y + dy, true);
         }
       }
 
@@ -392,7 +413,9 @@ angular.module("beamng.apps")
           t = t.parentNode;
         }
         e.preventDefault();
-        var startX = node.offsetLeft, startY = node.offsetTop;
+        // from where the bar is drawn, for the same reason as a window
+        var at = rmDrawnAt(node);
+        var startX = at.x, startY = at.y;
         var mx = e.clientX, my = e.clientY;
         var sx = e.clientX, sy = e.clientY;
         var moving = false;
@@ -537,10 +560,17 @@ angular.module("beamng.apps")
       $scope.restoreUiLayout = function () { restoreUiLayout(true); };
 
       function onRestoreEvent(data) {
+        // fit: the box pinned and every bar nudged into view, nothing
+        // forgotten. That is what a join and the end of a layout edit ask
+        // for; a wipe there lost everybody's positions every time.
+        if (data && data.fit) { fitAllUi(); return; }
         var hard = true;
         if (data && data.hard === false) hard = false;
         restoreUiLayout(hard);
       }
+      // the same reset, asked from the game side when the chat command could
+      // not reach his restore
+      $scope.$on("rmResetAsked", function () { restoreUiLayout(true); });
 
       // From Lua guihooks / CustomEvent / window message
       try {
@@ -642,6 +672,31 @@ angular.module("beamng.apps")
 
       function ui(fn, value) { call("raceManager_ui", fn, value); }
       $scope.cap = function (fn, value) { call("raceManager_capture", fn, value); };
+
+      // The app's box is meant to be the whole screen, and the game side puts
+      // it there when the level loads. A layout edited afterwards, or a game
+      // that restored some other layout, can leave it a smaller box in the
+      // middle with the bars stuck inside it. fitAllUi pins the box from in
+      // here, which is what you see; this asks the game side to mend the
+      // layout file as well, so it is right next time too. Once a minute at
+      // most, so an open layout editor is not fought with.
+      var boxAskedAt = 0;
+      function watchBox() {
+        var root = document.querySelector(".rm-root");
+        if (!root) return;
+        var b = root.getBoundingClientRect();
+        if (!(b.width > 0) || !(window.innerWidth > 0)) return;
+        var off = Math.abs(b.left) > 4 || Math.abs(b.top) > 4
+               || Math.abs(b.width - window.innerWidth) > 4
+               || Math.abs(b.height - window.innerHeight) > 4;
+        if (!off) return;
+        var now = Date.now();
+        if (now - boxAskedAt < 60000) return;
+        boxAskedAt = now;
+        call("raceManager_layout", "arm");
+      }
+      var boxTimer = setInterval(watchBox, 3000);
+      $scope.$on("$destroy", function () { clearInterval(boxTimer); });
 
       // the car has to be stopped for the bottom bar. electrics is already
       // streamed to the ui by the game, so reading it here costs us no lua.
@@ -2100,17 +2155,12 @@ angular.module("beamng.apps")
 
       // a window dragged somewhere silly on one monitor is hard to find on
       // another, so there is a way back
+      // Put the windows back: the bars and the Stella too, and the game asked
+      // to give the app the whole screen again. One reset, however it is asked.
       $scope.resetPanels = function () {
-        try {
-          var kill = [];
-          for (var i = 0; i < localStorage.length; i++) {
-            var k = localStorage.key(i);
-            if (k && k.indexOf("rm.panel.") === 0) kill.push(k);
-          }
-          for (var j = 0; j < kill.length; j++) localStorage.removeItem(kill[j]);
-        } catch (e) { }
         $scope.panel = null;
-        $scope.$broadcast("rmReset");
+        restoreUiLayout(true);
+        call("raceManager_layout", "arm");
       };
 
       $scope.nameProblem = function () {

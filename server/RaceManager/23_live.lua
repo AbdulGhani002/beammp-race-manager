@@ -13,18 +13,13 @@ local function encode(t)
   return nil
 end
 
+-- written the way the store writes, checked against a full disk, so a
+-- short write is thrown away rather than put over the good file
 local function write(name, payload)
   if not FS.Exists(DIR) then FS.CreateDirectory(DIR) end
   local body = encode(payload)
   if not body then return false end
-  local path = DIR .. "/" .. name
-  local tmp = path .. ".tmp"
-  local f = io.open(tmp, "wb")
-  if not f then return false end
-  f:write(body)
-  f:close()
-  os.rename(tmp, path)
-  return true
+  return RM.store.writeFileAtomic(DIR .. "/" .. name, body)
 end
 
 function RM.live.rosterPayload()

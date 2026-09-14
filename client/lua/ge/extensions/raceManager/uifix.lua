@@ -22,10 +22,12 @@ local function isEditing()
 end
 
 -- Ask the Angular UI to wipe localStorage positions and re-center everything.
-local function triggerUiRestore(hard)
+-- With fit set it only pins the box and nudges the bars into view, and
+-- keeps where everybody put things.
+local function triggerUiRestore(hard, fit)
   pcall(function()
     if guihooks and guihooks.trigger then
-      guihooks.trigger("RaceManagerRestoreUi", { hard = hard and true or false })
+      guihooks.trigger("RaceManagerRestoreUi", { hard = hard and true or false, fit = fit and true or false })
     end
   end)
   -- Also try executeJS paths some builds expose
@@ -58,8 +60,16 @@ end
 function M.restore()
   M.forceHost()
   triggerUiRestore(true)
-  notice("Race Manager UI restored — bars and Stella re-centered.")
+  notice("Race Manager UI restored: bars and Stella put back.")
   return true
+end
+
+-- The soft one: the box back to the whole screen and every bar in view,
+-- with the positions people chose left alone. A join used to run the full
+-- reset and forget everybody's layout every time.
+function M.fit()
+  M.forceHost()
+  triggerUiRestore(false, true)
 end
 
 -- Chat: !restoreui / /restoreui / !resetui
@@ -83,16 +93,19 @@ function M.onUpdate(dt)
   if wasEditing and not editing then
     -- Just left the HUD Apps editor — layout often saves a partial box and
     -- bars/Stella vanish. Force full screen and restore defaults after a beat.
-    notice("Re-fitting Race Manager after UI edit…")
+    notice("Re-fitting Race Manager after UI edit")
     M.forceHost()
     -- delayed so BeamNG finishes applying the layout file first
-    M._pendingRestoreAt = (os.clock() or 0) + 0.35
+    M._pendingFitIn = 0.35
   end
   wasEditing = editing
 
-  if M._pendingRestoreAt and (os.clock() or 0) >= M._pendingRestoreAt then
-    M._pendingRestoreAt = nil
-    M.restore()
+  if M._pendingFitIn then
+    M._pendingFitIn = M._pendingFitIn - (tonumber(dt) or 0)
+    if M._pendingFitIn <= 0 then
+      M._pendingFitIn = nil
+      M.fit()
+    end
   end
 end
 
@@ -131,7 +144,7 @@ end
 
 function M.onClientPostStartMission()
   M.forceHost()
-  M._pendingRestoreAt = (os.clock() or 0) + 1.0
+  M._pendingFitIn = 1.0
 end
 
 return M

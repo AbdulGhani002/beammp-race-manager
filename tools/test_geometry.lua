@@ -99,41 +99,41 @@ near(t.checkpoints[1].pos.x, -292.04, 0.1,
      "gate 1 is still the gate that was dropped first")
 near(t.checkpoints[5].pos.x, -232.05, 0.1, "and the order behind it is untouched")
 
-section("every gate faces the way you drive through it")
-for i = 1, 5 do
-  ok(squareness(t, i) > 0.55,
-     ("gate %d is square enough to the racing line to be driven through"):format(i))
+-- Squaring was turned off by him on 2026-09-14: on his real courses it turned
+-- gates to face each other along the line, which is not where he pointed
+-- them. A gate faces the car that marked it, whatever angle that was, and
+-- the capture is where a slot gets fixed, by marking it again.
+section("every gate keeps the heading the car had when it was marked")
+do
+  local raw = tester()
+  for i = 1, 5 do
+    near(t.checkpoints[i].yaw, raw.checkpoints[i].yaw, 1e-9,
+         ("gate %d faces the way it was captured"):format(i))
+  end
 end
 
 section("the hairpin gate specifically")
 do
   local hair = t.checkpoints[4]
   near(hair.pos.x, -184.30, 0.1, "the hairpin gate is where it always was")
-  ok(squareness(t, 4) > 0.55, "but it now lies across the road rather than along it")
   local was = -2.851715386035
-  ok(math.abs(gap(hair.yaw, was)) > 0.5,
-     "having been turned more than 30 degrees off the heading that was captured")
+  near(hair.yaw, was, 1e-9, "and faces exactly where the car pointed when it was marked")
+  ok(squareness(t, 4) < 0.2, "even though that is edge on to the way you arrive, which is his to re-mark")
 end
 
-section("a gate pointed roughly the way you drive keeps the heading it was given")
--- his courses: he points the car along the course and presses the key, and
--- that is where he wants the gate to face. thirty degrees off the line is a
--- corner entry, not a mistake, and it is left alone.
+section("a gate pointed any way at all keeps the heading it was given")
 do
   local kept = tester()
   RM.tracks.squareUp(kept)
   local g2 = kept.checkpoints[2]
-  local n = #kept.checkpoints
   local prev = kept.checkpoints[1]
   local into = math.atan(g2.pos.y - prev.pos.y, g2.pos.x - prev.pos.x)
   g2.yaw = into + math.rad(30)
-  RM.tracks.squareUp(kept)
-  near(g2.yaw, into + math.rad(30), 1e-9, "thirty degrees off the way in is left as marked")
+  eq(RM.tracks.squareUp(kept), 0, "thirty degrees off the way in turns nothing")
+  near(g2.yaw, into + math.rad(30), 1e-9, "and is left as marked")
   g2.yaw = into + math.rad(80)
-  RM.tracks.squareUp(kept)
-  ok(math.abs(gap(g2.yaw, into + math.rad(80))) > 0.3,
-     "eighty degrees off is a slot, and is squared")
-  ok(squareness(kept, 2) > 0.55, "to something a car can drive through")
+  eq(RM.tracks.squareUp(kept), 0, "eighty degrees off turns nothing either")
+  near(g2.yaw, into + math.rad(80), 1e-9, "the capture is where that gets fixed")
 end
 
 section("running it twice changes nothing")

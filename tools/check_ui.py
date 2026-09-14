@@ -68,16 +68,28 @@ def scope_values(js):
     return set(re.findall(r"\$scope\.(\w+)\s*=(?!=)", js))
 
 
+def unquoted(expr):
+    """the expression with its string literals taken out, so a translation
+    key like 'opt.courses' is not read as a scope name"""
+    return re.sub(r"'[^']*'", "''", expr)
+
+
 def template_calls(html):
-    """Every function the template calls, from any angular attribute."""
+    """Every function the template calls, from any angular attribute. A call
+    on $event is angular's, not the scope's."""
     out = set()
     for attr in re.findall(r'ng-(?:click|if|disabled|class|change|keydown|options|repeat|model)="([^"]*)"', html):
-        for name in re.findall(r"\b([a-zA-Z_]\w*)\s*\(", attr):
+        for name in re.findall(r"(?<![.\w$])([a-zA-Z_]\w*)\s*\(", unquoted(attr)):
             out.add(name)
     for expr in re.findall(r"\{\{([^}]*)\}\}", html):
-        for name in re.findall(r"\b([a-zA-Z_]\w*)\s*\(", expr):
+        for name in re.findall(r"(?<![.\w$])([a-zA-Z_]\w*)\s*\(", unquoted(expr)):
             out.add(name)
     return out
+
+
+def template_loop_vars(html):
+    """the names ng-repeat brings into being"""
+    return set(re.findall(r'ng-repeat="\(?\s*([a-zA-Z_]\w*)', html))
 
 
 def template_roots(html):
@@ -85,6 +97,7 @@ def template_roots(html):
     out = set()
     blob = " ".join(re.findall(r'ng-\w+="([^"]*)"', html))
     blob += " " + " ".join(re.findall(r"\{\{([^}]*)\}\}", html))
+    blob = unquoted(blob)
     # not $event: angular puts that one there itself
     for name in re.findall(r"(?<![.\w$])([a-zA-Z_]\w*)\s*\.", blob):
         out.add(name)
@@ -122,7 +135,7 @@ def main():
         check(name in fns, "app.html calls %s() which is not on the scope" % name)
 
     # 2. every top level name the template reads exists on the scope
-    known = scope_functions(js) | scope_values(js) | {
+    known = scope_functions(js) | scope_values(js) | template_loop_vars(html) | {
         "s", "b", "p", "t", "l", "e", "d", "sec", "$event", "Math",
     }
     for name in sorted(template_roots(html)):
@@ -375,29 +388,46 @@ def main():
             elif ch in ")]}": depth -= 1
             elif ch == "," and depth == 0: commas += 1
         check(commas == 0, "app.js passes more than one value to call(): " + m.group(0).strip()[:80])
-    # Positions are measured from the app's own box, not the screen, and a
-    # saved spot carries the size of the box it was saved in. A user whose
-    # app sat in a small box in the middle of the screen had the bars walk
-    # off with every restore until this.
-    check("var rmFrame = " in js and "rmFrame.read(" in js and "rmFrame.write(" in js,
-          "the frame helper for window and bar positions is gone")
+    # A user whose app sat in a small box in the middle of the screen had the
+    # bars walk off with every restore. His build measures positions from the
+    # app's own box, pins the box to the whole screen from inside the page,
+    # nudges every bar back into view, and does not write a position down
+    # while the box is a partial one. The game side is asked to mend the
+    # layout file as well, so the box is right next time too.
     for name in ("rmDrag", "rmSpot", "rmMove"):
         body = re.search(r'\.directive\("%s"[\s\S]*?\n\}\]\)' % name, js)
-        check(body is not None and "window.innerWidth" not in body.group(0)
-              and "localStorage.setItem" not in body.group(0),
-              "%s measures from the screen or saves a raw position again" % name)
+        check(body is not None and "getBoundingClientRect().left" not in body.group(0)
+              and "offsetLeft" in body.group(0),
+              "%s measures from the screen instead of the app's box again" % name)
+    move = re.search(r'\.directive\("rmMove"[\s\S]*?\n\}\]\)', js)
+    check(move is not None and "hostW < window.innerWidth * 0.85" in move.group(0),
+          "a bar position is written down while the app's box is a partial one again")
+    check("function fitAllUi()" in js and 'scope.$on("rmFitScreen"' in js,
+          "the box is no longer pinned to the whole screen from the page, or the bars no longer fitted after it")
     check("function watchBox()" in js and 'call("raceManager_layout", "arm")' in js,
           "the app no longer asks for the whole screen back when its box is not the screen")
-    check("rmResetAsked" in js and 'guihooks.trigger("rmResetAsked"' in read(os.path.join(LUA, "ui.lua")),
+    uilua = read(os.path.join(LUA, "ui.lua"))
+    check("function M.resetWindows()" in uilua and "raceManager_uifix.restore()" in uilua
+          and 'guihooks.trigger("rmResetAsked"' in uilua and "rmResetAsked" in js,
           "!resetui no longer reaches the screen")
+    uifix = read(os.path.join(LUA, "uifix.lua"))
+    check("M._pendingRestoreAt" not in uifix and "function M.fit()" in uifix
+          and "M.fit()" in uifix.split("function M.onUpdate")[1],
+          "a join or a finished layout edit wipes everybody's saved positions again")
+    check('if (data && data.fit) { fitAllUi(); return; }' in js,
+          "the soft fit from the game side is treated as a full reset again")
+    check("restoreUiLayout(true);" in js.split("$scope.resetPanels = function")[1].split("};")[0],
+          "the Put the windows back button no longer resets the bars and the Stella too")
     check("rm-bar-grip" not in html and "rm-bar-grip" not in css,
           "a bar has a special handle on it again, and he asked for none: "
           "wherever a bar is taken hold of, it moves")
     check('if (tag === "input" || tag === "select") return;' in js
           and 'tag === "button"' not in js.split("var SLACK")[0].split("rmMove")[-1],
           "a press on a bar button is refused as a drag again")
-    check('t in trackList() track by t.id' in html and "trackAway(t)" in html,
-          "the course list no longer says which courses were built on another map")
+    # his rule: courses from another map are not shown at all, and the list
+    # says so when that leaves it empty
+    check('t in trackList() track by t.id' in html and "No course on this map" in html,
+          "the course list no longer says why it is empty on a map with no course")
     # The root is click-through so the world under it gets the mouse, and the
     # bars inherited that. Only their buttons could be pressed; the grip, the
     # badge and the gaps were nothing to the mouse. Two seconds of his

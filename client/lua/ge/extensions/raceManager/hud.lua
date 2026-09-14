@@ -2,8 +2,11 @@ local M = {}
 
 -- Put the interface on screen without anybody having to find it in UI Apps.
 
-local APP = "RaceManager"
-local APP_ALT = "raceManager"
+-- the name the game gives the app is its directive, raceManager. The folder
+-- name was written into layouts for a while and this game still finds the
+-- app by it, so both are ours.
+local APP = "raceManager"
+local APP_ALT = "RaceManager"
 
 local PLACEMENT = {
   position = "absolute",
@@ -34,12 +37,10 @@ function M.install()
   end
 
   local file = layout.filename or layout
-  local added = pcall(function()
+  local ok2, added = pcall(function()
     return layouts.addApp(file, APP, PLACEMENT)
   end)
-  if not added then
-    pcall(function() return layouts.addApp(file, APP_ALT, PLACEMENT) end)
-  end
+  added = ok2 and added == true
   pcall(function() layouts.setCurrentLayout(file) end)
 
   log(added and "I" or "W", "raceManager",

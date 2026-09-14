@@ -452,6 +452,16 @@ function M.challengeEnd(id)
   extensions.raceManager_net.send("challenge.end", { id = id })
 end
 
+-- !resetui in chat: every window back in place and the whole screen asked
+-- for again. His uifix does the work; the screen hook is the fallback.
+function M.resetWindows()
+  local done = pcall(function() return extensions.raceManager_uifix.restore() end)
+  if not done then
+    guihooks.trigger("rmResetAsked", {})
+    pcall(function() extensions.raceManager_layout.arm() end)
+  end
+end
+
 -- XP and challenge tracking, on or off for yourself
 function M.setTracking(on)
   extensions.raceManager_net.send("options.tracking", { on = on and true or false })

@@ -161,7 +161,10 @@ function RM.race.abandon(pid, why)
 end
 
 function RM.race.clear(pid)
+  local r = runs[pid]
   runs[pid] = nil
+  -- a driver whose run is gone comes off the live board of that course
+  if r and r.track then RM.race.refreshBoard(r.track) end
 end
 
 -- seconds added to the clean time, with a reason a person can argue with
@@ -616,6 +619,18 @@ function RM.race.results(pid)
 end
 
 local boards = {}
+local boardDirty = {}
+
+-- one row table per driver per track, filled in again on every refresh. Built
+-- new each time, a lap boundary with ten cars out made a hundred short lived
+-- tables, and the load test showed it as the heap growing four times faster.
+local boardRows = {}
+
+local function byPlace(a, b)
+  if a.finished ~= b.finished then return a.finished and not b.finished end
+  if a.lap ~= b.lap then return a.lap > b.lap end
+  return a.elapsed < b.elapsed
+end
 
 function RM.race.boardOf(track)
   if not track then return {} end
@@ -625,30 +640,31 @@ end
 -- Positions freeze until a lap is completed. Times are raw (no penalties).
 function RM.race.refreshBoard(track)
   if not track then return end
+  local pool = boardRows[track]
+  if not pool then pool = {} boardRows[track] = pool end
   local rows = {}
+  local roster = RM.players and RM.players.roster and RM.players.roster() or nil
   for pid, r in pairs(runs) do
     if r.track == track and (r.state == "running" or r.state == "finished") then
-      rows[#rows + 1] = {
-        id = pid,
-        key = r.key,
-        name = RM.identity.displayName(pid),
-        lap = tonumber(r.boardLap or r.currentLap) or 0,
-        laps = tonumber(r.laps) or 0,
-        elapsed = tonumber(r.boardElapsed) or 0,
-        finished = r.state == "finished" and true or false,
-        queued = (function()
-          if not (RM.players and RM.players.roster) then return false end
-          local rr = RM.players.roster()[pid]
-          return rr and rr.queued and true or false
-        end)(),
-      }
+      local rr = roster and roster[pid] or nil
+      local row = pool[pid]
+      if not row then row = {} pool[pid] = row end
+      row.id = pid
+      row.key = r.key
+      row.name = RM.identity.displayName(pid)
+      row.lap = tonumber(r.boardLap or r.currentLap) or 0
+      row.laps = tonumber(r.laps) or 0
+      row.elapsed = tonumber(r.boardElapsed) or 0
+      row.finished = r.state == "finished" and true or false
+      row.queued = rr and rr.queued and true or false
+      rows[#rows + 1] = row
     end
   end
-  table.sort(rows, function(a, b)
-    if a.finished ~= b.finished then return a.finished and not b.finished end
-    if a.lap ~= b.lap then return a.lap > b.lap end
-    return a.elapsed < b.elapsed
-  end)
+  for pid in pairs(pool) do
+    local r = runs[pid]
+    if not r or r.track ~= track then pool[pid] = nil end
+  end
+  table.sort(rows, byPlace)
   local lead = rows[1]
   for i, row in ipairs(rows) do
     row.pos = i
@@ -664,15 +680,22 @@ function RM.race.refreshBoard(track)
     end
   end
   boards[track] = rows
-  if RM.bus and RM.bus.queue then
-    for pid, r in pairs(runs) do
-      if r.track == track then
-        local w = RM.race.wire(pid)
-        w.board = rows
-        RM.bus.queue(pid, "race.state", w)
-      end
+  boardDirty[track] = true
+end
+
+-- The board goes out once a tick to everybody on the track, however many
+-- crossings changed it in between. Sent from inside every crossing it went
+-- out once per driver per crossing, and ten cars starting together queued
+-- a hundred copies in one tick, past what a player's queue holds.
+function RM.race.pushBoards()
+  if not next(boardDirty) then return end
+  if not (RM.bus and RM.bus.queue) then boardDirty = {} return end
+  for pid, r in pairs(runs) do
+    if boardDirty[r.track] then
+      RM.bus.queue(pid, "race.state", RM.race.wire(pid))
     end
   end
+  boardDirty = {}
 end
 
 function RM.race.count()

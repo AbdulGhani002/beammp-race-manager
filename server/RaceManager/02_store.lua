@@ -130,6 +130,9 @@ local function readStore(name)
   return fromBak, true
 end
 
+-- the same careful write, for files that are not the store's own
+RM.store.writeFileAtomic = writeFileAtomic
+
 function RM.store.load(name, default)
   if cache[name] then return cache[name] end
   ensureDir()

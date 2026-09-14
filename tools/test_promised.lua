@@ -56,11 +56,17 @@ eq(RM.xp.forPlace(3), 196, "and third two less again")
 eq(RM.xp.forPlace(200), 20, "a long way down it stops at the floor")
 eq(RM.xp.forPlace(0), 0, "no place, no pay")
 
-section("levels climb with it")
+-- his curve from 2026-09-14: the first level is 750 points and every level
+-- after it asks 250 more than the one before, so the top of the ladder is
+-- earned and not just sat through
+section("levels climb with it, and each one asks more than the last")
 eq(RM.xp.levelFor(0), 1, "everybody starts at one")
-eq(RM.xp.levelFor(999), 1, "a level short is still the level below")
-eq(RM.xp.levelFor(1000), 2, "and the thousandth point turns it over")
-eq(RM.xp.levelFor(4200), 5, "further up it keeps counting")
+eq(RM.xp.levelFor(749), 1, "a point short is still the level below")
+eq(RM.xp.levelFor(750), 2, "and the 750th point turns it over")
+eq(RM.xp.neededFor(3) - RM.xp.neededFor(2), 1000, "the next level is a thousand on top")
+eq(RM.xp.neededFor(4) - RM.xp.neededFor(3), 1250, "and the one after that 1250")
+eq(RM.xp.levelFor(4200), 4, "further up it keeps counting")
+eq(RM.xp.levelFor(4500), 5, "with level five at 4500")
 
 section("giving it lands on the record and the roster")
 local total, level = RM.xp.give(keyOf(1), 200, "finish")

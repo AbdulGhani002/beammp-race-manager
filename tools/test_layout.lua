@@ -81,6 +81,19 @@ eq(#x, 2, "the other two are copies")
 eq(x[1], 3, "the higher one first, so taking it out moves nothing")
 eq(x[2], 2, "then the lower")
 
+-- a build of the mod wrote the folder name into layouts for a while, and
+-- this game still draws the app under it, so it is ours too: kept when it
+-- is the only one, taken out when it is a second copy
+section("an entry under the folder name is the same app")
+a, i, x = L.decide(layout({ app("beammpchat", {}), app("RaceManager", L.WANT) }))
+eq(a, "fine", "the whole screen under the folder name is fine")
+eq(i, 1, "and it is the entry it is")
+eq(#x, 0, "nothing comes out")
+a, i, x = L.decide(layout({ app("raceManager", L.WANT), app("RaceManager", L.WANT) }))
+eq(a, "fine", "with both spellings the first is fine")
+eq(#x, 1, "and the other is a copy")
+eq(x[1], 1, "the second entry")
+
 section("the stock gauges the dash stands in for come out")
 -- the corner of his screen: his tachometer drawn over the stock one
 a, i, x = L.decide(layout({

@@ -258,13 +258,20 @@ tick(1)
 eq(RM.service.spares(0), 2, "and re-racking is not itself a spare change")
 RM.race.setPit(0, false)
 
-section("fuel waits but costs nothing")
+-- fuel became a pit job on 2026-09-14, his rule: a tank filled out on the
+-- course is a shortcut round the pit lane
+section("fuel is a pit job, and in the pit it waits but costs nothing")
 startRun()
+local _, dryOut = use("fuel")
+ok(dryOut ~= nil, "out on the course it is refused")
+eq(dryOut.why, "pit_only", "because it belongs in the pit")
+RM.race.setPit(0, true)
 local fuel = use("fuel")
-ok(fuel ~= nil, "fuel is allowed")
+ok(fuel ~= nil, "in the pit it is allowed")
 near(fuel.hold, HOLD.fuel, 0.01, "it has a hold")
 eq(fuel.penalty, nil, "and no penalty")
 near(RM.race.penaltyTotal(RM.race.get(0)), 0, 0.01, "nothing is added to the run")
+RM.race.setPit(0, false)
 
 section("reposition")
 startRun()

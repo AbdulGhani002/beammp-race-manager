@@ -5,7 +5,9 @@
 <title>Race Manager preview</title>
 <!-- Run tools/preview/serve.sh, do not open this file directly. -->
 <style>
-  html, body { margin: 0; height: 100%; background: #2a2f36; font-family: sans-serif; }
+  /* no scrollbars, like the game: a bar hung off the edge gave the page one
+     and the app's box lost fifteen pixels to it */
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #2a2f36; font-family: sans-serif; }
   /* stands in for the game behind the overlay */
   /* stands in for sky and dirt behind the overlay, so contrast is judged
      against something like the map rather than against black */
@@ -33,6 +35,25 @@
 <div ng-app="preview" style="position:absolute; inset:0;">
   <race-manager></race-manager>
 </div>
+
+<script>
+// ?box=0.82x0.59 puts the app in a box that size in the middle of the
+// screen, the way an edited layout did in the game, so what the bars do in
+// a box that is not the screen can be seen here. Set before angular runs,
+// because a saved spot is put back when the app is built.
+(function () {
+  var m = /[?&]box=([\d.]+)x([\d.]+)/.exec(location.search);
+  if (!m) return;
+  var el = document.querySelector("[ng-app]");
+  var w = parseFloat(m[1]) * 100, h = parseFloat(m[2]) * 100;
+  el.style.inset = "auto";
+  el.style.left = ((100 - w) / 2) + "%";
+  el.style.top = ((100 - h) / 2) + "%";
+  el.style.width = w + "%";
+  el.style.height = h + "%";
+  el.style.outline = "2px dashed rgba(255,255,255,0.6)";
+})();
+</script>
 
 <script>
 // the two globals the app talks to in the game

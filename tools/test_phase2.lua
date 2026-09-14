@@ -302,6 +302,68 @@ for pid = 10, 19 do
   M.removePlayer(pid)
 end
 
+-- his live board from 2026-09-14: everybody on a course sees the running
+-- order. It went out from inside every crossing, one copy per driver, so
+-- ten cars starting together queued a hundred copies in a tick. Now the
+-- board is marked and goes out once a tick to each driver on the course.
+section("the live board goes out once a tick, in running order, and a run that ends comes off it")
+local function countOf(pid, channel)
+  local n = 0
+  for _, m in ipairs(M.messages(pid)) do if m.c == channel then n = n + 1 end end
+  return n
+end
+-- whoever is still out from the sections above comes in first
+for pid = 0, 9 do if RM.race.get(pid) then RM.race.clear(pid) end end
+eq(#RM.race.boardOf("loop"), 0, "the course starts empty")
+for pid = 20, 22 do
+  M.addPlayer(pid, "board" .. pid, tostring(6000 + pid), false, "198.51.100." .. pid)
+  M.fire("onPlayerJoining", pid)
+  M.clientSend(pid, "hello", { version = RM.VERSION })
+  RM.clock.onPong(pid, { t1 = RM.now(), t2 = RM.now(), t3 = RM.now() })
+  RM.race.arm(pid, { id = "loop", mode = "controller", laps = 2 })
+end
+tick(1)
+for pid = 20, 22 do M.clearOutbox(pid) end
+for pid = 20, 22 do RM.race.gate(pid, 1, RM.now()) end
+tick(1)
+for pid = 20, 22 do
+  eq(countOf(pid, "race.state"), 1, ("driver %d got the board once for three starts in one tick"):format(pid))
+end
+local seen = M.lastMessage(20, "race.state")
+eq(#seen.board, 3, "with all three on it")
+
+-- 21 completes a lap first, then 20, and 22 is still on lap one
+for pid = 20, 22 do M.clearOutbox(pid) end
+for g = 2, 5 do
+  M.advance(2)
+  RM.race.gate(21, g, RM.now())
+  RM.race.gate(20, g, RM.now())
+end
+M.advance(2)
+RM.race.gate(21, 1, RM.now())
+M.advance(1)
+RM.race.gate(20, 1, RM.now())
+tick(1)
+local order = M.lastMessage(22, "race.state").board
+eq(order[1].id, 21, "the driver who finished the lap first leads")
+eq(order[2].id, 20, "the one a second behind is second")
+eq(order[3].id, 22, "and the driver still on lap one is last")
+eq(order[2].gap, 1, "a second behind on the board")
+eq(order[3].gapLaps, 1, "a lap down, said as a lap")
+eq(countOf(22, "race.state"), 1, "two lap completions in a tick, one board")
+
+M.fire("onPlayerDisconnect", 21)
+M.removePlayer(21)
+tick(1)
+eq(#RM.race.boardOf("loop"), 2, "a driver who leaves comes off the board")
+for pid = 20, 22 do
+  if pid ~= 21 then
+    M.fire("onPlayerDisconnect", pid)
+    M.removePlayer(pid)
+  end
+end
+eq(#RM.race.boardOf("loop"), 0, "and an empty course has an empty board")
+
 section("a rewritten client cannot invent a time")
 RM.race.clear(0)
 RM.race.arm(0, { id = "loop", mode = "controller", laps = 1 })

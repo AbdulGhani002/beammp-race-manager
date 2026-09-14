@@ -69,9 +69,11 @@ local function gateOf(cp, kind)
   local s = cp.size or base
   return tonumber(s.w) or base.w,
          tonumber(s.h) or base.h,
-         -- pits keep a long default depth; speed-zone boxes use the size
-         -- captured for them, separate from checkpoint gate depth
-         (kind == "pit" and not (s and s.d)) and base.d or (tonumber(s.d) or base.d)
+         -- a pit keeps its long default depth whatever the capture wrote,
+         -- because a pit mark carries the gate depth of the capture screen
+         -- and three metres is not a place to park. A speed zone box uses
+         -- the size captured for it.
+         (kind == "pit") and base.d or (tonumber(s.d) or base.d)
 end
 
 -- The one place a gate's shape is worked out. The volume and the posts you see
@@ -296,6 +298,12 @@ function M.boxOffset(cp, pos, kind)
   return inside, dist, face
 end
 
+-- the capture in progress: gates and speed zone boxes. Declared here, above
+-- the first function that reads them; declared lower down they were globals
+-- to that function and always nil, so a drafted zone was never found.
+local draft = nil
+local draftSz = nil
+
 function M.nearestSz(pos)
   local boxes = course and type(course.szGates) == "table" and course.szGates or draftSz
   if type(boxes) ~= "table" or not pos then return nil end
@@ -353,27 +361,24 @@ local function spawnGate(cp, index, prefix, kind)
 
     local across, along, bottom, top, off = gateBox(cp, kind)
     local yaw = tonumber(cp.yaw) or 0
-    local fx, fy = math.cos(yaw), math.sin(yaw)
     local rx, ry = -math.sin(yaw), math.cos(yaw)
 
+    -- the box is centred on its position: at the middle of the vertical span,
+    -- and slid sideways to the middle of the measured gap rather than sitting
+    -- on the line the capture car happened to drive
     obj:setPosition(vec3(cp.pos.x + rx * off, cp.pos.y + ry * off, (bottom + top) * 0.5))
 
-    -- BeamNG objects face +Y. Width on X, depth (drive-through) on Y.
-    obj:setScale(vec3(across, along, top - bottom))
+    -- yaw sends local x along the way you drive, so the width goes in y and the
+    -- depth in x. These were swapped once and built a three metre slot down
+    -- the middle of the road instead of a gate across it, and drivers went
+    -- through checkpoints that never fired. This pairing is the one that was
+    -- driven and seen to fire, so it stays as it is.
+    obj:setScale(vec3(along, across, top - bottom))
 
-    local q
-    local okq, builtQ = pcall(function()
-      return quatFromDir(vec3(fx, fy, 0), vec3(0, 0, 1))
-    end)
-    if okq then q = builtQ end
-    if q then
-      pcall(function() obj:setRotation(q) end)
-      local tq = q
-      pcall(function() tq = q:toTorqueQuat() end)
-      if tq and tq.x then
-        obj:setField("rotation", 0, tq.x .. " " .. tq.y .. " " .. tq.z .. " " .. tq.w)
-      end
-    end
+    -- yaw only. a gate leaning with the camber of the road buys nothing and
+    -- makes the volume harder to drive through.
+    local q = quat(0, 0, math.sin(yaw * 0.5), math.cos(yaw * 0.5)):toTorqueQuat()
+    obj:setField("rotation", 0, q.x .. " " .. q.y .. " " .. q.z .. " " .. q.w)
   end)
 
   if not built then
@@ -706,9 +711,6 @@ local SZ_BG    = ColorI(18, 110, 36, 215)
 local DRAW_RANGE = 900
 local RACE_RANGE = 400
 local errLogged = false
-
-local draft = nil
-local draftSz = nil
 
 -- the gates dropped so far in a capture. drawn but not built: there is nothing
 -- to collide with until the course is saved.

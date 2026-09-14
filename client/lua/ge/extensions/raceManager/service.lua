@@ -246,6 +246,11 @@ local function askFuel()
   if not ok then notice("Fuel: could not read the tank") end
 end
 
+-- filled in below; named here so M.ask can reach it. As a local declared
+-- lower down it was nil here and the pcall swallowed the miss, so the fuel
+-- level was never kept across a repair.
+local captureFuel
+
 function M.ask(which)
   if st.which then
     notice("Already busy with " .. st.which)
@@ -401,7 +406,7 @@ local savedFuel = nil
 local fuelRestoreAt = 0
 local snapshotTanks, applyTanks
 
-local function captureFuel(v)
+captureFuel = function(v)
   v = v or playerVehicle()
   if not v then return end
   pcall(function()

@@ -485,6 +485,7 @@ eq(M.fire("onChatMessage", 1, "Bravo", "hello everyone"), nil, "ordinary chat go
 tick(1)
 eq(M.lastMessage(1, "ui.reset"), nil, "and resets nothing")
 eq(M.fire("onChatMessage", 1, "Bravo", "  !UI "), 1, "!ui, however typed, is the same")
+eq(M.fire("onChatMessage", 1, "Bravo", "!restoreui"), 1, "and !restoreui, the word the Options window uses")
 
 section("the console sees the board and the watchers")
 local heard = tostring(RM.console.handle("rm challenges")) .. "\n" .. tostring(RM.console.handle("rm watching"))
