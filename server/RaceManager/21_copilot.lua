@@ -38,28 +38,6 @@ end
 
 function RM.copilot.watchingOf(key) return key and watching[key] or nil end
 
--- Copy an event to everyone sitting in this driver's car.
-function RM.copilot.relay(driverPid, event, payload)
-  local s = RM.identity.session(driverPid)
-  if not s or not s.key then return end
-  for _, wkey in ipairs(RM.copilot.watchersOf(s.key)) do
-    local wpid = RM.identity.pidForKey(wkey)
-    if wpid and wpid ~= driverPid then
-      RM.bus.queue(wpid, event, payload)
-    end
-  end
-end
-
-function RM.copilot.mirrorRace(driverPid)
-  if not RM.race or not RM.race.wire then return end
-  local w = RM.race.wire(driverPid)
-  if type(w) ~= "table" then return end
-  RM.copilot.relay(driverPid, "stella.mirror", {
-    state = w.state, track = w.track, next = w.next, done = w.done,
-    lap = w.lap, gates = w.gates,
-  })
-end
-
 function RM.copilot.watchersOf(key)
   local out = {}
   for w, d in pairs(watching) do
@@ -235,10 +213,6 @@ end
 
 function RM.copilot.tick()
   local now = RM.now()
-  for watcherKey, driverKey in pairs(watching) do
-    local dpid = RM.identity.pidForKey(driverKey)
-    if dpid then RM.copilot.mirrorRace(dpid) end
-  end
   for key, o in pairs(offers) do
     if now - o.at > OFFER_SECS then
       offers[key] = nil

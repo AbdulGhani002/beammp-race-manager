@@ -6,7 +6,7 @@
 -- It owns its state; it does not use Baja gameCommands, speedGovernor,
 -- uiLayout, or BajaConfigs.
 local M = {}
-M.VERSION = "0.7.11"
+M.VERSION = "0.7.12"
 
 local cfg = {
   tick = 0.1, immediateRange = 8, rearApproachRange = 150,
@@ -66,7 +66,7 @@ local function zoneIdentity(z)
 end
 local function restoreLed()
   if hazardAhead then
-    setLed("yellow", true, "triangle")
+    setLed("red", true, "triangle")
   elseif breakdown then
     setLed("yellow", true, "triangle")
   elseif blueFlag.state == "incoming" or blueFlag.state == "requested" or blueFlag.state == "accepted" then
@@ -98,14 +98,9 @@ local function publishAlert()
     ledFlash=led.flash, ledPattern=led.pattern
   })
 end
+-- your own car, always. It was the driver's car while copiloting for a
+-- while, and that is where the unit stopped working for him.
 local function vehicle()
-  local ok, cop = pcall(function()
-    return extensions.raceManager_copilot and extensions.raceManager_copilot.status()
-  end)
-  if ok and cop and cop.watching and cop.gameId and be and be.getObjectByID then
-    local obj = be:getObjectByID(cop.gameId)
-    if obj then return obj end
-  end
   return be and be:getPlayerVehicle(0) or nil
 end
 -- Airspeed: world velocity length in km/h. Same quantity as electrics.airspeed.
@@ -340,12 +335,21 @@ local function sayOnce(err)
   if said[key] then return end
   said[key] = true
   if type(log) == "function" then log("E", "raceManager", "Stella unit: " .. key) end
+  pcall(function()
+    extensions.raceManager_state.notice("Stella unit fault: " .. key:sub(1, 120))
+  end)
 end
+
+-- how many times the unit has done its tenth of a second of work, for
+-- the test from chat to say whether it is running at all
+local ticks = 0
+function M.ticks() return ticks end
 
 local function tickUnit(dt)
   dt=dt or 0
   clock=clock+dt
   timer=timer+dt; if timer<cfg.tick then return end; timer=0
+  ticks=ticks+1
   local v=vehicle(); if not v then return end
   local pos=v:getPosition(); if not pos then return end
   local speed,heading,fwd=speedAndHeading(v)

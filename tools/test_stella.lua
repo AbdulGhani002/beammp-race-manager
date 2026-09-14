@@ -250,12 +250,12 @@ ok(M.lastMessage(0, "stella.test") ~= nil, "and Alfa's unit is told to run it")
 eq(M.lastMessage(2, "stella.test"), nil, "nobody else's is")
 eq(M.fire("onChatMessage", 0, "Alfa", "!StellaTest"), 1, "however it is typed")
 
--- ================================================================ the copilot's Stella
+-- ================================================================ a copilot's Stella is their own
 
--- his ask: somebody copiloting a driver works the Stella for them. A press
--- from the copilot is the driver's press, and everything the driver's unit
--- is told, the copilot's unit is told too, so the two read the same.
-section("a copilot's Stella is the driver's: the press acts for the driver, the answers reach both")
+-- The copilot Stella was tried and taken out again: a press from somebody
+-- watching a driver is their own press, and what a driver's unit is told
+-- reaches that driver's unit alone.
+section("a copilot's Stella is their own, and the driver's unit is told nothing extra")
 M.addPlayer(1, "Bravo", "7001", false, "203.0.113.2")
 M.fire("onPlayerJoining", 1)
 M.clientSend(1, "hello", { version = RM.VERSION })
@@ -280,56 +280,28 @@ hit(0, 1)
 hit(1, 1)
 hit(1, 2)
 tick(1)
--- Echo sits with Alfa
 M.clientSend(0, "copilot.offer", { to = 4, kind = "invite" })
 tick(1)
 M.clientSend(4, "copilot.accept", {})
 tick(1)
 eq((M.lastMessage(4, "copilot.watch") or {}).pid, 0, "Echo watches Alfa")
-
 tick(RM.config.rosterMs / RM.config.tickMs)
-local mirror = M.lastMessage(4, "stella.mirror")
-ok(mirror ~= nil, "Echo's unit is sent Alfa's race")
-eq(mirror and mirror.state, "running", "running")
-eq(mirror and mirror.next, 2, "with Alfa's next gate")
-eq(M.lastMessage(0, "stella.mirror"), nil, "Alfa's own unit is not")
+eq(M.lastMessage(4, "stella.mirror"), nil, "and no race is mirrored to Echo's unit")
 
 for _, pid in ipairs({ 0, 1, 4 }) do M.clearOutbox(pid) end
 M.clientSend(4, "stella.pass.request", {})
 tick(1)
-local alert = M.lastMessage(1, "stella.pass.alert")
-ok(alert ~= nil, "Echo's press reaches Bravo as a request")
-eq(alert and alert.requesterName, "Alfa", "in Alfa's name")
-eq((M.lastMessage(0, "stella.pass.status") or {}).state, "delivered", "Alfa's unit shows it delivered")
-eq((M.lastMessage(4, "stella.pass.status") or {}).state, "delivered", "and so does Echo's")
-
-M.clientSend(1, "stella.pass.accept", { requestId = alert.requestId })
-tick(1)
-ok(M.lastMessage(0, "stella.pass.go") ~= nil, "Bravo's OK is Alfa's green")
-ok(M.lastMessage(4, "stella.pass.go") ~= nil, "on Echo's unit too")
+eq((M.lastMessage(4, "stella.pass.status") or {}).state, "cancelled", "Echo's press is Echo's, and Echo is not racing")
+eq((M.lastMessage(4, "stella.pass.status") or {}).reason, "not_racing", "so it is refused")
+eq(M.lastMessage(1, "stella.pass.alert"), nil, "Bravo hears nothing")
+eq(M.lastMessage(0, "stella.pass.status"), nil, "and neither does Alfa")
 
 for _, pid in ipairs({ 0, 1, 4 }) do M.clearOutbox(pid) end
-M.clientSend(4, "stella.breakdown.set", { active = true })
+M.clientSend(0, "stella.pass.request", {})
 tick(1)
-eq(RM.stella.isBrokenDown(0), true, "Echo's red button stops Alfa's car, not Echo's")
-eq(RM.stella.isBrokenDown(4), false, "Echo is not the one stopped")
-eq((M.lastMessage(0, "stella.breakdown.state") or {}).active, true, "Alfa's unit shows stopped")
-eq((M.lastMessage(4, "stella.breakdown.state") or {}).active, true, "and Echo's")
-M.clientSend(4, "stella.breakdown.set", { active = false })
-tick(1)
-eq(RM.stella.isBrokenDown(0), false, "and starts it again")
-
-section("the copilot leaving takes the mirror with them, and their presses are their own again")
+eq((M.lastMessage(0, "stella.pass.status") or {}).state, "delivered", "Alfa's own request is delivered")
+eq(M.lastMessage(4, "stella.pass.status"), nil, "to Alfa's unit alone, not Echo's")
 M.clientSend(4, "copilot.stop", {})
-tick(1)
-for _, pid in ipairs({ 0, 1, 4 }) do M.clearOutbox(pid) end
-tick(RM.config.rosterMs / RM.config.tickMs)
-eq(M.lastMessage(4, "stella.mirror"), nil, "no mirror once Echo is back in their own car")
-M.clientSend(4, "stella.breakdown.set", { active = true })
-tick(1)
-eq(RM.stella.isBrokenDown(4), true, "Echo's red button is Echo's")
-eq(RM.stella.isBrokenDown(0), false, "not Alfa's")
-M.clientSend(4, "stella.breakdown.set", { active = false })
 tick(1)
 
 print("")

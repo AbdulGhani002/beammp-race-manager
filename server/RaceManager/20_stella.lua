@@ -15,16 +15,6 @@ local requests   = {}   -- id  -> { id, from, to, state, at, until_ }
 local openBy     = {}   -- requester pid -> request id
 local nextId     = 1
 
--- If this player is watching someone, Stella buttons act as that driver.
-function RM.stella.actingPid(pid)
-  if not RM.copilot or not RM.copilot.watchingOf then return pid end
-  local s = RM.identity.session(pid)
-  if not s or not s.key then return pid end
-  local driverKey = RM.copilot.watchingOf(s.key)
-  if not driverKey then return pid end
-  return RM.identity.pidForKey(driverKey) or pid
-end
-
 local function cfg(name, fallback)
   local c = RM.config.stella
   local v = type(c) == "table" and tonumber(c[name]) or nil
@@ -112,18 +102,8 @@ end
 
 ------------------------------------------------------------------ breakdown
 
--- Send to the driver and anyone copiloting them, so both Stellas match.
 local function tell(pid, channel, payload)
   RM.bus.queue(pid, channel, payload)
-  if not RM.copilot or not RM.copilot.watchersOf then return end
-  local s = RM.identity.session(pid)
-  if not s or not s.key then return end
-  for _, wkey in ipairs(RM.copilot.watchersOf(s.key)) do
-    local wpid = RM.identity.pidForKey(wkey)
-    if wpid and wpid ~= pid then
-      RM.bus.queue(wpid, channel, payload)
-    end
-  end
 end
 
 local function vehicleOf(pid)

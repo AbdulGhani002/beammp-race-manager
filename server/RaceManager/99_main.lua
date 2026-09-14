@@ -50,7 +50,6 @@ local function onTick()
           zone = RM.zones.wire(pid),
         }
         RM.bus.queue(pid, "zone.warn", zw)
-        if RM.copilot and RM.copilot.relay then RM.copilot.relay(pid, "zone.warn", zw) end
         if verdict == "charged" then
           RM.bus.queue(pid, "race.state", RM.race.wire(pid))
         end
@@ -343,7 +342,6 @@ local function wireChannels()
     end
 
     RM.bus.queue(pid, "race.split", result)
-    if RM.copilot and RM.copilot.mirrorRace then RM.copilot.mirrorRace(pid) end
     if result.finished then
       RM.bus.queue(pid, "race.state", RM.race.wire(pid))
       RM.results.onRunEnded(pid)
@@ -481,7 +479,6 @@ local function wireChannels()
       local zw = { charged = false, event = what, zone = RM.zones.wire(pid) }
       RM.bus.queue(pid, "race.state", RM.race.wire(pid))
       RM.bus.queue(pid, "zone.warn", zw)
-      if RM.copilot and RM.copilot.relay then RM.copilot.relay(pid, "zone.warn", zw) end
     end
   end)
   RM.bus.on("sz.state", function(pid, d)
@@ -493,7 +490,6 @@ local function wireChannels()
       local zw = { charged = false, event = what, zone = RM.zones.wire(pid) }
       RM.bus.queue(pid, "race.state", RM.race.wire(pid))
       RM.bus.queue(pid, "zone.warn", zw)
-      if RM.copilot and RM.copilot.relay then RM.copilot.relay(pid, "zone.warn", zw) end
     end
   end)
 
@@ -589,17 +585,16 @@ local function wireChannels()
 
   -- The Stella box. A stopped car, and asking the car in front to let you by.
   -- The client only ever says what it wants; who is where is decided here.
-  -- A copilot watching a driver presses the same buttons for that driver.
   RM.bus.on("stella.breakdown.set", function(pid, d)
-    RM.stella.setBreakdown(RM.stella.actingPid(pid), type(d) == "table" and d.active == true)
+    RM.stella.setBreakdown(pid, type(d) == "table" and d.active == true)
   end)
 
   RM.bus.on("stella.pass.request", function(pid)
-    RM.stella.requestPass(RM.stella.actingPid(pid))
+    RM.stella.requestPass(pid)
   end)
 
   RM.bus.on("stella.pass.accept", function(pid, d)
-    local ok, why = RM.stella.acceptPass(RM.stella.actingPid(pid), type(d) == "table" and d.requestId or nil)
+    local ok, why = RM.stella.acceptPass(pid, type(d) == "table" and d.requestId or nil)
     if not ok then
       RM.bus.queue(pid, "stella.pass.status", { state = "cancelled", reason = why })
     end

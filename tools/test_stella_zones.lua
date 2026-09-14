@@ -114,15 +114,12 @@ eq(led().color, "green", "gate 4's green")
 drive(960, mph(30), 2.0)
 eq(led().color, "off", "then the dots are out")
 
-section("a box zone the server switches on: the display stays up while the car is in it")
+section("a box zone the server switches on: shown while the server says so, whatever this side sees")
 track.zones = {}
 status.next, status.done = 2, 1
 drive(50, mph(30), 0.3)
 eq(led().color, "off", "nothing lit to begin with")
--- the car's own trigger fires, the server says on, and the course's box is found under the car
-box = { i = 1, mph = 20, pos = { x = 500, y = 0, z = 0 } }
-car.pos = { x = 500, y = 0, z = 0 }
-handlers["zone.warn"] = nil
+box = nil
 local n0 = #events
 -- race.lua hands the server's word to the bridge like this
 B.setPairZone({ mph = 20, pair = "1", box = true })
@@ -137,29 +134,14 @@ for _, e in ipairs(zoneEvents) do
   if e.event == "enter" then enters = enters + 1 elseif e.event == "exit" then exits = exits + 1 end
 end
 eq(enters, 1, "one beep, not one every tick")
-eq(exits, 0, "and no exit while the car is in it")
-
-section("the same box, when the course's boxes are not to hand on this side")
-B.setPairZone(nil)
-drive(50, mph(30), 0.3)
-eq(shown().speedZoneActive, false, "off")
-box = nil
-n0 = #events
-B.setPairZone({ mph = 20, pair = "1", box = true })
-drive(50, mph(15), 1.0)
-eq(shown().speedZoneActive, true, "the server said on, so it is on, whatever this side can see")
-eq(led().color, "red", "red dots")
-zoneEvents = eventsOf("RmStella_SpeedZone", n0)
-enters, exits = 0, 0
-for _, e in ipairs(zoneEvents) do
-  if e.event == "enter" then enters = enters + 1 elseif e.event == "exit" then exits = exits + 1 end
-end
-eq(enters, 1, "one beep")
 eq(exits, 0, "and it is not taken down again a tick later")
+drive(560, mph(15), 0.3)
+eq(shown().speedZoneActive, true, "driving on changes nothing until the server speaks")
 B.setPairZone(nil)
-drive(50, mph(30), 0.3)
+drive(560, mph(15), 0.3)
 eq(shown().speedZoneActive, false, "off when the server says off")
 eq(led().color, "off", "dots out")
+eq(#eventsOf("RmStella_SpeedZone", n0), 2, "enter and exit, nothing between")
 
 section("the red button during a race, with a zone on")
 box = { i = 1, mph = 20, pos = { x = 500, y = 0, z = 0 } }
