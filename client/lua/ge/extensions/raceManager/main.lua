@@ -1,6 +1,6 @@
 local M = {}
 
-M.VERSION = "0.7.7-stella-served"
+M.VERSION = "0.7.8-measured"
 
 -- ui goes last: it reads from every other module the moment it comes up
 local SUBS = {

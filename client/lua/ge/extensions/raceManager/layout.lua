@@ -39,8 +39,33 @@ M.onAServer = onAServer
 -- buttons, so all three are covered.
 M.REPLACES = { tacho2 = true, forcedInduction = true, simplePowertrainControl = true }
 
--- the whole screen, because the bars and windows are drawn inside it
+-- The whole screen, because the bars and windows are drawn inside it.
+--
+-- This game keeps a layout in em, and turns a percent into em at the size
+-- a pixel has with the interface at 100%. With the interface scaled to
+-- 102% the box comes out two percent bigger than the screen and the
+-- bottom of the bar is clipped; scaled down, the box stops short of the
+-- edges. And its layout editor shows the layout in a smaller frame, so a
+-- box that is 100% of the frame is written down in em as that smaller
+-- size the moment anything in the editor is touched, and after the editor
+-- closes the app sits in a box the size of the editor's frame in the
+-- middle of the screen. That is what was in both clips.
+--
+-- So the screen measures itself and says its size in em, and once that is
+-- known it is what the layout is asked for, exact at any scale. Until it
+-- is known, 100% is asked for, which is right at 100%.
 M.WANT = { top = "0px", left = "0px", width = "100%", height = "100%", position = "absolute" }
+M.wantEm = nil
+
+function M.askedFor() return M.wantEm or M.WANT end
+
+local function same(p, want)
+  if type(p) ~= "table" then return false end
+  for k, v in pairs(want) do
+    if p[k] ~= v then return false end
+  end
+  return true
+end
 
 local function whole(v)
   return v == "100%"
@@ -78,8 +103,13 @@ function M.decide(layout)
   if first == nil then return "add", nil, gone end
 
   local p = layout.apps[first].placement
-  local fine = type(p) == "table" and whole(p.width) and whole(p.height)
-               and nothing(p.left) and nothing(p.top)
+  local fine
+  if M.wantEm then
+    fine = same(p, M.wantEm)
+  else
+    fine = type(p) == "table" and whole(p.width) and whole(p.height)
+           and nothing(p.left) and nothing(p.top)
+  end
   return fine and "fine" or "repair", first - 1, gone
 end
 
@@ -113,10 +143,11 @@ function M.force()
   -- The mend goes first, while the index it was given still points at the
   -- right entry. What comes out comes out afterwards, from the end, and by
   -- then nothing needs the index any more.
+  local want = M.askedFor()
   if action == "add" then
-    pcall(a.addApp, layout.filename, APP, M.WANT)
+    pcall(a.addApp, layout.filename, APP, want)
   elseif action == "repair" then
-    pcall(a.applyPlacementPatch, layout.filename, index, M.WANT)
+    pcall(a.applyPlacementPatch, layout.filename, index, want)
   end
   for i = 1, #gone do
     pcall(a.removeApp, layout.filename, gone[i])
@@ -141,7 +172,14 @@ local EVERY = 1.0
 
 local armed, since = false, 0
 
-function M.arm()
+-- The screen says how big it is, in em, when it asks. Without the numbers
+-- the last size said is used, and before any was said, 100%.
+function M.arm(wEm, hEm)
+  wEm, hEm = tonumber(wEm), tonumber(hEm)
+  if wEm and hEm and wEm > 0 and hEm > 0 then
+    M.wantEm = { position = "absolute", left = "0em", top = "0em",
+                 width = ("%.2fem"):format(wEm), height = ("%.2fem"):format(hEm) }
+  end
   armed, since = true, 0
 end
 

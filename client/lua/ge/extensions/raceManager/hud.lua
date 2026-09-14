@@ -31,6 +31,13 @@ function M.install()
   local ok, layout = pcall(function() return layouts.getCurrentLayout() end)
   if not ok or type(layout) ~= "table" then return end
 
+  -- the size the screen asked for, if it has, else the whole screen in percent
+  local placement = PLACEMENT
+  pcall(function()
+    local want = extensions.raceManager_layout.askedFor()
+    if type(want) == "table" then placement = want end
+  end)
+
   if has(layout) then
     log("I", "raceManager", "interface already in the layout")
     return
@@ -38,7 +45,7 @@ function M.install()
 
   local file = layout.filename or layout
   local ok2, added = pcall(function()
-    return layouts.addApp(file, APP, PLACEMENT)
+    return layouts.addApp(file, APP, placement)
   end)
   added = ok2 and added == true
   pcall(function() layouts.setCurrentLayout(file) end)

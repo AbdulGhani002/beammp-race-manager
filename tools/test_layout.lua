@@ -213,6 +213,54 @@ eq(L.force(), true, "done")
 eq(names(), "remove,reload", "one out, read back, nothing else touched")
 eq(calls[1][3], 1, "the stock tachometer")
 
+-- This game keeps its layout in em, and its editor shows the layout in a
+-- smaller frame: touch anything there and Race Manager's box is written
+-- down as that smaller size, centred, and after the editor closes the app
+-- sits in a box in the middle of the screen. The screen measures itself
+-- and says its size in em; once said, that exact size is what is asked
+-- for, and the box the editor wrote is mended to it.
+section("the box the layout editor wrote is mended, to the size the screen said")
+reset()
+current = layout({ app("beammpchat", {}),
+                   app("raceManager", { position = "absolute", left = "50%", top = "50%", width = "90.2em", height = "39.2em" }) })
+current.filename = "f"
+eq(L.force(), true, "done")
+eq(names(), "patch,reload", "patched and read back")
+eq(calls[1][4].width, "100%", "before the screen has said its size, the whole screen in percent")
+L.arm(117.6, 66.12)
+reset()
+current = layout({ app("beammpchat", {}),
+                   app("raceManager", { position = "absolute", left = "50%", top = "50%", width = "90.2em", height = "39.2em" }) })
+current.filename = "f"
+eq(L.force(), true, "done")
+eq(calls[1][1], "patch", "patched")
+eq(calls[1][4].width, "117.60em", "to the screen's width in em")
+eq(calls[1][4].height, "66.12em", "and its height")
+eq(calls[1][4].left, "0em", "from the left edge")
+eq(calls[1][4].top, "0em", "and the top")
+
+section("once the size is known, that size is fine and the percent one is mended to it")
+reset()
+current = layout({ app("raceManager", { position = "absolute", left = "0em", top = "0em", width = "117.60em", height = "66.12em" }) })
+current.filename = "f"
+eq(L.force(), true, "nothing to do")
+eq(#calls, 0, "the exact box is left alone")
+reset()
+current = layout({ app("raceManager", L.WANT) })
+current.filename = "f"
+eq(L.force(), true, "done")
+eq(names(), "patch,reload", "the percent box, two percent off on a scaled interface, is mended")
+eq(calls[1][4].width, "117.60em", "to the exact size")
+L.arm()
+eq(L.askedFor().width, "117.60em", "asked again without numbers, the size said before still stands")
+reset()
+current = layout({ app("beammpchat", {}) })
+current.filename = "f"
+eq(L.force(), true, "done")
+eq(calls[1][1], "add", "a fresh player gets it added")
+eq(calls[1][4].width, "117.60em", "at the size the screen said")
+L.wantEm = nil
+
 section("an old game with no layout code is not an error")
 extensions.ui_appLayouts = nil
 eq(L.force(), true, "there is nothing to be done, so it is done")

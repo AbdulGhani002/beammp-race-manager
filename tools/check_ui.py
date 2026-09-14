@@ -404,8 +404,9 @@ def main():
           "a bar position is written down while the app's box is a partial one again")
     check("function fitAllUi()" in js and 'scope.$on("rmFitScreen"' in js,
           "the box is no longer pinned to the whole screen from the page, or the bars no longer fitted after it")
-    check("function watchBox()" in js and 'call("raceManager_layout", "arm")' in js,
-          "the app no longer asks for the whole screen back when its box is not the screen")
+    check("function watchBox()" in js and 'call("raceManager_layout", "arm", [wEm, hEm])' in js
+          and "askForWholeScreen();" in js.split("function watchBox()")[1].split("var boxTimer")[0],
+          "the app no longer asks for the whole screen back, in em, when its box is not the screen")
     uilua = read(os.path.join(LUA, "ui.lua"))
     check("function M.resetWindows()" in uilua and "raceManager_uifix.restore()" in uilua
           and 'guihooks.trigger("rmResetAsked"' in uilua and "rmResetAsked" in js,

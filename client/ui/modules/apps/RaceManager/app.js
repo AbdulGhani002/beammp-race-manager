@@ -680,6 +680,20 @@ angular.module("beamng.apps")
       // here, which is what you see; this asks the game side to mend the
       // layout file as well, so it is right next time too. Once a minute at
       // most, so an open layout editor is not fought with.
+      // The game keeps its layout in em, and only the page knows how big
+      // the screen is in em: its width and height over the root font size,
+      // which is what the interface scale sets. Those go with the ask, so
+      // the layout is written at exactly the screen, whatever the scale.
+      function askForWholeScreen() {
+        var fontPx = 16;
+        try { fontPx = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16; } catch (e) { }
+        var wEm = Math.round(window.innerWidth / fontPx * 100) / 100;
+        var hEm = Math.round(window.innerHeight / fontPx * 100) / 100;
+        if (!(wEm > 0) || !(hEm > 0)) { call("raceManager_layout", "arm"); return; }
+        call("raceManager_layout", "arm", [wEm, hEm]);
+      }
+      $scope.askForWholeScreen = askForWholeScreen;
+
       var boxAskedAt = 0;
       function watchBox() {
         var root = document.querySelector(".rm-root");
@@ -693,7 +707,7 @@ angular.module("beamng.apps")
         var now = Date.now();
         if (now - boxAskedAt < 60000) return;
         boxAskedAt = now;
-        call("raceManager_layout", "arm");
+        askForWholeScreen();
       }
       var boxTimer = setInterval(watchBox, 3000);
       $scope.$on("$destroy", function () { clearInterval(boxTimer); });
@@ -2160,7 +2174,7 @@ angular.module("beamng.apps")
       $scope.resetPanels = function () {
         $scope.panel = null;
         restoreUiLayout(true);
-        call("raceManager_layout", "arm");
+        askForWholeScreen();
       };
 
       $scope.nameProblem = function () {
