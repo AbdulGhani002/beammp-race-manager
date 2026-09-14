@@ -803,13 +803,8 @@ angular.module('beamng.apps').directive('bajastella', function () {
           $scope.cautionAhead = $scope.hazardAhead;
         });
       });
-      var sosHoldTimer = null;
       var comboPress = { sos: 0, ok: 0, flag: 0 };
       var COMBO_MS = 3000;
-
-      function cancelSosHold() {
-        if (sosHoldTimer) { clearTimeout(sosHoldTimer); sosHoldTimer = null; }
-      }
 
       function persistPower() {
         try { localStorage.setItem("rm.stella.powered", $scope.powered ? "1" : "0"); } catch (_) {}
@@ -818,7 +813,6 @@ angular.module('beamng.apps').directive('bajastella', function () {
       function powerOff() {
         $scope.powered = false;
         persistPower();
-        cancelSosHold();
         comboPress.sos = comboPress.ok = comboPress.flag = 0;
         stopSZExceedLoop();
         try { vcpAudio.pause(); vcpAudio.currentTime = 0; } catch (_) {}
@@ -853,18 +847,16 @@ angular.module('beamng.apps').directive('bajastella', function () {
         return false;
       }
 
+      // A press, not a three second hold. The hold was the original
+      // unit's and nobody knew it was there: the button was pressed and
+      // nothing happened. Pressed again, the car is moving again.
       $scope.pressSOSStart = function (e) {
         if (e && e.stopPropagation) e.stopPropagation();
         if (noteButton('sos')) return;
-        if (sosHoldTimer) return;
-        sosHoldTimer = setTimeout(function () {
-          sosHoldTimer = null;
-          $scope.$applyAsync(function () { $scope.pressSOS(); });
-        }, 3000);
+        $scope.pressSOS();
       };
       $scope.pressSOSCancel = function (e) {
         if (e && e.stopPropagation) e.stopPropagation();
-        cancelSosHold();
       };
 
       // ---- Button handlers ----

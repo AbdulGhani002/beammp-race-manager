@@ -240,6 +240,16 @@ eq(M.lastMessage(0, "stella.breakdown.alert").active, false,
    "Alfa is not left staring at a warning for a car that is gone")
 eq((RM.stella.count()), 0, "and the list is empty")
 
+-- ================================================================ the test from chat
+
+section("!stella in chat sends that player a Stella test, and stays out of the chat")
+M.clearOutbox(0)
+eq(M.fire("onChatMessage", 0, "Alfa", "!stella"), 1, "swallowed")
+tick(1)
+ok(M.lastMessage(0, "stella.test") ~= nil, "and Alfa's unit is told to run it")
+eq(M.lastMessage(2, "stella.test"), nil, "nobody else's is")
+eq(M.fire("onChatMessage", 0, "Alfa", "!StellaTest"), 1, "however it is typed")
+
 -- ================================================================ the copilot's Stella
 
 -- his ask: somebody copiloting a driver works the Stella for them. A press

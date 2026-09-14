@@ -1,6 +1,6 @@
 RM = RM or {}
 
-RM.VERSION = "0.7.9-full-disk"
+RM.VERSION = "0.7.10-zone-served"
 
 RM.config = {
   nameMinLen  = 3,

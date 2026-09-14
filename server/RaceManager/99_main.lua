@@ -718,11 +718,18 @@ RM.handler("onConsoleInput",     function(input) return RM.console.handle(input)
 -- the whole screen again. Returning 1 keeps it out of everybody's chat.
 -- The Options window says !restoreui, so that spelling works too.
 local RESET_WORDS = { ["!resetui"] = true, ["!restoreui"] = true, ["!fixui"] = true, ["!ui"] = true }
+local STELLA_WORDS = { ["!stella"] = true, ["!stellatest"] = true }
 local function onChatMessage(pid, name, message)
   local text = RM.util.tidy(message):lower()
   if RESET_WORDS[text] then
     RM.bus.queue(pid, "ui.reset", {})
     RM.info(("%s asked for their interface back with %s"):format(RM.identity.displayName(pid), text))
+    return 1
+  end
+  -- !stella runs the unit through everything it can show, on that player's screen
+  if STELLA_WORDS[text] then
+    RM.bus.queue(pid, "stella.test", {})
+    RM.info(("%s asked for a Stella test"):format(RM.identity.displayName(pid)))
     return 1
   end
   return nil

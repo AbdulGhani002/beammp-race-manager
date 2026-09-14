@@ -23,6 +23,7 @@ local blueFlag = {state="none", playerName=""}
 local breakdown = false
 local hazardAhead = nil
 local lastExceeding = false
+local testOver = false
 
 local function num(v, d) return tonumber(v) or d or 0 end
 local function point(cp)
@@ -161,7 +162,8 @@ function M.setSpeedZone(z)
     if zone and not zone.upcoming then emit("BajaStella_SpeedZone", {event="exit"}) end
     zone=nil
     lastExceeding=false
-    restoreLed()
+    testOver=false
+    if ledUntil == 0 then restoreLed() end
     return
   end
   local wasActive = zone ~= nil and not zone.upcoming
@@ -177,7 +179,9 @@ function M.setSpeedZone(z)
   if isActive and (not wasActive or oldKey ~= newKey) then
     emit("BajaStella_SpeedZone", {event="enter", zoneName=z.name or "", limitKmh=num(z.limitKmh or z.speedLimitKmh)})
   end
-  restoreLed()
+  -- the green for a gate just crossed keeps its two seconds; the zone's
+  -- colour comes up when they are over
+  if ledUntil == 0 then restoreLed() end
 end
 function M.onSpeedWarning(data)
   speedWarning=data
@@ -348,7 +352,7 @@ function M.onUpdate(dt)
     end
   end
   local zoneActive=zone~=nil and not zone.upcoming
-  local exceeding=zoneActive and num(zone.limitKmh or zone.speedLimitKmh)>0 and speed>num(zone.limitKmh or zone.speedLimitKmh) or false
+  local exceeding=zoneActive and (testOver or (num(zone.limitKmh or zone.speedLimitKmh)>0 and speed>num(zone.limitKmh or zone.speedLimitKmh))) or false
   if exceeding ~= lastExceeding then
     lastExceeding=exceeding
     emit("BajaStella_SpeedZone", exceeding and
@@ -357,6 +361,28 @@ function M.onUpdate(dt)
     if ledUntil == 0 then restoreLed() end
   end
   emit("BajaStella_Update",{heading=math.floor(heading),speed=math.floor(speed),distToVCPm=math.floor(dist),distToVCPkm=dist/1000,vcpName=name,vcpIndex=nextCheckpoint,validatedVCPs=validatedCheckpoints,totalVCPs=total,totalDistKm=odo/1000,raceActive=not not race.active,raceStarted=not not race.started,bearingToVCP=math.floor(bearing),isApproaching=approach,trackName=race.trackName or "",isStopped=speed<1.5,breakdownActive=breakdown,hazardAhead=hazardAhead~=nil,blueFlagState=blueFlag.state,blueFlagPlayer=blueFlag.playerName,ledColor=led.color,ledFlash=led.flash,ledPattern=led.pattern,speedZoneActive=zoneActive,speedZoneWarning=zone~=nil and zone.upcoming and zone.advanceWarned,speedZoneName=zone and zone.name or "",speedZoneLimit=zone and num(zone.limitKmh or zone.speedLimitKmh) or 0,speedZoneLimitMph=zone and zoneMph(zone) or 0,speedExceeding=exceeding})
+end
+
+-- one thing the unit can show, for the test run from chat
+function M.testShow(what)
+  local limit = { name="Test zone", limitKmh=37*1.609344, limitMph=37, warnDistance=1e9 }
+  if what == "yellow" then setLed("yellow", true, "triangle")
+  elseif what == "blue" then setLed("blue", true, "lines")
+  elseif what == "green" then setLed("green", false, "all")
+  elseif what == "ahead" then
+    limit.upcoming, limit.advanceWarned = true, true
+    M.setSpeedZone(limit)
+  elseif what == "in" then
+    testOver = false
+    limit.upcoming = false
+    M.setSpeedZone(limit)
+  elseif what == "over" then
+    testOver = true
+  else
+    testOver = false
+    M.setSpeedZone(nil)
+    restoreLed()
+  end
 end
 
 function M.onExtensionLoaded() setLed("off",false,"none") end

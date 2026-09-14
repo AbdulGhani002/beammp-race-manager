@@ -18,6 +18,7 @@ local lastTrackPayload
 local netWired = false
 local boxInsideKey = nil
 local boxSpent = {}
+local serverBox = nil
 local mirror = nil
 local mirrorTrackAsked = nil
 
@@ -158,66 +159,74 @@ local function pushBoxZone(mph, upcoming, entryPos)
   })
 end
 
-local function updateBoxZones()
-  local trig = extensions.raceManager_triggers
-  if not (trig and type(trig.nearestSz) == "function") then return end
+local function clearZone()
+  if lastZoneKey then call("setSpeedZone", nil) end
+  lastZoneKey, lastZoneKph, lastZoneFrom, lastZoneTo, lastZoneUpcoming = nil, nil, nil, nil, nil
+end
+
+-- a box zone on the unit, told once: again only when it is another box,
+-- another limit, or ahead has become in
+local function showBox(key, mph, upcoming, entryPos)
+  local kph = mph * 1.609344
+  if lastZoneKey == key and lastZoneUpcoming == upcoming
+     and math.abs(kph - (lastZoneKph or 0)) < 0.001 then return end
+  lastZoneKey, lastZoneKph, lastZoneUpcoming = key, kph, upcoming
+  lastZoneFrom, lastZoneTo = nil, nil
+  pushBoxZone(mph, upcoming, entryPos)
+end
+
+-- where the car the unit is about stands
+local function carPosition()
   local pos
-  local veh = watchedVehicle()
-  if veh then
-    local ok2, pr = pcall(function() return veh:getPosition() end)
-    if ok2 then pos = pr end
-  end
-  if not pos then return end
+  pcall(function()
+    local veh = watchedVehicle()
+    if veh then pos = veh:getPosition() end
+  end)
+  return pos
+end
 
-  local box, inside, dist, face = trig.nearestSz(pos)
-  if not (box and tonumber(box.mph)) then
-    if isBoxKey(lastZoneKey) then
-      call("setSpeedZone", nil)
-      lastZoneKey, lastZoneKph, lastZoneUpcoming = nil, nil, nil
-      boxInsideKey = nil
+-- The zone the unit is told about, in this order. First the server's word:
+-- it judges the speed and hands out the penalty, so while it says the car
+-- is in a box the unit says so too, whatever this side measures. That word
+-- used to be taken down a tick later by the measuring below, when this
+-- side could not see the box, and all that was left of a zone was the
+-- beep. Then a box this side measures the car inside, or within a hundred
+-- metres of, for the warning ahead. Then the gate to gate zone from the
+-- course. A box driven through is spent until the car is a hundred metres
+-- clear of it, so it warns again next lap round and not the moment the
+-- car leaves it.
+local function updateZones(track, nextCp)
+  if serverBox then
+    showBox(serverBox.key, serverBox.mph, false, nil)
+    return
+  end
+
+  local trig = extensions.raceManager_triggers
+  local pos = carPosition()
+  if pos and trig and type(trig.nearestSz) == "function" then
+    local box, inside, dist, face = trig.nearestSz(pos)
+    local mph = box and tonumber(box.mph) or nil
+    if mph then
+      local key = "box:" .. tostring(box.i or box.mph)
+      if inside then
+        boxInsideKey = key
+        showBox(key, mph, false, box.pos)
+        return
+      end
+      if boxInsideKey == key then
+        boxSpent[key] = true
+        boxInsideKey = nil
+      end
+      dist = dist or 999
+      if dist > 100 then boxSpent[key] = nil end
+      if dist <= 100 and not boxSpent[key] then
+        showBox(key, mph, true, face or pos)
+        return
+      end
     end
-    return
   end
 
-  local key = "box:" .. tostring(box.i or box.mph)
-  if boxSpent[key] and not inside then
-    if isBoxKey(lastZoneKey) then
-      call("setSpeedZone", nil)
-      lastZoneKey, lastZoneKph, lastZoneUpcoming = nil, nil, nil
-    end
-    boxInsideKey = nil
-    return
-  end
-
-  if inside then
-    boxInsideKey = key
-    if lastZoneKey ~= key or lastZoneUpcoming then
-      lastZoneKey, lastZoneKph, lastZoneUpcoming = key, box.mph * 1.609344, false
-      pushBoxZone(box.mph, false, box.pos)
-    end
-    return
-  end
-
-  if boxInsideKey == key then
-    boxSpent[key] = true
-    boxInsideKey = nil
-    call("setSpeedZone", nil)
-    lastZoneKey, lastZoneKph, lastZoneUpcoming = nil, nil, nil
-    return
-  end
-
-  if (dist or 999) <= 100 then
-    if lastZoneKey ~= key or not lastZoneUpcoming then
-      lastZoneKey, lastZoneKph, lastZoneUpcoming = key, box.mph * 1.609344, true
-      pushBoxZone(box.mph, true, face or pos)
-    end
-    return
-  end
-
-  if isBoxKey(lastZoneKey) then
-    call("setSpeedZone", nil)
-    lastZoneKey, lastZoneKph, lastZoneUpcoming = nil, nil, nil
-  end
+  if not updateGateZones(track, nextCp) then clearZone() end
 end
 
 local function sync()
@@ -302,43 +311,15 @@ local function sync()
   end
   lastDone = done
 
-  -- Race quit / finish must clear zones immediately for Stella warnings
+  -- a race that is over takes its zones with it
   if not active then
-    if lastZoneKey then
-      call("setSpeedZone", nil)
-      lastZoneKey, lastZoneKph, lastZoneFrom, lastZoneTo, lastZoneUpcoming = nil, nil, nil, nil, nil
-      boxInsideKey, boxSpent = nil, {}
-    end
+    clearZone()
+    serverBox = nil
+    boxInsideKey, boxSpent = nil, {}
   end
 
   if not active or type(track) ~= "table" then return end
-
-  -- Same Stella call for both. A box you are in or within 100 m of is the
-  -- zone you are on; otherwise the gate-to-gate zone is shown as original.
-  local nearBox = false
-  local trig = extensions.raceManager_triggers
-  local pos
-  pcall(function()
-    local veh = watchedVehicle()
-    if veh then pos = veh:getPosition() end
-  end)
-  if pos and trig and type(trig.nearestSz) == "function" then
-    local box, inside, dist = trig.nearestSz(pos)
-    local key = box and ("box:" .. tostring(box.i or box.mph)) or nil
-    if box and tonumber(box.mph) and not (key and boxSpent[key] and not inside) then
-      if inside or (dist or 999) <= 100 then nearBox = true end
-    end
-  end
-  if nearBox then
-    updateBoxZones()
-    return
-  end
-  if not updateGateZones(track, nextCp) then
-    if lastZoneKey then
-      call("setSpeedZone", nil)
-      lastZoneKey, lastZoneKph, lastZoneFrom, lastZoneTo, lastZoneUpcoming = nil, nil, nil, nil, nil
-    end
-  end
+  updateZones(track, nextCp)
 end
 
 function M.onExtensionLoaded()
@@ -347,10 +328,54 @@ function M.onExtensionLoaded()
   wireNetwork()
 end
 
+-- !stella in chat: a run through everything the unit can show, one thing
+-- every two seconds, with a notice saying what should be on. For a unit
+-- that is doubted, so the dots and the screen can be watched without
+-- setting up a race. Not during a race: the race owns the unit then.
+local TEST = {
+  { "yellow", "Stella test 1 of 6: yellow triangle, flashing" },
+  { "blue",   "Stella test 2 of 6: blue lines, flashing" },
+  { "green",  "Stella test 3 of 6: green, all dots" },
+  { "ahead",  "Stella test 4 of 6: speed zone ahead, 37 in yellow" },
+  { "in",     "Stella test 5 of 6: in the zone, 37 in red" },
+  { "over",   "Stella test 6 of 6: over the limit, red flashing" },
+}
+local testStep, testSince = nil, 0
+local TEST_EVERY = 2.0
+
+function M.selfTest()
+  local racing = false
+  pcall(function() racing = extensions.raceManager_race.isActive() end)
+  if racing then
+    pcall(function() extensions.raceManager_state.notice("Stella test: not during a race") end)
+    return false
+  end
+  testStep, testSince = 0, TEST_EVERY
+  return true
+end
+
+local function testTick(dt)
+  if not testStep then return end
+  testSince = testSince + dt
+  if testSince < TEST_EVERY then return end
+  testSince = 0
+  testStep = testStep + 1
+  local step = TEST[testStep]
+  if not step then
+    testStep = nil
+    call("testShow", "off")
+    pcall(function() extensions.raceManager_state.notice("Stella test over: everything off") end)
+    return
+  end
+  call("testShow", step[1])
+  pcall(function() extensions.raceManager_state.notice(step[2]) end)
+end
+
 local EVERY = 0.1
 local since = 0
 
 function M.onUpdate(dt)
+  testTick(tonumber(dt) or 0)
   since = since + (tonumber(dt) or 0)
   if since < EVERY then return end
   since = 0
@@ -358,23 +383,29 @@ function M.onUpdate(dt)
   sync()
 end
 
--- Limit / penalty path from the server. Must never clear a gate zone.
+-- The server's word on a box zone, from zone.warn: on with the limit, or
+-- off. Shown straight away and kept until off, whatever this side
+-- measures in between. On off, the box the car is measured inside is
+-- marked spent, so the measuring does not put the zone straight back.
 function M.setPairZone(z)
-  if lastZoneKey and not isBoxKey(lastZoneKey) then
+  local mph = type(z) == "table" and tonumber(z.mph) or nil
+  if mph then
+    serverBox = { mph = mph, key = "server:" .. tostring(z.pair or z.i or mph) }
+    showBox(serverBox.key, mph, false, nil)
     return
   end
-  if not z or not tonumber(z.mph) then
-    if isBoxKey(lastZoneKey) then
-      call("setSpeedZone", nil)
-      lastZoneKey, lastZoneKph, lastZoneUpcoming = nil, nil, nil
+  serverBox = nil
+  if lastZoneKey and lastZoneKey:sub(1, 7) == "server:" then clearZone() end
+  pcall(function()
+    local trig = extensions.raceManager_triggers
+    local pos = carPosition()
+    if not (pos and trig and type(trig.nearestSz) == "function") then return end
+    local box, inside = trig.nearestSz(pos)
+    if box and inside then
+      boxSpent["box:" .. tostring(box.i or box.mph)] = true
+      boxInsideKey = nil
     end
-    boxInsideKey = nil
-    return
-  end
-  local key = "box:" .. tostring(z.i or z.pair or z.mph)
-  lastZoneKey, lastZoneKph, lastZoneUpcoming = key, z.mph * 1.609344, false
-  boxInsideKey = key
-  pushBoxZone(z.mph, false, nil)
+  end)
 end
 
 function M.sendBreakdown(active)

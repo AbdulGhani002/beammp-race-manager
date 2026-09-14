@@ -112,18 +112,16 @@ fire("BajaStella_BlueFlag", { state: "none", playerName: "" });
 $scope.pressFlag();
 ok(lua.some(c => /requestBlueFlag/.test(c)), "and asks when nobody is");
 
-section("the red button is a hold, and the hold is the lua's toggle");
+section("the red button is a press, and the press is the lua's toggle");
 const stops = () => lua.filter(c => /requestMechanicalBreakdown/.test(c)).length;
 lua.length = 0;
 $scope.pressSOSStart({ stopPropagation() {} });
-now += 1000; runTimers();
-eq(stops(), 0, "a second in, nothing yet");
+eq(stops(), 1, "pressed, the car is stopped");
 $scope.pressSOSCancel({ stopPropagation() {} });
-now += 3000; runTimers();
-eq(stops(), 0, "let go early, nothing");
-$scope.pressSOSStart({ stopPropagation() {} });
 now += 3100; runTimers();
-ok(lua.some(c => /requestMechanicalBreakdown/.test(c)), "held three seconds, the car is stopped");
+eq(stops(), 1, "letting go changes nothing");
+$scope.pressSOSStart({ stopPropagation() {} });
+eq(stops(), 2, "pressed again, moving again");
 
 section("his power off: all three buttons within three seconds, and any button brings it back");
 eq($scope.powered, true, "on to begin with");

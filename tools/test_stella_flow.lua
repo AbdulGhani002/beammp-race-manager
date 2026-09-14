@@ -259,6 +259,37 @@ S.toggleMechanicalBreakdown()
 eq(countSent("stella.breakdown.set"), b4 + 1, "the red button goes up as the driver's")
 S.toggleMechanicalBreakdown()
 
+section("!stella runs the unit through everything it can show, two seconds a step, and ends clean")
+watching = nil
+status.state = "idle"
+run(0.3)
+extensions.raceManager_race.isActive = function() return false end
+ok(B.selfTest(), "starts when there is no race on")
+run(0.2)
+eq(led().color, "yellow", "one: yellow, straight away") eq(led().pattern, "triangle", "triangle")
+ok(notices[#notices]:find("1 of 6", 1, true) ~= nil, "and says so")
+run(2.0)
+eq(led().color, "blue", "two: blue") eq(led().pattern, "lines", "lines")
+run(2.0)
+eq(led().color, "green", "three: green") eq(led().pattern, "all", "all the dots")
+run(2.0)
+eq(shown().speedZoneWarning, true, "four: a zone ahead on the screen")
+eq(led().color, "yellow", "yellow") eq(led().pattern, "limit:37", "spelling 37")
+run(2.0)
+eq(shown().speedZoneActive, true, "five: in the zone on the screen")
+eq(led().color, "red", "red") eq(led().flash, false, "steady")
+run(2.0)
+eq(shown().speedExceeding, true, "six: over the limit on the screen")
+eq(led().flash, true, "red flashing")
+run(2.0)
+eq(shown().speedZoneActive, false, "over: no zone")
+eq(led().color, "off", "dots out")
+ok(notices[#notices]:find("over", 1, true) ~= nil, "and it says it is over")
+extensions.raceManager_race.isActive = function() return true end
+eq(B.selfTest(), false, "not during a race")
+ok(notices[#notices]:find("not during a race", 1, true) ~= nil, "and says why")
+extensions.raceManager_race.isActive = nil
+
 section("the copilot stops watching and the unit goes back to their own idle car")
 watching = nil
 run(0.3)
