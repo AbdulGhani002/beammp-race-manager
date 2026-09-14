@@ -51,7 +51,7 @@ eq(rows(mask("triangle"))[0], "0000010000", "the old warning triangle is untouch
 eq(rows(mask("none"))[0], "0000000000", "and off is off");
 
 section("the screen overlay comes up for a zone ahead, not only one you are in");
-ok(/lcd-sz-overlay" ng-show="szActive \|\| szWarning"/.test(src),
+ok(/lcd-sz-overlay" ng-if="szActive \|\| szWarning"/.test(src),
    "the overlay shows on the warning");
 ok(/SPEED ZONE AHEAD/.test(src), "and says the zone is ahead");
 ok(/sz-yellow[^']*\{color:#8a6300;animation:szPulse/.test(src),

@@ -64,15 +64,15 @@ extensions = {
   end },
 }
 
-local S = dofile("client/lua/ge/extensions/bajaStella.lua")
+local S = dofile("client/lua/ge/extensions/raceManager/stellaUnit.lua")
 S.onExtensionLoaded()
-extensions.bajaStella = S
+extensions.raceManager_stellaUnit = S
 local B = dofile("client/lua/ge/extensions/raceManager/stella.lua")
 B.onExtensionLoaded()
 extensions.raceManager_stella = B
 
-local function led() return lastEvent("BajaStella_LED") or {} end
-local function shown() return lastEvent("BajaStella_Update") or {} end
+local function led() return lastEvent("RmStella_LED") or {} end
+local function shown() return lastEvent("RmStella_Update") or {} end
 local function drive(x, mps, seconds)
   car.pos = { x = x, y = 0, z = 0 }
   car.vel = { x = mps, y = 0, z = 0 }
@@ -93,7 +93,7 @@ eq(shown().speedZoneLimitMph, 37, "with the limit")
 eq(led().color, "yellow", "the dots spell it in yellow")
 eq(led().pattern, "limit:37", "the limit")
 eq(led().flash, true, "flashing")
-eq((eventsOf("BajaStella_SpeedZone")[#eventsOf("BajaStella_SpeedZone")] or {}).event, "advance", "and the screen was told to beep")
+eq((eventsOf("RmStella_SpeedZone")[#eventsOf("RmStella_SpeedZone")] or {}).event, "advance", "and the screen was told to beep")
 status.next, status.done = 3, 2
 drive(320, mph(30))
 eq(shown().speedZoneActive, true, "through gate 2 the zone is on")
@@ -131,7 +131,7 @@ eq(shown().speedZoneActive, true, "on, and still on a second later")
 eq(shown().speedZoneLimitMph, 20, "twenty")
 eq(led().color, "red", "red dots")
 eq(led().pattern, "limit:20", "spelling twenty")
-local zoneEvents = eventsOf("BajaStella_SpeedZone", n0)
+local zoneEvents = eventsOf("RmStella_SpeedZone", n0)
 local enters, exits = 0, 0
 for _, e in ipairs(zoneEvents) do
   if e.event == "enter" then enters = enters + 1 elseif e.event == "exit" then exits = exits + 1 end
@@ -149,7 +149,7 @@ B.setPairZone({ mph = 20, pair = "1", box = true })
 drive(50, mph(15), 1.0)
 eq(shown().speedZoneActive, true, "the server said on, so it is on, whatever this side can see")
 eq(led().color, "red", "red dots")
-zoneEvents = eventsOf("BajaStella_SpeedZone", n0)
+zoneEvents = eventsOf("RmStella_SpeedZone", n0)
 enters, exits = 0, 0
 for _, e in ipairs(zoneEvents) do
   if e.event == "enter" then enters = enters + 1 elseif e.event == "exit" then exits = exits + 1 end

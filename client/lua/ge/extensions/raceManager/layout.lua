@@ -37,7 +37,10 @@ M.onAServer = onAServer
 -- the same corner, and two tachometers on top of each other is what was on
 -- his screen. His gauge shows revs, speed, gear, boost and the drivetrain
 -- buttons, so all three are covered.
-M.REPLACES = { tacho2 = true, forcedInduction = true, simplePowertrainControl = true }
+-- The Stella too: Race Manager carries its own, so a Stella app placed on
+-- its own from another mod is a second unit over the first.
+M.REPLACES = { tacho2 = true, forcedInduction = true, simplePowertrainControl = true,
+               bajastella = true, BajaStella = true }
 
 -- The whole screen, because the bars and windows are drawn inside it.
 --

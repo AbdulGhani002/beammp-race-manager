@@ -62,13 +62,13 @@ make($scope);
 
 // what the lua sends on every tick, with the light as it stands
 function update(over) {
-  fire("BajaStella_Update", Object.assign({ heading: 90, speed: 40, distToVCPm: 500, distToVCPkm: 0.5, vcpName: "VCP2",
+  fire("RmStella_Update", Object.assign({ heading: 90, speed: 40, distToVCPm: 500, distToVCPkm: 0.5, vcpName: "VCP2",
     vcpIndex: 2, validatedVCPs: 1, totalVCPs: 4, totalDistKm: 1, raceActive: true, raceStarted: true, bearingToVCP: 90,
     isApproaching: false, trackName: "Test", isStopped: false, breakdownActive: false, hazardAhead: false,
     blueFlagState: "none", blueFlagPlayer: "", ledColor: "off", ledFlash: false, ledPattern: "none",
     speedZoneActive: false, speedZoneWarning: false, speedZoneName: "", speedZoneLimit: 0, speedExceeding: false }, over || {}));
 }
-function led(color, flash, pattern) { fire("BajaStella_LED", { color, flash, pattern }); }
+function led(color, flash, pattern) { fire("RmStella_LED", { color, flash, pattern }); }
 
 section("a gate: the light goes green and back off as the lua says");
 update();
@@ -82,18 +82,18 @@ update();
 eq($scope.ledCls, "", "and off when it says off");
 
 section("push to pass: the overlay follows the state, and the light is the lua's");
-fire("BajaStella_BlueFlag", { state: "requested", playerName: "" });
+fire("RmStella_BlueFlag", { state: "requested", playerName: "" });
 eq($scope.flagState, "requested", "asking");
-fire("BajaStella_BlueFlag", { state: "delivered", playerName: "Bravo" });
+fire("RmStella_BlueFlag", { state: "delivered", playerName: "Bravo" });
 eq($scope.flagState, "delivered", "delivered");
 eq($scope.flagPlayer, "Bravo", "to Bravo");
 led("green", true, "lines");
 ok(/l-green/.test($scope.ledCls) && /l-flash/.test($scope.ledCls), "flashing green lines");
-fire("BajaStella_BlueFlag", { state: "go", playerName: "Bravo" });
+fire("RmStella_BlueFlag", { state: "go", playerName: "Bravo" });
 eq($scope.flagState, "go", "go");
 led("green", true, "all");
 ok(/l-green/.test($scope.ledCls), "green");
-fire("BajaStella_BlueFlag", { state: "none", playerName: "" });
+fire("RmStella_BlueFlag", { state: "none", playerName: "" });
 led("off", false, "none");
 eq($scope.flagState, "none", "over");
 eq($scope.ledCls, "", "light out");
@@ -101,14 +101,14 @@ ok(/flagState===\\'go\\'/.test(src) || /flagState==='go'/.test(src), "the overla
 ok(/stella\.flag\.go/.test(src), "and has words for it");
 
 section("the car ahead: OVERTAKE comes up with the name and the beep, and the flag button answers it");
-fire("BajaStella_BlueFlag", { state: "incoming", playerName: "Charlie" });
+fire("RmStella_BlueFlag", { state: "incoming", playerName: "Charlie" });
 eq($scope.flagState, "incoming", "incoming");
 eq($scope.flagPlayer, "Charlie", "from Charlie");
 lua.length = 0;
 $scope.pressFlag();
 ok(lua.some(c => /acknowledgeBlueFlag/.test(c)), "the flag button lets them by when somebody is asking");
 lua.length = 0;
-fire("BajaStella_BlueFlag", { state: "none", playerName: "" });
+fire("RmStella_BlueFlag", { state: "none", playerName: "" });
 $scope.pressFlag();
 ok(lua.some(c => /requestBlueFlag/.test(c)), "and asks when nobody is");
 

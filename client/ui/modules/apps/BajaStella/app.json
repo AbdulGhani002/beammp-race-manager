@@ -1,7 +1,7 @@
 {
   "interactive": "yes",
-  "domElement": "<bajastella></bajastella>",
-  "name": "Stella III EVO",
+  "domElement": "<rm-stella-unit></rm-stella-unit>",
+  "name": "Stella III EVO (Race Manager)",
   "types": ["ui.apps.categories.multiplayer"],
   "css": {
     "left": "10px",
@@ -15,5 +15,5 @@
   "sizeLocked": true,
   "author": "Baja1000",
   "version": "1.2",
-  "directive": "bajastella"
+  "directive": "rmStellaUnit"
 }

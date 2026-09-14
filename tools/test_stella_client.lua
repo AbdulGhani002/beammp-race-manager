@@ -55,10 +55,10 @@ be = {
 }
 extensions = {}
 
-local S = dofile("client/lua/ge/extensions/bajaStella.lua")
+local S = dofile("client/lua/ge/extensions/raceManager/stellaUnit.lua")
 S.onExtensionLoaded()
 
-local function led() return lastEvent("BajaStella_LED") or {} end
+local function led() return lastEvent("RmStella_LED") or {} end
 local function tick() S.onUpdate(0.2) end
 local function drive(x, mps)
   car.pos = { x = x, y = 0, z = 0 }
@@ -85,16 +85,16 @@ section("a zone still far ahead lights nothing")
 S.setSpeedZone(zone(true))
 drive(50, 20)
 eq(led().color, "off", "three hundred metres out the dots are dark")
-eq(lastEvent("BajaStella_SpeedZone"), nil, "and nothing has been said")
+eq(lastEvent("RmStella_SpeedZone"), nil, "and nothing has been said")
 
 section("about a hundred metres before the zone the limit comes up in flashing yellow")
 drive(205, 20)
 eq(led().color, "yellow", "yellow")
 eq(led().flash, true, "flashing")
 eq(led().pattern, "limit:37", "spelling the limit he set, in mph")
-local adv = lastEvent("BajaStella_SpeedZone")
+local adv = lastEvent("RmStella_SpeedZone")
 eq(adv and adv.event, "advance", "the screen is told the zone is ahead")
-local up = lastEvent("BajaStella_Update")
+local up = lastEvent("RmStella_Update")
 eq(up and up.speedZoneWarning, true, "the screen knows it is a warning")
 eq(up and up.speedZoneActive, false, "and not the zone itself yet")
 eq(up and up.speedZoneLimitMph, 37, "with the limit in mph")
@@ -105,9 +105,9 @@ drive(320, 15)
 eq(led().color, "red", "red")
 eq(led().flash, false, "steady")
 eq(led().pattern, "limit:37", "still the limit")
-local ent = lastEvent("BajaStella_SpeedZone")
+local ent = lastEvent("RmStella_SpeedZone")
 eq(ent and ent.event, "enter", "the screen is told the zone began")
-up = lastEvent("BajaStella_Update")
+up = lastEvent("RmStella_Update")
 eq(up and up.speedZoneActive, true, "the screen knows it is inside")
 eq(up and up.speedExceeding, false, "and under the limit at 34 mph")
 
@@ -116,23 +116,23 @@ drive(400, 25)
 eq(led().color, "red", "red")
 eq(led().flash, true, "flashing")
 eq(led().pattern, "limit:37", "the limit, not a warning symbol")
-local ex = lastEvent("BajaStella_SpeedZone")
+local ex = lastEvent("RmStella_SpeedZone")
 eq(ex and ex.event, "exceeded", "the screen is told, so it can sound")
-up = lastEvent("BajaStella_Update")
+up = lastEvent("RmStella_Update")
 eq(up and up.speedExceeding, true, "and shows it")
 
 section("slowing down under it goes back to steady red")
 drive(450, 10)
 eq(led().color, "red", "red")
 eq(led().flash, false, "steady again")
-eq((lastEvent("BajaStella_SpeedZone") or {}).event, "normalized", "the sound stops")
+eq((lastEvent("RmStella_SpeedZone") or {}).event, "normalized", "the sound stops")
 
 section("past the zone the display goes away")
 S.setSpeedZone(nil)
 drive(950, 25)
 eq(led().color, "off", "dark")
-eq((lastEvent("BajaStella_SpeedZone") or {}).event, "exit", "the screen is told it ended")
-up = lastEvent("BajaStella_Update")
+eq((lastEvent("RmStella_SpeedZone") or {}).event, "exit", "the screen is told it ended")
+up = lastEvent("RmStella_Update")
 eq(up and up.speedZoneActive, false, "no zone")
 eq(up and up.speedZoneWarning, false, "no warning")
 
@@ -152,7 +152,7 @@ end
 local status = { state = "running", next = 1, done = 0, track = "t" }
 local track = { id = "t", name = "Test", checkpoints = course,
                 zones = { { from = 2, to = 4, mph = 37 } } }
-extensions.bajaStella = rec
+extensions.raceManager_stellaUnit = rec
 extensions.raceManager_state = { get = function() return { track = track } end }
 extensions.raceManager_race = { status = function() return status end }
 extensions.raceManager_net = { on = function() end }
@@ -222,7 +222,7 @@ events = {}
 S.setSpeedZone({ name = "A", limitKmh = 59.5, limitMph = 37, upcoming = false, entryCheckpoint = 1 })
 S.setSpeedZone({ name = "B", limitKmh = 32.2, limitMph = 20, upcoming = false, entryCheckpoint = 2 })
 local kinds = {}
-for _, e in ipairs(events) do if e.name == "BajaStella_SpeedZone" then kinds[#kinds + 1] = e.data.event end end
+for _, e in ipairs(events) do if e.name == "RmStella_SpeedZone" then kinds[#kinds + 1] = e.data.event end end
 eq(table.concat(kinds, ","), "enter,exit,enter", "the first begins, then ends as the second begins")
 eq(led().pattern, "limit:20", "and the dots spell the new limit")
 S.setSpeedZone(nil)

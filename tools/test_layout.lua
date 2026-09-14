@@ -109,6 +109,7 @@ eq(#x, 3, "three stock gauges to take out")
 eq(x[1], 3, "the stock tachometer, highest first")
 eq(x[2], 1, "the engine buttons")
 eq(x[3], 0, "the boost gauge")
+ok(L.REPLACES.bajastella and L.REPLACES.BajaStella, "and a Stella app placed on its own, under either spelling: Race Manager carries its own")
 ok(not L.REPLACES.damageApp, "the damage readout is not one of them, the dash has no damage")
 ok(not L.REPLACES.beammpchat, "nor the chat")
 

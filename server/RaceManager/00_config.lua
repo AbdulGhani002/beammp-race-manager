@@ -1,6 +1,6 @@
 RM = RM or {}
 
-RM.VERSION = "0.7.10-zone-served"
+RM.VERSION = "0.7.11-own-stella"
 
 RM.config = {
   nameMinLen  = 3,

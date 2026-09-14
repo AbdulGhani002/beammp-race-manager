@@ -98,16 +98,16 @@ extensions = {
   raceManager_triggers = { nearestSz = function() return nil end },
 }
 
-local S = dofile("client/lua/ge/extensions/bajaStella.lua")
+local S = dofile("client/lua/ge/extensions/raceManager/stellaUnit.lua")
 S.onExtensionLoaded()
-extensions.bajaStella = S
+extensions.raceManager_stellaUnit = S
 local B = dofile("client/lua/ge/extensions/raceManager/stella.lua")
 B.onExtensionLoaded()
 extensions.raceManager_stella = B
 
-local function led() return lastEvent("BajaStella_LED") or {} end
-local function shown() return lastEvent("BajaStella_Update") or {} end
-local function flag() return (lastEvent("BajaStella_BlueFlag") or {}).state end
+local function led() return lastEvent("RmStella_LED") or {} end
+local function shown() return lastEvent("RmStella_Update") or {} end
+local function flag() return (lastEvent("RmStella_BlueFlag") or {}).state end
 -- both units run: the bridge at its own pace, the Stella on the frame
 local function run(seconds)
   local t = 0
@@ -121,9 +121,9 @@ end
 section("idle, the unit is told once and left alone")
 run(1.0)
 eq(shown().raceActive, false, "idle")
-local ledEvents = countEvents("BajaStella_LED")
+local ledEvents = countEvents("RmStella_LED")
 run(2.0)
-eq(countEvents("BajaStella_LED"), ledEvents, "no light is set and cleared while nothing happens")
+eq(countEvents("RmStella_LED"), ledEvents, "no light is set and cleared while nothing happens")
 
 section("a race is armed, then starts, and the Stella leaves idle")
 status.state, status.next, status.done = "armed", 1, 0
@@ -155,14 +155,14 @@ eq(flag(), "requested", "the unit shows it asking")
 eq(led().color, "blue", "in blue")
 fromServer("stella.pass.status", { state = "delivered", requestId = 5, aheadName = "Bravo" })
 eq(flag(), "delivered", "delivered to the car ahead")
-eq(lastEvent("BajaStella_BlueFlag").playerName, "Bravo", "with their name")
+eq(lastEvent("RmStella_BlueFlag").playerName, "Bravo", "with their name")
 ok(led().color == "green" or led().color == "blue", "and the light says it is out there")
 run(5)
 ok(flag() == "delivered" or flag() == "none", "waiting on the answer")
 fromServer("stella.pass.go", { requestId = 5, aheadName = "Bravo" })
 eq(flag(), "go", "Bravo lets us by")
 eq(led().color, "green", "green")
-eq((lastEvent("BajaStella_AlertSound") or {}).kind, "passGo", "with the beep")
+eq((lastEvent("RmStella_AlertSound") or {}).kind, "passGo", "with the beep")
 run(3)
 eq(led().color, "green", "still green three seconds in, the pass is on")
 fromServer("stella.pass.status", { state = "complete", requestId = 5, aheadName = "Bravo" })
@@ -197,7 +197,7 @@ section("the car ahead: asked, answers with OK, and the answer carries the reque
 fromServer("stella.pass.alert", { requestId = 9, requesterId = 3, requesterName = "Charlie", distanceM = 120 })
 eq(flag(), "incoming", "Charlie is asking")
 eq(led().color, "blue", "blue flag")
-eq((lastEvent("BajaStella_AlertSound") or {}).kind, "blueFlag", "with the beep")
+eq((lastEvent("RmStella_AlertSound") or {}).kind, "blueFlag", "with the beep")
 S.acknowledgeBlueFlag()
 eq(flag(), "accepted", "OK accepts")
 eq((lastSent("stella.pass.accept") or {}).requestId, 9, "and the server is told which request")
@@ -267,6 +267,9 @@ extensions.raceManager_race.isActive = function() return false end
 ok(B.selfTest(), "starts when there is no race on")
 run(0.2)
 eq(led().color, "yellow", "one: yellow, straight away") eq(led().pattern, "triangle", "triangle")
+eq(led().test, true, "marked as the test's, so the screen answers it")
+ok(notices[#notices - 1]:find("unit 0.7.11", 1, true) ~= nil, "the unit's version was said first")
+B.screenSaw()
 ok(notices[#notices]:find("1 of 6", 1, true) ~= nil, "and says so")
 run(2.0)
 eq(led().color, "blue", "two: blue") eq(led().pattern, "lines", "lines")
@@ -284,7 +287,9 @@ eq(led().flash, true, "red flashing")
 run(2.0)
 eq(shown().speedZoneActive, false, "over: no zone")
 eq(led().color, "off", "dots out")
+eq(led().test, nil, "and the mark is off the light again")
 ok(notices[#notices]:find("over", 1, true) ~= nil, "and it says it is over")
+ok(notices[#notices]:find("answered 1 of 6", 1, true) ~= nil, "with how often the screen answered")
 extensions.raceManager_race.isActive = function() return true end
 eq(B.selfTest(), false, "not during a race")
 ok(notices[#notices]:find("not during a race", 1, true) ~= nil, "and says why")

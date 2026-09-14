@@ -6,7 +6,7 @@
 local M = {}
 
 local function unit()
-  local ok, s = pcall(function() return extensions.bajaStella end)
+  local ok, s = pcall(function() return extensions.raceManager_stellaUnit end)
   return ok and type(s) == "table" and s or nil
 end
 

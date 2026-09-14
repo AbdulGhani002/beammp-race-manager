@@ -337,7 +337,7 @@ def main():
     # The Stella and the speed zones, the way he described them: the limit in
     # flashing yellow about 100 m before, steady red inside, flashing red over,
     # and gone after. His extension had yellow inside and never spelt the number.
-    bs = read("client/lua/ge/extensions/bajaStella.lua")
+    bs = read("client/lua/ge/extensions/raceManager/stellaUnit.lua")
     bridge = read("client/lua/ge/extensions/raceManager/stella.lua")
     stella_ui = read("client/ui/modules/apps/BajaStella/app.js")
     check('setLed("yellow", true, limitPattern(zone))' in bs,
@@ -348,7 +348,7 @@ def main():
           "the bridge no longer warns at a hundred metres with the limit in mph")
     check("p.indexOf('limit:') === 0" in stella_ui and "function digitRows" in stella_ui,
           "the Stella dots no longer spell the limit")
-    check('ng-show="szActive || szWarning"' in stella_ui,
+    check('ng-if="szActive || szWarning"' in stella_ui,
           "the Stella screen no longer shows the limit for a zone ahead")
     # and the race panel says what zones a course has, so nobody drives one
     # expecting a penalty it cannot give
@@ -441,7 +441,7 @@ def main():
 
     # The Stella is in English. His own strings were Spanish and his i18n
     # only covers the labels, not the messages the car sends up.
-    for path in ("client/lua/ge/extensions/bajaStella.lua",
+    for path in ("client/lua/ge/extensions/raceManager/stellaUnit.lua",
                  "client/ui/modules/apps/BajaStella/app.js"):
         body = read(path)
         check(re.search(r"[\u00e1\u00e9\u00ed\u00f3\u00fa\u00f1\u00c1\u00c9\u00cd\u00d3\u00da\u00d1]", body) is None

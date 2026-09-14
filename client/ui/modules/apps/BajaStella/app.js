@@ -6,7 +6,7 @@
 // used in SCORE Baja 1000 / NORRA Mexican 1000 races.
 // =========================================================================
 
-angular.module('beamng.apps').directive('bajastella', function () {
+angular.module('beamng.apps').directive('rmStellaUnit', function () {
 
   var ASSETS = '/ui/modules/apps/BajaStella/assets/';
 
@@ -105,7 +105,7 @@ angular.module('beamng.apps').directive('bajastella', function () {
     '.lcd-flag-txt{font-size:10px;letter-spacing:1px;}' +
 
     /* === Speed zone overlay === */
-    '.lcd-sz-overlay{position:absolute;inset:0;z-index:9;pointer-events:none;display:flex;flex-direction:column;align-items:center;justify-content:center;transition:opacity .3s;}' +
+    '.lcd-sz-overlay{position:absolute;inset:0;z-index:9;pointer-events:none;display:flex;flex-direction:column;align-items:center;justify-content:center;}' +
     '.lcd-sz-overlay.sz-warn{background:rgba(212,170,18,.12);}' +
     '.lcd-sz-overlay.sz-exceed{background:rgba(210,30,20,.16);}' +
     '@keyframes szPulse{0%,100%{opacity:1}50%{opacity:.3}}' +
@@ -229,38 +229,38 @@ angular.module('beamng.apps').directive('bajastella', function () {
       '<div class="st-lcd">' +
 
         /* Caution overlay */
-        '<div class="lcd-caution" ng-show="(isStopped || cautionAhead) && raceActive && !szActive">' +
+        '<div class="lcd-caution" ng-if="(isStopped || cautionAhead) && raceActive && !szActive">' +
           '<span class="lcd-caution-txt">\u26A0 {{cautionAhead ? tr("stella.caution.warn","WARN") : tr("stella.caution.stop","CAUTION")}}</span>' +
         '</div>' +
 
         /* Blue flag LCD background overlay */
-        '<div class="lcd-bf-overlay" ng-show="flagState!==\'none\'" ' +
+        '<div class="lcd-bf-overlay" ng-if="flagState!==\'none\'" ' +
           'ng-class="{\'bf-incoming\': flagState===\'incoming\', \'bf-requesting\': flagState===\'requesting\', \'bf-acknowledged\': flagState===\'acknowledged\', \'bf-acked\': flagState===\'acked\'}">' +
         '</div>' +
 
         /* Speed zone overlay */
-        '<div class="lcd-sz-overlay" ng-show="szActive || szWarning" ng-class="{\x27sz-ahead\x27: szWarning && !szActive, \x27sz-warn\x27: szActive && !szExceeding, \x27sz-exceed\x27: szExceeding}">' +
+        '<div class="lcd-sz-overlay" ng-if="szActive || szWarning" ng-class="{\x27sz-ahead\x27: szWarning && !szActive, \x27sz-warn\x27: szActive && !szExceeding, \x27sz-exceed\x27: szExceeding}">' +
           '<div class="lcd-sz-label" ng-class="{\x27sz-red\x27: szExceeding, \x27sz-in\x27: szActive && !szExceeding, \x27sz-yellow\x27: szWarning && !szActive}">{{szExceeding ? tr("stella.speedZone.limit","\\u26A0 SPEED LIMIT") : (szActive ? tr("stella.speedZone.zone","SPEED ZONE") : tr("stella.speedZone.ahead","SPEED ZONE AHEAD"))}}</div>' +
           '<div class="lcd-sz-limit" ng-class="{\x27sz-red\x27: szExceeding, \x27sz-in\x27: szActive && !szExceeding, \x27sz-yellow\x27: szWarning && !szActive}">{{szLimitMph}}<span class="lcd-sz-unit" ng-class="{\x27sz-red\x27: szExceeding, \x27sz-in\x27: szActive && !szExceeding, \x27sz-yellow\x27: szWarning && !szActive}">mph</span></div>' +
-          '<div class="lcd-sz-label" ng-show="szExceeding" ng-class="{\x27sz-red\x27: szExceeding}">{{tr("stella.speedZone.reduce","REDUCE SPEED")}}</div>' +
+          '<div class="lcd-sz-label" ng-if="szExceeding" ng-class="{\x27sz-red\x27: szExceeding}">{{tr("stella.speedZone.reduce","REDUCE SPEED")}}</div>' +
         '</div>' +
 
         /* Blue flag overlay */
-        '<div class="lcd-flag-overlay" ng-show="flagState===\'incoming\' || flagState===\'delivered\' || flagState===\'requested\' || flagState===\'accepted\' || flagState===\'go\' || flagState===\'cancelled\'">' +
+        '<div class="lcd-flag-overlay" ng-if="flagState===\'incoming\' || flagState===\'delivered\' || flagState===\'requested\' || flagState===\'accepted\' || flagState===\'go\' || flagState===\'cancelled\'">' +
           '<div class="lcd-flag-pill"><span class="lcd-flag-txt lc">' +
             '{{ flagState===\'incoming\' ? tr("stella.flag.overtake","OVERTAKE") : (flagState===\'go\' || flagState===\'accepted\' ? tr("stella.flag.go","PASS") : (flagState===\'cancelled\' ? tr("stella.flag.none","NO PASS") : tr("stella.flag.asking","ASKING"))) }}' +
             ' <span ng-if="flagPlayer">\u2014 {{flagPlayer}}</span></span></div>' +
         '</div>' +
 
         /* Idle mode */
-        '<div class="lcd-idle" ng-show="!raceActive">' +
+        '<div class="lcd-idle" ng-if="!raceActive">' +
           '<div class="lc lc-label lcd-idle-lbl">{{tr("stella.idle.ready","READY")}}</div>' +
           '<div class="lc lcd-idle-hdg">{{hdg}}<sup>\u00B0</sup></div>' +
           '<div class="lc lcd-idle-spd">{{spd}}<span class="lc-dim lcd-idle-unit">{{tr("stella.unit.mph","mph")}}</span></div>' +
         '</div>' +
 
         /* Normal race mode */
-        '<div class="lcd-main" ng-show="raceActive && !approaching">' +
+        '<div class="lcd-main" ng-if="raceActive && !approaching">' +
           '<div class="lcd-left">' +
             '<div class="lc lcd-hdg">{{hdg}}<sup>\u00B0</sup></div>' +
             '<div class="lc lcd-wp">{{wpLabel}}</div>' +
@@ -273,11 +273,11 @@ angular.module('beamng.apps').directive('bajastella', function () {
             '<div class="lc-label lcd-odo-lbl">{{tr("stella.unit.odoKm","odo km")}}</div>' +
             '<div class="lc lcd-total">{{tDist}}</div>' +
           '</div>' +
-          '<div class="lcd-track" ng-show="trackLabel">{{trackLabel}}</div>' +
+          '<div class="lcd-track" ng-if="trackLabel">{{trackLabel}}</div>' +
         '</div>' +
 
         /* Approach mode */
-        '<div class="lcd-apr" ng-show="raceActive && approaching">' +
+        '<div class="lcd-apr" ng-if="raceActive && approaching">' +
           '<div class="lcd-apr-top">' +
             '<div class="lcd-compass"><svg viewBox="0 0 100 100" id="st-compass"></svg></div>' +
             '<div class="lcd-apr-mid">' +
@@ -629,7 +629,7 @@ angular.module('beamng.apps').directive('bajastella', function () {
         next();
       }
 
-      $scope.$on('BajaStella_VCPSound', playVCPSound);
+      $scope.$on('RmStella_VCPSound', playVCPSound);
       // Backward compat: old event from race.lua
       $scope.$on('BajaVCP_Sound', playVCPSound);
       // Volume change from BajaConfigs
@@ -678,7 +678,7 @@ angular.module('beamng.apps').directive('bajastella', function () {
       }
 
       // ---- Main data update (10 fps from Lua) ----
-      $scope.$on('BajaStella_Update', function (_ev, d) {
+      $scope.$on('RmStella_Update', function (_ev, d) {
         $scope.$applyAsync(function () {
           if (!d) return;
           $scope.hdg        = pad(d.heading || 0, 3);
@@ -719,7 +719,7 @@ angular.module('beamng.apps').directive('bajastella', function () {
       });
 
       // ---- Show / Hide ----
-      $scope.$on('BajaStella_Show', function () {
+      $scope.$on('RmStella_Show', function () {
         $scope.$applyAsync(function () {
           $scope.visible = true;
           // Use refresh (not setup) so the idempotent _done guard is cleared and
@@ -727,19 +727,20 @@ angular.module('beamng.apps').directive('bajastella', function () {
           setTimeout(function() { if (window.BajaUI) BajaUI.refresh('stella-dev'); }, 0);
         });
       });
-      $scope.$on('BajaStella_Hide', function () {
+      $scope.$on('RmStella_Hide', function () {
         $scope.$applyAsync(function () { $scope.visible = false; });
       });
 
       // ---- LED event ----
-      $scope.$on('BajaStella_LED', function (_ev, d) {
+      $scope.$on('RmStella_LED', function (_ev, d) {
         $scope.$applyAsync(function () {
           setLedVisual(d && d.color, d && d.flash, d && d.pattern);
         });
+        if (d && d.test) lua('if extensions.raceManager_stella then extensions.raceManager_stella.screenSaw() end');
       });
 
       // ---- Blue flag event ----
-      $scope.$on('BajaStella_BlueFlag', function (_ev, d) {
+      $scope.$on('RmStella_BlueFlag', function (_ev, d) {
         $scope.$applyAsync(function () {
           var st = (d && d.state) || 'none';
           $scope.flagState  = (st === 'clear') ? 'none' : st;
@@ -748,11 +749,11 @@ angular.module('beamng.apps').directive('bajastella', function () {
         });
       });
 
-      // ---- VCP crossed (LED green driven by Lua via BajaStella_LED + BajaStella_Update) ----
-      $scope.$on('BajaStella_VCPCrossed', function () { /* LED state managed by stella.lua */ });
+      // ---- VCP crossed (LED green driven by Lua via RmStella_LED + RmStella_Update) ----
+      $scope.$on('RmStella_VCPCrossed', function () { /* LED state managed by stella.lua */ });
 
       // ---- Speed zone events (sound triggers from stella.lua) ----
-      $scope.$on('BajaStella_SpeedZone', function (_ev, d) {
+      $scope.$on('RmStella_SpeedZone', function (_ev, d) {
         if (!d) return;
         if (d.event === 'enter' || d.event === 'advance') {
           playSZEntrySound();
@@ -787,16 +788,16 @@ angular.module('beamng.apps').directive('bajastella', function () {
         $scope.$applyAsync(function () { $scope.spd = String(mph); });
       });
 
-      $scope.$on('BajaStella_AlertSound', function (_ev, d) {
+      $scope.$on('RmStella_AlertSound', function (_ev, d) {
         playOvertakeBeep((d && d.loud) ? 5 : 3);
       });
-      $scope.$on('BajaStella_Proximity', function (_ev, d) {
+      $scope.$on('RmStella_Proximity', function (_ev, d) {
         if (d && !d.clear) playOvertakeBeep(d.kind === 'rearApproach' ? 3 : 1);
       });
-      $scope.$on('BajaStella_Breakdown', function (_ev, d) {
+      $scope.$on('RmStella_Breakdown', function (_ev, d) {
         $scope.$applyAsync(function () { $scope.breakdownActive = !!(d && d.active); });
       });
-      $scope.$on('BajaStella_HazardAhead', function (_ev, d) {
+      $scope.$on('RmStella_HazardAhead', function (_ev, d) {
         $scope.$applyAsync(function () {
           $scope.hazardAhead = !!(d && d.active !== false);
           if (d && d.active === false) $scope.hazardAhead = false;
@@ -862,18 +863,18 @@ angular.module('beamng.apps').directive('bajastella', function () {
       // ---- Button handlers ----
       $scope.pressSOS = function () {
         if (!$scope.powered) return;
-        lua('if extensions.bajaStella then extensions.bajaStella.requestMechanicalBreakdown() elseif extensions.gameCommands then extensions.gameCommands.stellaSOS() end');
+        lua('if extensions.raceManager_stellaUnit then extensions.raceManager_stellaUnit.requestMechanicalBreakdown() elseif extensions.gameCommands then extensions.gameCommands.stellaSOS() end');
       };
       $scope.pressOK = function () {
         if (noteButton('ok')) return;
-        lua('if extensions.bajaStella then extensions.bajaStella.acknowledgeBlueFlag() elseif extensions.gameCommands then extensions.gameCommands.stellaOK() end');
+        lua('if extensions.raceManager_stellaUnit then extensions.raceManager_stellaUnit.acknowledgeBlueFlag() elseif extensions.gameCommands then extensions.gameCommands.stellaOK() end');
       };
       $scope.pressFlag = function () {
         if (noteButton('flag')) return;
         if ($scope.flagState === 'incoming') {
-          lua('if extensions.bajaStella then extensions.bajaStella.acknowledgeBlueFlag() elseif extensions.gameCommands then extensions.gameCommands.stellaOK() end');
+          lua('if extensions.raceManager_stellaUnit then extensions.raceManager_stellaUnit.acknowledgeBlueFlag() elseif extensions.gameCommands then extensions.gameCommands.stellaOK() end');
         } else {
-          lua('if extensions.bajaStella then extensions.bajaStella.requestBlueFlag() elseif extensions.gameCommands then extensions.gameCommands.stellaFlag() end');
+          lua('if extensions.raceManager_stellaUnit then extensions.raceManager_stellaUnit.requestBlueFlag() elseif extensions.gameCommands then extensions.gameCommands.stellaFlag() end');
         }
       };
 
@@ -909,7 +910,7 @@ angular.module('beamng.apps').directive('bajastella', function () {
       // Restore visibility if UI reloaded during an active race
       setTimeout(function () {
         if (typeof bngApi !== 'undefined') {
-          bngApi.engineLua('if extensions.bajaStella then extensions.bajaStella.requestState() elseif extensions.gameCommands then extensions.gameCommands.requestStellaState() end');
+          bngApi.engineLua('if extensions.raceManager_stellaUnit then extensions.raceManager_stellaUnit.requestState() elseif extensions.gameCommands then extensions.gameCommands.requestStellaState() end');
         }
       }, 600);
 

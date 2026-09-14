@@ -23,8 +23,23 @@ local mirror = nil
 local mirrorTrackAsked = nil
 
 local function stella()
-  local ok, s = pcall(function() return extensions.bajaStella end)
+  local ok, s = pcall(function() return extensions.raceManager_stellaUnit end)
   return ok and type(s) == "table" and s or nil
+end
+
+-- a Stella mod of its own in the mods folder is not the unit Race Manager
+-- talks to any more; said once so its owner knows why it sits there dead
+local strangerSaid = false
+local function noticeStranger()
+  if strangerSaid then return end
+  local other = false
+  pcall(function() other = type(extensions.bajaStella) == "table" end)
+  if not other then return end
+  strangerSaid = true
+  pcall(function()
+    extensions.raceManager_state.notice("Another Stella mod is installed. Race Manager uses its own; remove the other from your mods folder.")
+  end)
+  if type(log) == "function" then log("W", "raceManager", "a standalone Stella mod is loaded beside Race Manager's unit") end
 end
 
 -- the car the unit is about: the driver's while copiloting, else your own
@@ -343,6 +358,9 @@ local TEST = {
 local testStep, testSince = nil, 0
 local TEST_EVERY = 2.0
 
+local screenAnswers = 0
+function M.screenSaw() screenAnswers = screenAnswers + 1 end
+
 function M.selfTest()
   local racing = false
   pcall(function() racing = extensions.raceManager_race.isActive() end)
@@ -350,6 +368,15 @@ function M.selfTest()
     pcall(function() extensions.raceManager_state.notice("Stella test: not during a race") end)
     return false
   end
+  local s = stella()
+  if not s then
+    pcall(function() extensions.raceManager_state.notice("Stella test: the unit is not loaded. Rejoin the server.") end)
+    return false
+  end
+  pcall(function()
+    extensions.raceManager_state.notice("Stella test: unit " .. tostring(s.VERSION or "older than 0.7.11") .. ". Watch the dots and the screen.")
+  end)
+  screenAnswers = 0
   testStep, testSince = 0, TEST_EVERY
   return true
 end
@@ -364,7 +391,14 @@ local function testTick(dt)
   if not step then
     testStep = nil
     call("testShow", "off")
-    pcall(function() extensions.raceManager_state.notice("Stella test over: everything off") end)
+    local seen = screenAnswers
+    pcall(function()
+      if seen > 0 then
+        extensions.raceManager_state.notice(("Stella test over: the screen answered %d of %d. If you saw nothing, the screen is drawn but not shown: type !resetui."):format(seen, #TEST))
+      else
+        extensions.raceManager_state.notice("Stella test over: the screen never answered. The unit works, the screen is not receiving. Type !resetui, or rejoin.")
+      end
+    end)
     return
   end
   call("testShow", step[1])
@@ -380,6 +414,7 @@ function M.onUpdate(dt)
   if since < EVERY then return end
   since = 0
   wireNetwork()
+  noticeStranger()
   sync()
 end
 
