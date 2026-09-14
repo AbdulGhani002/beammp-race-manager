@@ -54,6 +54,17 @@
          and still gets its own clicks. -->
     <div class="rm-scrim" ng-if="anythingOpen()" ng-click="dismiss()"></div>
 
+    <div class="rm-ask-dock" ng-if="(s.invites || []).length">
+      <div class="rm-ask" ng-repeat="inv in s.invites track by inv.id">
+        <div class="rm-ask-text">{{ inv.text }}</div>
+        <div class="rm-ask-time">{{ inv.secs || 30 }}s</div>
+        <div class="rm-ask-btns">
+          <button class="rm-primary" ng-click="takeInvite(inv)">Accept</button>
+          <button ng-click="refuseInvite(inv)">Decline</button>
+        </div>
+      </div>
+    </div>
+
     <!-- top banner -->
     <div class="rm-top" rm-move="top" title="Drag the bar to move it">
       <img class="rm-mark" src="/ui/modules/apps/RaceManager/logo-round.png" alt="Baja Sim" />
@@ -67,15 +78,26 @@
     <!-- side player list -->
     <div class="rm-players" rm-drag="players" ng-if="s.rosterOpen">
       <div class="rm-players-head">
-        <span>On track</span><span class="rm-count">{{ s.roster.length }}</span>
+        <span>{{ liveBoard().length ? t('board.live') : t('players.ontrack') }}</span>
+        <span class="rm-count">{{ liveBoard().length ? liveBoard().length : s.roster.length }}</span>
       </div>
-      <div class="rm-row" ng-repeat="p in s.roster" ng-class="{me: p.id === s.me.id}">
-        <span class="rm-lvl">{{ p.level }}</span>
-        <span class="rm-name">{{ p.name }}<em ng-if="p.guest"> guest</em></span>
-        <span class="rm-speed">{{ p.speed }}<small>mph</small></span>
-        <span class="rm-ping" ng-class="pingClass(p.ping)">{{ p.ping >= 0 ? p.ping : "-" }}</span>
+      <div class="rm-row rm-click rm-board-row" ng-repeat="p in liveBoard()"
+           ng-class="{me: p.id === s.me.id, queued: isQueued(p)}" ng-click="openPlayer(p)">
+        <span class="rm-pos">{{ p.pos }}.</span>
+        <span class="rm-name" ng-class="{queued: isQueued(p)}">{{ p.name }}</span>
+        <span class="rm-gap">{{ boardLap(p) }}</span>
+        <span class="rm-gap">{{ boardClock(p) }}</span>
       </div>
-      <div class="rm-empty" ng-if="!s.roster.length">Nobody here yet.</div>
+      <div ng-if="!liveBoard().length">
+        <div class="rm-row rm-click" ng-repeat="p in s.roster" ng-class="{me: p.id === s.me.id, queued: isQueued(p)}"
+             ng-click="openPlayer(p)">
+          <span class="rm-lvl">{{ p.level }}</span>
+          <span class="rm-name" ng-class="{queued: isQueued(p)}">{{ p.name }}<em ng-if="p.guest"> guest</em></span>
+          <span class="rm-speed">{{ p.speed }}<small>mph</small></span>
+          <span class="rm-ping" ng-class="pingClass(p.ping)">{{ p.ping >= 0 ? p.ping : "-" }}</span>
+        </div>
+      </div>
+      <div class="rm-empty" ng-if="!liveBoard().length && !s.roster.length">Nobody here yet.</div>
     </div>
 
     <!-- panels -->
@@ -161,15 +183,14 @@
           <div class="rm-field">Course</div>
           <div class="rm-picklist">
             <button ng-repeat="t in trackList() track by t.id" ng-click="pickTrack(t.id)"
-                    ng-class="{on: entry.track === t.id, away: trackAway(t)}">
+                    ng-class="{on: entry.track === t.id}">
               <span class="rm-pick-name">{{ t.name }}</span>
-              <span class="rm-pick-note" ng-if="!trackAway(t)">{{ t.count }} gates</span>
-              <span class="rm-pick-note" ng-if="trackAway(t)">on {{ t.level }}</span>
+              <span class="rm-pick-note">{{ t.count }} gates</span>
             </button>
           </div>
-          <p class="rm-hint" ng-if="anyAway()">The greyed courses were built on
-            another map. A server runs one map at a time, so they open up when
-            the server is switched to that map.</p>
+          <p class="rm-hint" ng-if="!trackList().length && s.tracks.length">
+            No course on this map. Courses from other maps stay hidden until
+            the server is on that map.</p>
 
           <div class="rm-track-meta" ng-if="chosen()">
             {{ chosen().count }} checkpoints &middot;
@@ -181,7 +202,7 @@
               <span ng-repeat="z in chosen().zones">gates {{ z.from }} to {{ z.to }} at
                 <b>{{ z.mph }} mph</b>{{ $last ? "" : ", " }}</span></span>
             <span ng-if="!chosen().zones.length">No speed zones on this course<span
-              ng-if="s.isAdmin">. Set them under Course tools</span>.</span>
+              ng-if="s.isStaff">. Set them under Course tools</span>.</span>
           </div>
 
           <div class="rm-field">Driving with</div>
@@ -221,6 +242,20 @@
             the server is switched to that map.
           </div>
 
+          <div class="rm-field" ng-if="s.isStaff || s.isAdmin || s.isOwner"
+               style="margin-top:10px;padding:8px 0;border-top:1px solid rgba(255,255,255,.08)">
+            <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+              <input type="checkbox" ng-model="entry.official" />
+              <span>Official / series race</span>
+            </label>
+            <p class="rm-hint" style="margin:4px 0 6px">
+              Results post as Baja Sim Official Race and feed series points.</p>
+            <label ng-if="entry.official">Race name
+              <input type="text" ng-model="entry.officialName" maxlength="80"
+                     placeholder="e.g. Round 3 — Painted Desert" />
+            </label>
+          </div>
+
           <div class="rm-pickrow">
             <button class="rm-primary" ng-disabled="!entry.track || wrongLevel()"
                     ng-click="arm()">Practice alone</button>
@@ -256,60 +291,187 @@
       </div>
     </div>
 
-    <!-- the books. best run per driver per course, and the fastest clean lap. -->
-    <div class="rm-card rm-panel rm-records" rm-drag="records" ng-if="panel === 'records'">
+    <!-- Records: track board on top, driver ranks underneath. Same drill-in
+         flow as challenges. -->
+    <div class="rm-card rm-panel rm-records" rm-drag="records" ng-if="panel === 'records'"
+         ng-class="{'rm-wide': recOpen || drvOpen}">
       <button class="rm-x" ng-click="close()">{{ t('close') }}</button>
       <h2>{{ t('records') }}</h2>
 
-      <div class="rm-empty" ng-if="!s.tracks.length">
-        No course is saved yet, so there is nothing to hold a record on.
+      <div ng-if="!recOpen && !drvOpen">
+        <div class="rm-rec-half" ng-if="lastRace()">
+          <h3>Last race</h3>
+          <div class="rm-track-meta">{{ lastRace().trackName }}
+            <span ng-if="lastRace().bestLap"> · best lap {{ clock(lastRace().bestLap.time) }}
+              by {{ lastRace().bestLap.name }}</span>
+          </div>
+          <div class="rm-rec-head">
+            <span>#</span><span>Driver</span><span>Time</span><span>Penalties</span>
+          </div>
+          <div class="rm-rec-row rm-click" ng-repeat="e in lastRace().finished"
+               ng-class="{me: e.name === s.me.name}" ng-click="openResultRecord(e)">
+            <span class="rm-pos">{{ e.pos }}</span>
+            <span class="rm-rname">{{ e.name }}<em class="rm-rec-chip" ng-if="e.record === 'track'">course record</em></span>
+            <span class="rm-rtime">{{ clock(e.corrected) }}</span>
+            <span class="rm-rwhen">{{ penaltySeconds(e) ? '+' + penaltyClock(penaltySeconds(e)) : '—' }}</span>
+          </div>
+        </div>
+
+        <div class="rm-rec-half">
+          <h3>Track records</h3>
+          <div class="rm-empty" ng-if="!s.tracks.length">No course is saved yet.</div>
+          <div class="rm-field" ng-if="trackList().length">Race</div>
+          <div class="rm-picklist" ng-if="trackList().length">
+            <button ng-repeat="t in trackList() track by t.id" ng-click="recordsFor(t.id)"
+                    ng-class="{on: recPick.track === t.id}">
+              <span class="rm-pick-name">{{ t.name }}</span>
+              <span class="rm-pick-note">{{ t.count }} gates</span>
+            </button>
+          </div>
+          <div class="rm-field" ng-if="trackListOther().length">Other maps</div>
+          <div class="rm-picklist" ng-if="trackListOther().length">
+            <button ng-repeat="t in trackListOther() track by t.id" ng-click="recordsFor(t.id)"
+                    ng-class="{on: recPick.track === t.id}">
+              <span class="rm-pick-name">{{ t.name }}</span>
+              <span class="rm-pick-note">on {{ t.level }}</span>
+            </button>
+          </div>
+          <p class="rm-hint" ng-if="!trackList().length && !trackListOther().length">
+            No course is saved yet.</p>
+          <div class="rm-classgrid rm-recfilter" ng-if="recordsReady() && recordClasses().length">
+            <button ng-click="recordsClassFilter(null)"
+                    ng-class="{on: !recPick.raceClass}">Every class</button>
+            <button ng-repeat="c in recordClasses()" ng-click="recordsClassFilter(c)"
+                    ng-class="{on: recPick.raceClass === c}">{{ c }}</button>
+          </div>
+          <div ng-if="recordsReady()">
+            <div class="rm-empty" ng-if="!recordsAny()">Nobody has finished here yet.</div>
+            <div class="rm-recboard" ng-repeat="m in recordModes()">
+              <h3>{{ m.label }}</h3>
+              <div class="rm-best" ng-if="m.board.lap">
+                Best lap <strong>{{ clock(m.board.lap.time) }}</strong>
+                by {{ m.board.lap.name }} &middot; {{ ago(m.board.lap.at) }}
+              </div>
+              <div class="rm-rec-head">
+                <span>#</span><span>Driver</span><span>Time</span><span>When</span>
+              </div>
+              <div class="rm-rec-row rm-click" ng-repeat="r in m.board.top"
+                   ng-class="{me: r.me}" ng-click="openRecordRow(m, r)">
+                <span class="rm-pos">{{ r.pos }}</span>
+                <span class="rm-rname">{{ r.name }}<em class="rm-rclass"
+                      ng-if="r.class && !recPick.raceClass">{{ r.class }}</em></span>
+                <span class="rm-rtime">{{ clock(r.corrected) }}</span>
+                <span class="rm-rwhen">{{ ago(r.at) }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="rm-rec-half">
+          <h3>Driver ranks</h3>
+          <p class="rm-hint">Pick a driver to see mileage, speed, XP and their records.</p>
+          <div class="rm-picklist rm-chlist">
+            <div class="rm-empty" ng-if="!driverRows().length">No named drivers yet.</div>
+            <button class="rm-ch-row" ng-repeat="d in driverRows() track by d.key"
+                    ng-click="openDriver(d.key, d.name)">
+              <span class="rm-ch-main">
+                <span class="rm-pick-name">{{ d.name }}</span>
+                <span class="rm-ch-meta">Lv {{ d.level }} · {{ d.xp || 0 }} XP</span>
+              </span>
+            </button>
+          </div>
+        </div>
       </div>
 
-      <div ng-if="s.tracks.length">
-        <div class="rm-picklist">
-          <button ng-repeat="t in s.tracks" ng-click="recordsFor(t.id)"
-                  ng-class="{on: recPick.track === t.id}">
-            <span class="rm-pick-name">{{ t.name }}</span>
-          </button>
+      <div ng-if="recOpen && recShown()">
+        <button class="rm-quiet" ng-click="recBack()">{{ t('back') }}</button>
+        <h3>{{ recShown().trackName || 'Record' }}</h3>
+        <div class="rm-results-head">
+          <span>#</span><span>Driver</span><span>Time</span>
+          <span>Penalties</span><span>Leader</span><span>Ahead</span>
         </div>
-
-        <div class="rm-classgrid rm-recfilter" ng-if="recordsReady() && recordClasses().length">
-          <button ng-click="recordsClassFilter(null)"
-                  ng-class="{on: !recPick.raceClass}">Every class</button>
-          <button ng-repeat="c in recordClasses()" ng-click="recordsClassFilter(c)"
-                  ng-class="{on: recPick.raceClass === c}">{{ c }}</button>
+        <div class="rm-result-row me">
+          <span class="rm-pos">{{ recShown().pos || '—' }}</span>
+          <span class="rm-rname">{{ recShown().name }}<em class="rm-rclass" ng-if="recShown().class">{{ recShown().class }}</em>
+            <em class="rm-rec-chip" ng-if="recShown().record === 'track'">course record</em>
+            <em class="rm-rec-chip" ng-if="recShown().classRecord">{{ recShown().classRecord }} record</em></span>
+          <span class="rm-time">{{ clock(recShown().corrected) }}</span>
+          <span class="rm-pen-col">{{ penaltySeconds(recShown()) ? '+' + penaltyClock(penaltySeconds(recShown())) : '—' }}</span>
+          <span class="rm-gap">{{ recShown().pos === 1 || recShown().toLeader == null ? '—' : '+' + clock(recShown().toLeader) }}</span>
+          <span class="rm-gap">{{ recShown().pos === 1 || recShown().toAhead == null ? '—' : '+' + clock(recShown().toAhead) }}</span>
         </div>
-
-        <div ng-if="recordsReady()">
-          <div class="rm-empty" ng-if="!recordsAny()">
-            Nobody has finished a race here yet. The first one to do it owns
-            the board.
+        <div class="rm-detail" style="display:block">
+          <div class="rm-detail-row" ng-if="recShown().mode"><span>Mode</span><span>{{ recShown().mode }}</span></div>
+          <div class="rm-detail-row" ng-if="recShown().vehicle"><span>Vehicle</span><span>{{ recShown().vehicle }}</span></div>
+          <div class="rm-detail-row" ng-if="recShown().at"><span>When</span><span>{{ ago(recShown().at) }}</span></div>
+          <div class="rm-detail-row" ng-if="recShown().clean != null"><span>Raw time</span><span class="rm-time">{{ clock(recShown().clean) }}</span></div>
+          <div class="rm-detail-row" ng-if="recShown().bestLap"><span>Best lap</span><span class="rm-time">{{ clock(recShown().bestLap.time || recShown().bestLap) }}</span></div>
+          <h3 ng-if="recShown().penalties && recShown().penalties.length">Penalties</h3>
+          <div class="rm-pen" ng-repeat="p in recShown().penalties">
+            <span>{{ penaltyText(p, recShown().laps && recShown().laps.length > 1) }}</span>
+            <span class="rm-pen-secs">+{{ p.seconds }}s</span>
           </div>
+          <h3 ng-if="recShown().laps && recShown().laps.length">Laps</h3>
+          <div class="rm-lap" ng-repeat="l in recShown().laps" ng-if="l.time != null">
+            <span>Lap {{ l.lap || ($index + 1) }}</span>
+            <span class="rm-time">{{ clock(l.time) }}</span>
+          </div>
+        </div>
+      </div>
 
-          <div class="rm-recboard" ng-repeat="m in recordModes()">
-            <h3>{{ m.label }}</h3>
+      <div ng-if="drvOpen && drvShown()">
+        <button class="rm-quiet" ng-click="drvBack()">{{ t('back') }}</button>
+        <h3>{{ drvShown().name }}
+          <em class="rm-ch-kind">Lv {{ drvShown().level || 1 }}</em>
+          <em class="rm-rank-chip" ng-if="drvShown().rank">#{{ drvShown().rank }}<span ng-if="drvShown().ranked"> / {{ drvShown().ranked }}</span></em>
+        </h3>
+        <p class="rm-hint" ng-if="drvShown().pending && drvShown().miles == null && drvShown().xp == null">Loading driver card…</p>
+        <div class="rm-xpwrap" ng-if="drvShown().xpNeed || drvShown().xp != null || !drvShown().pending">
+          <div class="rm-xpbar"><i ng-style="{width: (drvShown().xpPct || 0) + '%'}"></i></div>
+          <span class="rm-xpmeta">{{ drvShown().xpInto || 0 }} / {{ drvShown().xpNeed }} XP to level {{ (drvShown().level || 1) + 1 }}
+            · {{ drvShown().xp || 0 }} total</span>
+        </div>
+        <div class="rm-ch-facts">
+          <div class="rm-ch-fact"><span class="rm-ch-meta">Miles</span><span>{{ drvShown().miles || 0 }}</span></div>
+          <div class="rm-ch-fact"><span class="rm-ch-meta">Avg speed</span><span>{{ drvShown().avgMph || 0 }} mph</span></div>
+          <div class="rm-ch-fact"><span class="rm-ch-meta">Top speed</span><span>{{ drvShown().topMph || 0 }} mph</span></div>
+          <div class="rm-ch-fact" ng-if="drvShown().fastest"><span class="rm-ch-meta">Fastest lap</span>
+            <span>{{ clock(drvShown().fastest.time) }} on {{ drvShown().fastest.trackName }}</span></div>
+        </div>
 
-            <div class="rm-best" ng-if="m.board.lap">
-              Best lap <strong>{{ clock(m.board.lap.time) }}</strong>
-              by {{ m.board.lap.name }} &middot; {{ ago(m.board.lap.at) }}
-            </div>
+        <div class="rm-field">Last 3 events</div>
+        <div class="rm-empty" ng-if="!(drvShown().recent && drvShown().recent.length) && !drvShown().lastRace">No finishes stored yet.</div>
+        <div class="rm-tier rm-click" ng-repeat="ev in drvShown().recent"
+             ng-click="openResultRecord(ev)">
+          <span>
+            <em class="rm-rclass">{{ ev.kind === 'challenge' ? 'Challenge' : 'Race' }}</em>
+            {{ ev.trackName || ev.name }}
+            <span class="rm-ch-meta" ng-if="ev.class || ev.mode">
+              · {{ ev.class }}{{ ev.class && ev.mode ? ' · ' : '' }}{{ modeLabel(ev.mode) }}
+            </span>
+          </span>
+          <span>{{ ev.pos ? '#' + ev.pos + ' · ' : '' }}{{ clock(ev.corrected) }}</span>
+        </div>
 
-            <div class="rm-rec-head">
-              <span>#</span><span>Driver</span><span>Time</span><span>When</span>
-            </div>
-            <div class="rm-rec-row" ng-repeat="r in m.board.top"
-                 ng-class="{me: r.me}">
-              <span class="rm-pos">{{ r.pos }}</span>
-              <span class="rm-rname">{{ r.name }}<em class="rm-rclass"
-                    ng-if="r.class && !recPick.raceClass">{{ r.class }}</em></span>
-              <span class="rm-rtime">{{ clock(r.corrected) }}</span>
-              <span class="rm-rwhen">{{ ago(r.at) }}</span>
-            </div>
+        <div class="rm-field">Best race times</div>
+        <div class="rm-scrollbox">
+          <div class="rm-empty" ng-if="!(drvShown().records && drvShown().records.length)">No race records stored yet.</div>
+          <div class="rm-tier rm-click" ng-repeat="r in drvShown().records" ng-click="openRecordRow({label: modeLabel(r.mode)}, r)">
+            <span>{{ r.trackName }}
+              <span class="rm-ch-meta">· {{ r.class && r.class !== 'all' ? r.class : 'any class' }} · {{ modeLabel(r.mode) }}{{ r.pos ? ' · #' + r.pos : '' }}</span>
+            </span>
+            <span>{{ clock(r.corrected) }}</span>
+          </div>
+        </div>
 
-            <p class="rm-hint" ng-if="m.board.mine && m.board.mine.pos > m.board.top.length">
-              You sit {{ m.board.mine.pos }} of {{ m.board.total }} at
-              {{ clock(m.board.mine.corrected) }}.
-            </p>
+        <div class="rm-field">Best challenge times</div>
+        <div class="rm-scrollbox">
+          <div class="rm-empty" ng-if="!(drvShown().challenges && drvShown().challenges.length)">No challenge times stored yet.</div>
+          <div class="rm-tier" ng-repeat="c in drvShown().challenges">
+            <span>{{ c.name }}
+              <span class="rm-ch-meta">· {{ c.class || 'any class' }}{{ c.mode ? ' · ' + modeLabel(c.mode) : '' }}{{ c.tier ? ' · rung ' + c.tier : '' }}</span>
+            </span>
+            <span>{{ clock(c.best) }}</span>
           </div>
         </div>
       </div>
@@ -438,7 +600,7 @@
           </div>
         </div>
 
-        <div class="rm-group" ng-if="s.isAdmin">
+        <div class="rm-group" ng-if="s.isStaff">
           <button class="rm-primary" ng-click="chNew()">{{ t('ch.new') }}</button>
         </div>
       </div>
@@ -496,7 +658,7 @@
           <button class="rm-primary" ng-disabled="chProblem()" ng-click="chEnter()">{{ t('ch.enter') }}</button>
         </div>
 
-        <div class="rm-group rm-pickrow" ng-if="s.isAdmin">
+        <div class="rm-group rm-pickrow" ng-if="s.isStaff">
           <button ng-click="chEdit(chShown())">{{ t('edit') }}</button>
           <button ng-if="chShown().state !== 'ended'" ng-click="chEndNow(chShown().id)">{{ t('ch.endnow') }}</button>
           <button class="rm-danger" ng-click="chDelete(chShown().id)">{{ t('delete') }}</button>
@@ -546,8 +708,10 @@
           <button ng-click="chForm.startInHours = 6" ng-class="{on: chForm.startInHours === 6}">{{ t('ch.in6h') }}</button>
           <button ng-click="chForm.startInHours = 24" ng-class="{on: chForm.startInHours === 24}">{{ t('ch.in24h') }}</button>
         </div>
-        <div class="rm-problem" ng-if="chFormProblem()">{{ chFormProblem() }}</div>
-        <button class="rm-primary" ng-disabled="chFormProblem()" ng-click="chSave()">{{ chForm.id ? t('save') : t('ch.postit') }}</button>
+        <div class="rm-problem" ng-if="chFormError || chFormProblem()">{{ chFormError || chFormProblem() }}</div>
+        <button class="rm-primary" ng-click="chSave()" ng-disabled="chFormBusy">
+          {{ chFormBusy ? '…' : (chForm.id ? t('save') : t('ch.postit')) }}
+        </button>
       </div>
     </div>
 
@@ -558,12 +722,12 @@
       <div class="rm-you">
         <strong>{{ s.me.name }}</strong>
         <span class="rm-role">{{ s.me.role }}</span>
-        <span class="rm-lvl">level {{ s.me.level }}</span>
-        <span class="rm-warn" ng-if="!s.me.ranked">unranked, results are not recorded</span>
+        <span class="rm-lvl">{{ t('level') }} {{ s.me.level }}</span>
+        <span class="rm-warn" ng-if="!s.me.ranked">{{ t('opt.unranked') }}</span>
       </div>
 
       <div class="rm-group">
-        <h3>Frame rate</h3>
+        <h3>{{ t('opt.framerate') }}</h3>
         <p class="rm-hint">Measures thirty seconds and sends the result to the server.
           Run it once with the mod off and once with it on.</p>
         <div class="rm-buttons">
@@ -578,13 +742,42 @@
         </div>
       </div>
 
-      <div class="rm-group" ng-if="s.isAdmin">
-        <h3>Course tools</h3>
-        <button ng-click="setPanel('capture')">Checkpoint capture</button>
+      <div class="rm-group" ng-if="s.isStaff">
+        <h3>{{ t('opt.courses') }}</h3>
+        <button ng-click="setPanel('capture')">{{ t('opt.capture') }}</button>
+      </div>
+
+      <div class="rm-group" ng-if="s.isOwner">
+        <h3>{{ t('opt.staff') }}</h3>
+        <p class="rm-hint">{{ t('opt.staff.note') }}</p>
+        <div class="rm-picklist rm-chlist">
+          <div class="rm-empty" ng-if="!driverRows().length">{{ t('opt.nodrivers') }}</div>
+          <button class="rm-ch-row" ng-repeat="d in driverRows() track by d.key"
+                  ng-class="{on: staffPick && staffPick.key === d.key}"
+                  ng-click="openStaff(d)">
+            <span class="rm-ch-main">
+              <span class="rm-pick-name">{{ d.name }}</span>
+              <span class="rm-ch-meta">Lv {{ d.level }} · {{ d.role || 'player' }}</span>
+            </span>
+          </button>
+        </div>
+        <div class="rm-group" ng-if="staffPick">
+          <p class="rm-hint">{{ staffPick.name }} — {{ staffPick.role || 'player' }}</p>
+          <div class="rm-pickrow">
+            <button ng-click="staffRole('player')" ng-class="{on: staffPick.role === 'player'}">{{ t('opt.player') }}</button>
+            <button ng-click="staffRole('staff')" ng-class="{on: staffPick.role === 'staff'}">{{ t('opt.makestaff') }}</button>
+            <button ng-click="staffRole('admin')" ng-class="{on: staffPick.role === 'admin'}">{{ t('opt.makeadmin') }}</button>
+          </div>
+          <div class="rm-pickrow">
+            <button class="rm-danger" ng-click="staffKick()">{{ t('opt.kick') }}</button>
+            <button class="rm-danger" ng-click="staffBan()">{{ t('opt.ban') }}</button>
+            <button class="rm-danger" ng-click="staffClear()">{{ t('opt.clearrec') }}</button>
+          </div>
+        </div>
       </div>
 
       <div class="rm-group">
-        <h3>Dash</h3>
+        <h3>{{ t('opt.dash') }}</h3>
         <p class="rm-hint">The tachometer drags by its top edge and resizes from
           the corner. The Stella drags anywhere on its case. The stock gauges
           are taken off the dash, so with the tachometer off there is none until
@@ -593,6 +786,17 @@
           <button ng-click="dashToggle('tacho')" ng-class="{on: dash.tacho}">Tachometer</button>
           <button ng-click="dashToggle('stella')" ng-class="{on: dash.stella}">Stella</button>
           <button ng-click="dashToggle('clock')" ng-class="{on: dash.clock}">Race clock</button>
+
+          <div class="rm-pickrow" style="margin-top:10px">
+            <button class="rm-primary" ng-click="restoreUiLayout()">Reset UI layout</button>
+          </div>
+          <p class="rm-hint">Puts the top bar, bottom bar and Stella back on screen.
+            Chat: <em>!restoreui</em></p>
+
+          <p class="rm-hint" style="margin-top:8px">
+            Stella keybinds (Options → Controls): <em>RM Stella On/Off</em>,
+            <em>RM Stella Pass Flag</em>, <em>RM Stella OK</em>,
+            <em>RM Stella SOS / Breakdown</em>. Also <em>RM Players List</em>.</p>
         </div>
         <p class="rm-hint">The race clock is the time and penalties over the road
           during a run. Off by default: penalties are on the results either way.
@@ -600,10 +804,10 @@
       </div>
 
       <div class="rm-group">
-        <h3>Windows</h3>
+        <h3>{{ t('opt.windows') }}</h3>
         <p class="rm-hint">Drag a window by its title, resize it from the bottom
           right corner. Where you put it is remembered.</p>
-        <button ng-click="resetPanels()">Put the windows back</button>
+        <button ng-click="resetPanels()">{{ t('opt.resetwindows') }}</button>
       </div>
 
       <div class="rm-group">
@@ -626,13 +830,13 @@
 
       <div class="rm-group">
         <button ng-click="demoteSelf()"
-                ng-disabled="s.me.role === 'player' || s.me.role === 'owner'">Demote myself</button>
-        <button class="rm-danger" ng-click="exitServer()">Leave server</button>
+                ng-disabled="s.me.role === 'player' || s.me.role === 'owner'">{{ t('opt.demote') }}</button>
+        <button class="rm-danger" ng-click="exitServer()">{{ t('opt.leave') }}</button>
       </div>
     </div>
 
     <!-- checkpoint capture. drive the route, press the key at each point. -->
-    <div class="rm-card rm-panel rm-capture" rm-drag="capture" ng-if="panel === 'capture'">
+    <div class="rm-card rm-panel rm-capture" rm-drag="capture" ng-if="panel === 'capture' && s.isStaff">
       <button class="rm-x" ng-click="close()">{{ t('close') }}</button>
       <h2>Checkpoint capture</h2>
 
@@ -743,9 +947,29 @@
           <span class="rm-pick-note" ng-if="s.capture.pits">{{ s.capture.pits }}
             pit{{ s.capture.pits === 1 ? "" : "s" }}</span>
         </div>
+        <h3>Speed zone box</h3>
+        <p class="rm-hint">Stand where the box should sit and mark it. The limit
+          only applies while a car is inside this box. Size here is separate
+          from checkpoint gate size.</p>
+        <div class="rm-gate">
+          <label>Width <input type="number" min="2" max="200" ng-model="s.capture.szBox.w" /></label>
+          <label>Height <input type="number" min="2" max="60" ng-model="s.capture.szBox.h" /></label>
+          <label>Depth <input type="number" min="2" max="400" ng-model="s.capture.szBox.d" /></label>
+          <button ng-click="cap('setSzBox', [s.capture.szBox.w, s.capture.szBox.h, s.capture.szBox.d])">Apply box size</button>
+        </div>
+        <div class="rm-buttons">
+          <button ng-click="cap('markSpeedZone')">Mark speed zone box</button>
+          <button ng-click="cap('undoSpeedZone')" ng-disabled="!s.capture.szCount">Undo box</button>
+          <label>Limit
+            <input type="number" min="5" max="200" ng-model="s.capture.szMph"
+                   ng-change="cap('setSzMph', s.capture.szMph)" /> mph
+          </label>
+          <span class="rm-pick-note" ng-if="s.capture.szCount">{{ s.capture.szCount }}
+            box{{ s.capture.szCount === 1 ? "" : "es" }}</span>
+        </div>
 
         <h3>Gate size</h3>
-        <p class="rm-hint">Applies to the next gate, and corrects the one just placed.</p>
+        <p class="rm-hint">Applies to the next checkpoint, and corrects the one just placed. Does not change speed zone boxes.</p>
         <div class="rm-gate">
           <label>Width <input type="number" min="2" max="200" ng-model="s.capture.gate.w" /></label>
           <label>Height <input type="number" min="2" max="60" ng-model="s.capture.gate.h" /></label>
@@ -860,10 +1084,12 @@
             <span class="rm-pos">{{ e.pos }}</span>
             <span class="rm-rname">{{ e.name }}<em ng-if="e.suspect"
               title="The clock could not vouch for part of this run">marked</em><em
-              class="rm-rec-chip" ng-if="e.record === 'track'">course record</em><em
-              class="rm-rec-chip" ng-if="e.classRecord">{{ e.classRecord }} record</em><em
+              class="rm-rec-chip" ng-if="e.record === 'track'"
+              ng-click="openResultRecord(e); $event.stopPropagation()">course record</em><em
+              class="rm-rec-chip" ng-if="e.classRecord"
+              ng-click="openResultRecord(e); $event.stopPropagation()">{{ e.classRecord }} record</em><em
               class="rm-rec-chip" ng-if="e.record === 'personal' && !e.classRecord"
-              >personal best</em><em
+              ng-click="openResultRecord(e); $event.stopPropagation()">personal best</em><em
               class="rm-rec-chip rm-ch-chip" ng-if="e.challengeResult"
               title="{{ e.challengeResult.name }}">{{ chChip(e.challengeResult) }}</em></span>
             <span class="rm-time">{{ clock(e.corrected) }}</span>

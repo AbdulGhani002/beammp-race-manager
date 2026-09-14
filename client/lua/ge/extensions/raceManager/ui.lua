@@ -10,7 +10,8 @@ local MIN_GAP  = 0.1
 
 local dirty, acc = false, 0
 local queueAcc, lastQueueKey = 0, ""
-local snap = { me = {}, roster = {}, tracks = {}, capture = {} }
+local resubAcc = 0
+local snap = { me = {}, roster = {}, tracks = {}, capture = {}, rosterSeq = 0 }
 
 local function beamQueues()
   local flags = {}
@@ -49,9 +50,9 @@ local function build()
   snap.invites   = S.invites or {}
   snap.config    = S.config
 
-  -- the html gates the player list on this. leaving it out of the snapshot
-  -- meant the list opened on the click and vanished on the next push.
-  snap.rosterOpen = S.rosterOpen and true or false
+  -- Player list stays open. Toggle is only a refresh/subscription bump.
+  S.rosterOpen = true
+  snap.rosterOpen = true
   snap.lights     = S.lights and true or false
   snap.team       = S.team
   snap.myCode     = S.myCode
@@ -73,21 +74,37 @@ local function build()
   snap.profile    = S.profile
   snap.drivers    = S.drivers
 
-  -- angular wants a list, and it wants it sorted the same way every time
+  -- Angular needs a *new* array of *new* row tables every push. Reusing the
+  -- same Lua table references meant the CEF side saw no change and the list
+  -- only refreshed when the user toggled Players.
   local n = 0
+  local fresh = {}
   for _, row in pairs(S.roster) do
-    n = n + 1
-    snap.roster[n] = row
+    if type(row) == "table" then
+      n = n + 1
+      fresh[n] = {
+        id = row.id,
+        name = row.name,
+        level = row.level,
+        guest = row.guest and true or false,
+        speed = row.speed,
+        ping = row.ping,
+        role = row.role,
+        model = row.model,
+        queued = false,
+      }
+    end
   end
-  for i = n + 1, #snap.roster do snap.roster[i] = nil end
-  table.sort(snap.roster, function(a, b) return (a.name or "") < (b.name or "") end)
+  table.sort(fresh, function(a, b) return (a.name or "") < (b.name or "") end)
   local qflags = beamQueues()
-  for i = 1, #snap.roster do
-    local row = snap.roster[i]
+  for i = 1, n do
+    local row = fresh[i]
     if row then
       row.queued = qflags[tonumber(row.id)] and true or false
     end
   end
+  snap.roster = fresh
+  snap.rosterSeq = (snap.rosterSeq or 0) + 1
 
   snap.tracks = S.tracks
   snap.capture = extensions.raceManager_capture.status()
@@ -139,6 +156,15 @@ local function onUpdate(dt)
     end
   end
 
+  -- Resubscribe every 15s so a missed join still lands a full roster.
+  resubAcc = resubAcc + dt
+  if resubAcc >= 15.0 then
+    resubAcc = 0
+    pcall(function()
+      extensions.raceManager_net.send("roster.sub", { on = true })
+    end)
+  end
+
   if not dirty then return end
   acc = acc + dt
   if acc < MIN_GAP then return end
@@ -166,16 +192,21 @@ function M.dismissCode()
 end
 
 function M.setRosterOpen(open)
-  local on = open and true or false
-  extensions.raceManager_state.get().rosterOpen = on
-  -- Keep the roster feed on even when the window is shut. CoPilot, teams
-  -- and queued names all read that list.
-  extensions.raceManager_net.send("roster.sub", { on = true })
+  -- Always on. open=false is ignored so the list never vanishes mid-session.
+  extensions.raceManager_state.get().rosterOpen = true
+  -- Flip sub off/on so the server re-sends roster.full even if already subscribed.
+  pcall(function()
+    extensions.raceManager_net.send("roster.sub", { on = false })
+    extensions.raceManager_net.send("roster.sub", { on = true })
+  end)
   M.push()
 end
 
 function M.keepRoster()
-  extensions.raceManager_net.send("roster.sub", { on = true })
+  pcall(function()
+    extensions.raceManager_net.send("roster.sub", { on = false })
+    extensions.raceManager_net.send("roster.sub", { on = true })
+  end)
 end
 
 function M.takeInvite(id)
@@ -195,7 +226,8 @@ function M.closeLights()
 end
 
 function M.togglePlayers()
-  M.setRosterOpen(not extensions.raceManager_state.get().rosterOpen)
+  -- Button is a hard refresh, not a hide. List stays open.
+  M.setRosterOpen(true)
 end
 
 function M.demoteSelf()

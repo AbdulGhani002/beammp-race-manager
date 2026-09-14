@@ -30,13 +30,15 @@ angular.module("beamng.apps")
       }
 
       function place(box, clampToView) {
-        // saved left/top are relative to the Race Manager window, not the
-        // monitor. mixing those with getBoundingClientRect is what made
-        // every Escape (pause menu) shove the UI.
+        // Positions are relative to the Race Manager host. Always clamp to the
+        // visible viewport so a wide-monitor save cannot park a panel off-screen
+        // on a smaller display.
         var x = box.x, y = box.y;
-        if (clampToView) {
-          var maxX = (node.offsetParent ? node.offsetParent.clientWidth : window.innerWidth) - EDGE;
-          var maxY = (node.offsetParent ? node.offsetParent.clientHeight : window.innerHeight) - EDGE;
+        var vw = window.innerWidth || 1280;
+        var vh = window.innerHeight || 720;
+        if (clampToView !== false) {
+          var maxX = vw - EDGE;
+          var maxY = vh - EDGE;
           x = clamp(x, -MIN_W + EDGE, maxX);
           y = clamp(y, 0, maxY);
         }
@@ -45,7 +47,7 @@ angular.module("beamng.apps")
         node.style.transform = "none";
         node.style.right = "auto";
         node.style.bottom = "auto";
-        if (box.w) node.style.width = Math.max(MIN_W, box.w) + "px";
+        if (box.w) node.style.width = Math.min(Math.max(MIN_W, box.w), vw - EDGE) + "px";
 
         // A window dragged shorter than its content is not a smaller window,
         // it is the same window with the heading scrolled off the top and a
@@ -64,7 +66,7 @@ angular.module("beamng.apps")
 
       var saved = null;
       try { saved = JSON.parse(localStorage.getItem(key)); } catch (e) { }
-      if (saved && typeof saved.x === "number") place(saved, false);
+      if (saved && typeof saved.x === "number") place(saved, true);
 
       // What is in a window arrives after it is built: courses land when the
       // server answers, lobby rows come and go. So the fit is checked on every
@@ -197,31 +199,90 @@ angular.module("beamng.apps")
     link: function (scope, element, attrs) {
       var node = element[0];
       var key = "rm.panel." + attrs.rmSpot;
+      var EDGE = 12;
 
-      function restore() {
-        var saved = null;
-        try { saved = JSON.parse(localStorage.getItem(key)); } catch (e) { }
-        if (saved && typeof saved.x === "number") {
-          node.style.left = saved.x + "px";
-          node.style.top = saved.y + "px";
-          node.style.right = "auto";
-          node.style.bottom = "auto";
-        }
+      function clamp(v, lo, hi) { return v < lo ? lo : (v > hi ? hi : v); }
+
+      function place(x, y) {
+        var vw = window.innerWidth || 1280;
+        var vh = window.innerHeight || 720;
+        var w = node.offsetWidth || 362;
+        var h = node.offsetHeight || 240;
+        x = clamp(x, EDGE - w + 40, vw - 40);
+        y = clamp(y, 0, vh - 40);
+        // Must clear bottom/right or the box collapses when top is set.
+        node.style.left = x + "px";
+        node.style.top = y + "px";
+        node.style.right = "auto";
+        node.style.bottom = "auto";
+        node.style.transform = "none";
       }
-      restore();
+
+      function resetDefault() {
+        node.style.left = "";
+        node.style.top = "";
+        node.style.right = "";
+        node.style.bottom = "";
+        node.style.transform = "";
+      }
+
+      function isOffScreen() {
+        var r = node.getBoundingClientRect();
+        var vw = window.innerWidth || 1280;
+        var vh = window.innerHeight || 720;
+        if (r.width < 1 || r.height < 1) return true;
+        var visW = Math.min(r.right, vw) - Math.max(r.left, 0);
+        var visH = Math.min(r.bottom, vh) - Math.max(r.top, 0);
+        return visW < 40 || visH < 40;
+      }
+
+      function fit() {
+        if (isOffScreen()) {
+          try { localStorage.removeItem(key); } catch (e) { }
+          resetDefault();
+          return;
+        }
+        var r = node.getBoundingClientRect();
+        var vw = window.innerWidth || 1280;
+        var vh = window.innerHeight || 720;
+        var dx = 0, dy = 0;
+        if (r.left < EDGE) dx = EDGE - r.left;
+        if (r.right > vw - EDGE) dx = (vw - EDGE) - r.right;
+        if (r.top < EDGE) dy = EDGE - r.top;
+        if (r.bottom > vh - EDGE) dy = (vh - EDGE) - r.bottom;
+        if (dx || dy) place(node.offsetLeft + dx, node.offsetTop + dy);
+      }
+
+      var saved = null;
+      try { saved = JSON.parse(localStorage.getItem(key)); } catch (e) { }
+      if (saved && typeof saved.x === "number" && typeof saved.y === "number") {
+        place(saved.x, saved.y);
+        setTimeout(fit, 50);
+        setTimeout(fit, 400);
+      }
 
       node.addEventListener("mousedown", function () {
         function done() {
           document.removeEventListener("mouseup", done);
-          try { localStorage.setItem(key, JSON.stringify({ x: node.offsetLeft, y: node.offsetTop })); } catch (e) { }
+          try {
+            localStorage.setItem(key, JSON.stringify({
+              x: node.offsetLeft, y: node.offsetTop
+            }));
+          } catch (e) { }
+          fit();
         }
         document.addEventListener("mouseup", done);
       });
 
+      window.addEventListener("resize", fit);
+      scope.$on("$destroy", function () {
+        window.removeEventListener("resize", fit);
+      });
       scope.$on("rmReset", function () {
         try { localStorage.removeItem(key); } catch (e) { }
-        node.style.left = ""; node.style.top = ""; node.style.right = ""; node.style.bottom = "";
+        resetDefault();
       });
+      scope.$on("rmFitScreen", fit);
     }
   };
 }])
@@ -235,17 +296,34 @@ angular.module("beamng.apps")
     link: function (scope, element, attrs) {
       var node = element[0];
       var key = "rm.bar." + attrs.rmMove;
-      var EDGE = 24;
+      var EDGE = 16;
 
       function clamp(v, lo, hi) { return v < lo ? lo : (v > hi ? hi : v); }
 
+      function viewSize() {
+        return {
+          w: window.innerWidth || document.documentElement.clientWidth || 1280,
+          h: window.innerHeight || document.documentElement.clientHeight || 720
+        };
+      }
+
+      // Clear absolute coords so CSS (left:50% + translateX) centers the bar again.
+      function resetCenter() {
+        node.style.left = "";
+        node.style.top = "";
+        node.style.right = "";
+        node.style.bottom = "";
+        node.style.transform = "";
+      }
+
       function put(x, y, clampToView) {
+        var vs = viewSize();
+        var w = node.offsetWidth || 200;
+        var h = node.offsetHeight || 40;
         if (clampToView) {
-          var host = node.offsetParent;
-          var maxX = (host ? host.clientWidth : window.innerWidth) - EDGE;
-          var maxY = (host ? host.clientHeight : window.innerHeight) - EDGE;
-          x = clamp(x, EDGE - node.offsetWidth, maxX);
-          y = clamp(y, 0, maxY);
+          // Keep at least EDGE px of the bar visible on every side.
+          x = clamp(x, EDGE - w + EDGE, vs.w - EDGE);
+          y = clamp(y, 0, vs.h - EDGE);
         }
         node.style.left = x + "px";
         node.style.top = y + "px";
@@ -254,9 +332,42 @@ angular.module("beamng.apps")
         node.style.transform = "none";
       }
 
+      function isMostlyOffScreen() {
+        var r = node.getBoundingClientRect();
+        var vs = viewSize();
+        if (r.width < 1 || r.height < 1) return false;
+        var visibleW = Math.min(r.right, vs.w) - Math.max(r.left, 0);
+        var visibleH = Math.min(r.bottom, vs.h) - Math.max(r.top, 0);
+        return visibleW < r.width * 0.4 || visibleH < r.height * 0.4;
+      }
+
+      function fitToScreen() {
+        if (isMostlyOffScreen()) {
+          try { localStorage.removeItem(key); } catch (e) { }
+          resetCenter();
+          return;
+        }
+        // Nudge fully into view if partially clipped.
+        var r = node.getBoundingClientRect();
+        var vs = viewSize();
+        var dx = 0, dy = 0;
+        if (r.left < EDGE) dx = EDGE - r.left;
+        if (r.right > vs.w - EDGE) dx = (vs.w - EDGE) - r.right;
+        if (r.top < 0) dy = -r.top;
+        if (r.bottom > vs.h - EDGE) dy = (vs.h - EDGE) - r.bottom;
+        if (dx || dy) {
+          put(node.offsetLeft + dx, node.offsetTop + dy, true);
+        }
+      }
+
       var saved = null;
       try { saved = JSON.parse(localStorage.getItem(key)); } catch (e) { }
-      if (saved && typeof saved.x === "number") put(saved.x, saved.y, false);
+      if (saved && typeof saved.x === "number" && typeof saved.y === "number") {
+        put(saved.x, saved.y, true);
+        // After layout settles, verify and re-center if still wrong.
+        setTimeout(fitToScreen, 50);
+        setTimeout(fitToScreen, 400);
+      }
 
       // The whole bar takes hold, buttons included. Nearly all of a bar is
       // buttons, with five pixels between them and six around, and that
@@ -298,7 +409,16 @@ angular.module("beamng.apps")
           document.removeEventListener("mousemove", move);
           document.removeEventListener("mouseup", done);
           if (!moving) return;
+          // Do not remember positions while the HUD editor has the app in a
+          // partial box — that is what made bars vanish after leaving edit.
           try {
+            var root = document.querySelector(".rm-root");
+            var host = root && root.parentElement;
+            var hostW = host ? host.clientWidth : window.innerWidth;
+            var hostH = host ? host.clientHeight : window.innerHeight;
+            if (hostW < window.innerWidth * 0.85 || hostH < window.innerHeight * 0.85) {
+              return;
+            }
             localStorage.setItem(key, JSON.stringify({
               x: node.offsetLeft, y: node.offsetTop }));
           } catch (er) { }
@@ -307,11 +427,17 @@ angular.module("beamng.apps")
         document.addEventListener("mouseup", done);
       });
 
+      function onResize() { fitToScreen(); }
+      window.addEventListener("resize", onResize);
+      scope.$on("$destroy", function () {
+        window.removeEventListener("resize", onResize);
+      });
+
       scope.$on("rmReset", function () {
         try { localStorage.removeItem(key); } catch (e) { }
-        node.style.left = ""; node.style.top = ""; node.style.right = "";
-        node.style.bottom = ""; node.style.transform = "";
+        resetCenter();
       });
+      scope.$on("rmFitScreen", function () { fitToScreen(); });
     }
   };
 }])
@@ -324,6 +450,130 @@ angular.module("beamng.apps")
     scope: true,
 
     controller: ["$scope", "$timeout", function ($scope, $timeout) {
+
+      // Fit every bar/panel to the current viewport (fixes off-screen positions
+      // from a different resolution or a partial app host).
+      function fitAllUi() {
+        try {
+          var root = document.querySelector(".rm-root");
+          if (root) {
+            root.style.position = "absolute";
+            root.style.left = "0";
+            root.style.top = "0";
+            root.style.right = "0";
+            root.style.bottom = "0";
+            root.style.width = "100%";
+            root.style.height = "100%";
+            root.style.maxWidth = "100vw";
+            root.style.maxHeight = "100vh";
+            root.style.transform = "none";
+            root.style.overflow = "visible";
+          }
+          // Host app cell from BeamNG layout — pin full screen if it drifted
+          // (this was the "UI off to the right" case).
+          var host = root && root.parentElement;
+          for (var i = 0; host && i < 5; i++) {
+            var st = window.getComputedStyle(host);
+            if (st.position === "absolute" || st.position === "fixed") {
+              var left = parseFloat(st.left) || 0;
+              var top = parseFloat(st.top) || 0;
+              var drifted = Math.abs(left) > 2 || Math.abs(top) > 2
+                || (st.width && st.width !== "100%" && parseFloat(st.width) < window.innerWidth * 0.9);
+              if (drifted || true) {
+                host.style.left = "0px";
+                host.style.top = "0px";
+                host.style.right = "0px";
+                host.style.bottom = "0px";
+                host.style.width = "100%";
+                host.style.height = "100%";
+                host.style.maxWidth = "100vw";
+                host.style.maxHeight = "100vh";
+                host.style.transform = "none";
+                host.style.margin = "0";
+              }
+              break;
+            }
+            host = host.parentElement;
+          }
+        } catch (e) { }
+        // After the host is pinned, clamp bars / Stella into the viewport.
+        $scope.$broadcast("rmFitScreen");
+      }
+      function clearUiStorage() {
+        try {
+          var kill = [];
+          for (var i = 0; i < localStorage.length; i++) {
+            var k = localStorage.key(i);
+            if (!k) continue;
+            if (k.indexOf("rm.bar.") === 0 || k.indexOf("rm.panel.") === 0) kill.push(k);
+          }
+          kill.forEach(function (k) { localStorage.removeItem(k); });
+        } catch (e) { }
+      }
+
+      function restoreUiLayout(hard) {
+        if (hard !== false) clearUiStorage();
+        // Reset every bar / panel / Stella to CSS defaults
+        $scope.$broadcast("rmReset");
+        // Ensure instruments are visible
+        try {
+          $scope.dash = $scope.dash || { tacho: true, stella: true, clock: false };
+          $scope.dash.tacho = true;
+          $scope.dash.stella = true;
+          localStorage.setItem("rm.dash", JSON.stringify($scope.dash));
+        } catch (e) { }
+        $scope.s = $scope.s || {};
+        $scope.s.rosterOpen = true;
+        try { ui("setRosterOpen", true); } catch (e) { }
+        $timeout(function () {
+          fitAllUi();
+          $scope.$broadcast("rmFitScreen");
+          $scope.$applyAsync();
+        }, 50);
+        $timeout(fitAllUi, 400);
+        $timeout(fitAllUi, 1000);
+      }
+
+      $scope.restoreUiLayout = function () { restoreUiLayout(true); };
+
+      function onRestoreEvent(data) {
+        var hard = true;
+        if (data && data.hard === false) hard = false;
+        restoreUiLayout(hard);
+      }
+
+      // From Lua guihooks / CustomEvent / window message
+      try {
+        $scope.$on("RaceManagerRestoreUi", function (_, data) { onRestoreEvent(data || {}); });
+      } catch (e) { }
+      function onWinRestore(ev) {
+        var d = (ev && ev.detail) || (ev && ev.data) || {};
+        if (ev && ev.data && ev.data.type === "RaceManagerRestoreUi") d = ev.data;
+        onRestoreEvent(d);
+      }
+      window.addEventListener("RaceManagerRestoreUi", onWinRestore);
+      window.addEventListener("message", function (ev) {
+        if (ev && ev.data && (ev.data.type === "RaceManagerRestoreUi" || ev.data.action === "restoreUi")) {
+          onRestoreEvent(ev.data);
+        }
+      });
+
+      $timeout(fitAllUi, 0);
+      $timeout(fitAllUi, 300);
+      $timeout(fitAllUi, 1200);
+      // Keep fitting for a while after load — covers post-edit layout swaps
+      var fitTicks = 0;
+      var fitTimer = setInterval(function () {
+        fitAllUi();
+        fitTicks++;
+        if (fitTicks > 40) clearInterval(fitTimer); // ~20s at 500ms
+      }, 500);
+      window.addEventListener("resize", fitAllUi);
+      $scope.$on("$destroy", function () {
+        window.removeEventListener("resize", fitAllUi);
+        window.removeEventListener("RaceManagerRestoreUi", onWinRestore);
+        clearInterval(fitTimer);
+      });
 
       // everything drawn comes from here. the server owns it, this only mirrors.
       $scope.s = { ready: false, needsName: false, me: {}, roster: [], tracks: [],
@@ -566,7 +816,27 @@ angular.module("beamng.apps")
 
       $scope.$on("rmState", function (_, data) {
         $scope.$applyAsync(function () {
-          $scope.s = data || $scope.s;
+          if (!data) return;
+          // Always keep the player list open.
+          data.rosterOpen = true;
+          // New roster array reference so ng-repeat always refreshes on joins.
+          if (data.roster && !Array.isArray(data.roster)) {
+            var arr = [];
+            angular.forEach(data.roster, function (row) { if (row) arr.push(row); });
+            data.roster = arr;
+          } else if (Array.isArray(data.roster)) {
+            data.roster = data.roster.map(function (row) {
+              return row ? {
+                id: row.id, name: row.name, level: row.level, guest: !!row.guest,
+                speed: row.speed, ping: row.ping, role: row.role, model: row.model,
+                queued: !!row.queued
+              } : row;
+            });
+          } else {
+            data.roster = [];
+          }
+          $scope.s = data;
+          $scope.rosterStamp = (data.rosterSeq || 0) + ":" + (data.roster.length || 0);
 
           var capturing = data && data.capture && data.capture.active;
           if (!capturing) capturePanelShown = false;
@@ -1859,8 +2129,9 @@ angular.module("beamng.apps")
       };
 
       $scope.togglePlayers = function () {
-        ui("setRosterOpen", !$scope.s.rosterOpen);
-        $scope.s.rosterOpen = !$scope.s.rosterOpen;
+        // Refresh subscription + open — never hide.
+        ui("setRosterOpen", true);
+        $scope.s.rosterOpen = true;
       };
 
       $scope.isQueued = function (p) {

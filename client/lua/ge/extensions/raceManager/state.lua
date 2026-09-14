@@ -71,7 +71,13 @@ local function onWelcome(d)
   S.needsName = (d.name == nil or d.name == "")
   extensions.raceManager_main.handshakeDone()
   S.rosterOpen = true
+  -- Always subscribe and force a full roster snapshot from the server.
   pcall(function() extensions.raceManager_net.send("roster.sub", { on = true }) end)
+  pcall(function()
+    if extensions.raceManager_ui and extensions.raceManager_ui.keepRoster then
+      extensions.raceManager_ui.keepRoster()
+    end
+  end)
   log("I", "raceManager", "welcome: " .. tostring(d.name or "unnamed") .. " / " .. tostring(d.role))
   pcall(function() extensions.raceManager_editorlock.sync() end)
   pcall(function()
@@ -102,21 +108,28 @@ end
 local function onRosterFull(d)
   S.roster = {}
   for _, row in ipairs(type(d) == "table" and d or {}) do
-    S.roster[row.id] = row
+    if type(row) == "table" and row.id ~= nil then
+      S.roster[row.id] = row
+    end
   end
+  S.rosterOpen = true
   changed()
 end
 
 local function onRosterDelta(d)
   for _, row in ipairs(type(d) == "table" and d or {}) do
-    S.roster[row.id] = row
+    if type(row) == "table" and row.id ~= nil then
+      S.roster[row.id] = row
+    end
   end
+  S.rosterOpen = true
   changed()
 end
 
 local function onRosterDrop(id)
   if S.roster[id] then
     S.roster[id] = nil
+    S.rosterOpen = true
     changed()
   end
 end

@@ -454,29 +454,69 @@ angular.module('beamng.apps').directive('bajastella', function () {
       setLedVisual('off', false, 'none');
 
       // ---- Drag ----
+      // Only move the Race Manager .rm-stella host. Never walk up to .rm-root
+      // or the top bar. Clear bottom/right before setting top or the box collapses
+      // (CSS had bottom:316px) and both Stella and nearby UI look "gone".
       $scope.dragStart = function (e) {
         if (e.button !== 0) return;
         var el = document.getElementById('stella-dev');
         if (!el) return;
-        var wrap = el.parentElement;
-        while (wrap && wrap !== document.body) {
-          if (/absolute|fixed/.test(window.getComputedStyle(wrap).position)) break;
-          wrap = wrap.parentElement;
+        var wrap = el.closest ? el.closest('.rm-stella') : null;
+        if (!wrap) {
+          wrap = el.parentElement;
+          while (wrap && wrap !== document.body) {
+            if (wrap.classList && wrap.classList.contains('rm-stella')) break;
+            if (wrap.classList && wrap.classList.contains('rm-root')) { wrap = null; break; }
+            var pos = window.getComputedStyle(wrap).position;
+            if (pos === 'absolute' || pos === 'fixed') break;
+            wrap = wrap.parentElement;
+          }
         }
         if (!wrap || wrap === document.body) return;
+        if (wrap.classList && wrap.classList.contains('rm-root')) return;
+
         var r = wrap.getBoundingClientRect();
         var ox = e.clientX - r.left, oy = e.clientY - r.top;
+        var EDGE = 12;
+
+        function place(left, top) {
+          var vw = window.innerWidth || 1280;
+          var vh = window.innerHeight || 720;
+          var w = wrap.offsetWidth || 362;
+          var h = wrap.offsetHeight || 240;
+          if (left < EDGE - w + 40) left = EDGE - w + 40;
+          if (left > vw - 40) left = vw - 40;
+          if (top < 0) top = 0;
+          if (top > vh - 40) top = vh - 40;
+          wrap.style.right = 'auto';
+          wrap.style.bottom = 'auto';
+          wrap.style.transform = 'none';
+          wrap.style.left = left + 'px';
+          wrap.style.top = top + 'px';
+        }
+
         function onMove(ev) {
-          wrap.style.left = (ev.clientX - ox) + 'px';
-          wrap.style.top  = (ev.clientY - oy) + 'px';
+          place(ev.clientX - ox, ev.clientY - oy);
         }
         function onUp() {
           document.removeEventListener('mousemove', onMove);
           document.removeEventListener('mouseup', onUp);
+          try {
+            var root = document.querySelector('.rm-root');
+            var host = root && root.parentElement;
+            var hostW = host ? host.clientWidth : window.innerWidth;
+            var hostH = host ? host.clientHeight : window.innerHeight;
+            // Skip save while HUD editor has Race Manager in a partial box
+            if (hostW < window.innerWidth * 0.85 || hostH < window.innerHeight * 0.85) return;
+            localStorage.setItem('rm.panel.stella', JSON.stringify({
+              x: wrap.offsetLeft, y: wrap.offsetTop
+            }));
+          } catch (_) {}
         }
         document.addEventListener('mousemove', onMove);
         document.addEventListener('mouseup', onUp);
         e.preventDefault();
+        e.stopPropagation();
       };
 
       // ---- Init wrapper cleanup ----
@@ -845,6 +885,34 @@ angular.module('beamng.apps').directive('bajastella', function () {
         }
       };
 
+
+      // Keybinds from raceManager_keys (Controls → bind RM Stella *)
+      function onStellaKey(data) {
+        var action = (data && data.action) || "";
+        $scope.$applyAsync(function () {
+          if (action === "toggle") {
+            if ($scope.powered) powerOff(); else powerOn();
+            return;
+          }
+          if (action === "on") { powerOn(); return; }
+          if (action === "off") { powerOff(); return; }
+          if (action === "sos") { $scope.pressSOS(); return; }
+          if (action === "ok") { $scope.pressOK(); return; }
+          if (action === "flag") { $scope.pressFlag(); return; }
+        });
+      }
+      if (typeof window !== "undefined") {
+        window.addEventListener("message", function (ev) {
+          if (ev && ev.data && ev.data.type === "RaceManagerStellaKey") onStellaKey(ev.data);
+        });
+      }
+      // BeamNG guihooks path
+      try {
+        if (typeof $scope.$on === "function") {
+          $scope.$on("RaceManagerStellaKey", function (_, data) { onStellaKey(data || {}); });
+        }
+      } catch (_) {}
+      // Polling fallback via global set by Lua is unnecessary; guihooks is enough.
 
       // Restore visibility if UI reloaded during an active race
       setTimeout(function () {

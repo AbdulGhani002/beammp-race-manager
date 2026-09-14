@@ -13,6 +13,8 @@ local SUBS = {
   "raceManager_race",
   "raceManager_stella",
   "raceManager_layout",
+  "raceManager_keys",
+  "raceManager_uifix",
   "raceManager_bottombar",
   "raceManager_service",
   "raceManager_copilot",

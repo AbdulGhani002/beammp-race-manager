@@ -1,23 +1,14 @@
 local M = {}
 
--- Puts Race Manager on the screen without anyone opening the app list.
---
--- BeamMP switches every player to its own layout when they join a server,
--- and the game keeps that layout as a file in the player's settings. This
--- looks at that layout once the session is up and makes sure Race Manager
--- is in it, the whole screen from the corner, the way its own app.json asks.
--- Nothing else is touched. A player's freeroam layout is their own business,
--- and so is where they put every other app.
---
--- The game's own layout code does the writing. What is here is only the
--- decision, kept apart so it can be tested without a game.
+-- Force Race Manager onto the active HUD layout as soon as the player is on a
+-- BeamMP server. BeamMP often swaps layouts after join, so we keep re-checking
+-- for a while instead of stopping after the first success.
 
-local APP  = "raceManager"
+-- Folder under ui/modules/apps/ is RaceManager — that is the appName the layout
+-- system uses. Also accept the camelCase form used by older installs.
+local APP_NAMES = { "RaceManager", "raceManager" }
+local APP = "RaceManager"
 
--- Whether we are on a server at all. BeamMP says so; a game with no BeamMP
--- is a game driving alone. It used to be judged by the layout being the one
--- BeamMP names "beammp", and a map that brings its own layout put the
--- session on a different one, and Race Manager stayed off the screen.
 local function onAServer()
   local ok, is = pcall(function()
     return MPCoreNetwork and MPCoreNetwork.isMPSession and MPCoreNetwork.isMPSession()
@@ -26,14 +17,18 @@ local function onAServer()
 end
 M.onAServer = onAServer
 
--- What the dash inside Race Manager stands in for. BeamMP puts these in
--- the same corner, and two tachometers on top of each other is what was on
--- his screen. His gauge shows revs, speed, gear, boost and the drivetrain
--- buttons, so all three are covered.
 M.REPLACES = { tacho2 = true, forcedInduction = true, simplePowertrainControl = true }
 
--- the whole screen, because the bars and windows are drawn inside it
-M.WANT = { top = "0px", left = "0px", width = "100%", height = "100%", position = "absolute" }
+M.WANT = { top = "0px", left = "0px", right = "0px", bottom = "0px", width = "100%", height = "100%", position = "absolute" }
+
+local function isOurApp(name)
+  if type(name) ~= "string" then return false end
+  for i = 1, #APP_NAMES do
+    if name == APP_NAMES[i] then return true end
+  end
+  local low = name:lower()
+  return low == "racemanager"
+end
 
 local function whole(v)
   return v == "100%"
@@ -45,97 +40,108 @@ local function nothing(v)
   return n == 0
 end
 
--- What to do about a layout: "add" when Race Manager is not in it, "repair"
--- when it is but not the whole screen, "fine" otherwise. The second value is
--- the entry's index as the game counts them, from nought. The third is
--- everything to take out: further copies of Race Manager, which happen when
--- somebody adds it twice by hand and would draw two of everything, and the
--- stock gauges the dash stands in for. Highest index first, so taking one
--- out does not move the next.
 function M.decide(layout)
   if type(layout) ~= "table" or type(layout.apps) ~= "table" then
     return "add", nil, {}
   end
 
-  local first, gone = nil, {}
+  local found, foundAt = nil, nil
+  local gone = {}
+
   for i, app in ipairs(layout.apps) do
     if type(app) == "table" then
-      if app.appName == APP then
-        if first == nil then first = i else gone[#gone + 1] = i - 1 end
+      if isOurApp(app.appName) then
+        if found then
+          gone[#gone + 1] = i - 1
+        else
+          found, foundAt = app, i - 1
+        end
       elseif M.REPLACES[app.appName] then
         gone[#gone + 1] = i - 1
       end
     end
   end
-  table.sort(gone, function(a, b) return a > b end)
-  if first == nil then return "add", nil, gone end
 
-  local p = layout.apps[first].placement
-  local fine = type(p) == "table" and whole(p.width) and whole(p.height)
-               and nothing(p.left) and nothing(p.top)
-  return fine and "fine" or "repair", first - 1, gone
+  table.sort(gone, function(a, b) return a > b end)
+
+  if not found then
+    return "add", nil, gone
+  end
+
+  local p = found
+  local okSize = whole(p.width) and whole(p.height)
+  local okPos = nothing(p.top) and nothing(p.left)
+  if okSize and okPos then
+    return "fine", foundAt, gone
+  end
+  return "repair", foundAt, gone
 end
 
------------------------------------------------------------------- the game
-
 local function api()
-  local a = extensions.ui_appLayouts
+  local a = extensions.ui_appLayouts or ui_appLayouts
   if type(a) ~= "table" or type(a.getCurrentLayout) ~= "function" then return nil end
   return a
 end
 
--- True when there is nothing more to do, false to look again later.
+-- True when the app is present and full-screen. False = keep trying.
 function M.force()
   local a = api()
-  if not a then
-    -- an older game with no layout code to speak to. the app list still works.
-    return true
+  if not a then return false end
+  if type(a.isEditing) == "function" then
+    local ok, editing = pcall(a.isEditing)
+    if ok and editing then return false end
   end
-  if type(a.isEditing) == "function" and a.isEditing() then return false end
 
-  -- somebody driving alone keeps their own layout, whatever it is called
   if not onAServer() then return false end
 
   local ok, layout = pcall(a.getCurrentLayout)
   if not ok or type(layout) ~= "table" then return false end
-  if type(layout.filename) ~= "string" then return false end
+  if type(layout.filename) ~= "string" or layout.filename == "" then return false end
 
   local action, index, gone = M.decide(layout)
-  if action == "fine" and #gone == 0 then return true end
+  if action == "fine" and #gone == 0 then
+    return true
+  end
 
-  -- The mend goes first, while the index it was given still points at the
-  -- right entry. What comes out comes out afterwards, from the end, and by
-  -- then nothing needs the index any more.
   if action == "add" then
     pcall(a.addApp, layout.filename, APP, M.WANT)
-  elseif action == "repair" then
+    -- older clients may only know the camelCase name
+    pcall(a.addApp, layout.filename, "raceManager", M.WANT)
+  elseif action == "repair" and index ~= nil then
     pcall(a.applyPlacementPatch, layout.filename, index, M.WANT)
   end
   for i = 1, #gone do
     pcall(a.removeApp, layout.filename, gone[i])
   end
 
-  -- Those write the file quietly. Reading it back in as the current layout
-  -- is what tells the screen, so it shows now rather than on the next join.
   pcall(a.setCurrentLayout, layout.filename)
+  -- Some builds need an explicit reload
+  pcall(function()
+    if a.reloadCurrentLayout then a.reloadCurrentLayout() end
+  end)
+
   log("I", "raceManager", ("layout: %s%s in %s"):format(
     action, #gone > 0 and (", " .. #gone .. " taken out") or "", layout.filename))
-  return true
+
+  -- Re-read to confirm; only stop retrying when it is actually fine.
+  local ok2, layout2 = pcall(a.getCurrentLayout)
+  if ok2 and type(layout2) == "table" then
+    local a2, _, g2 = M.decide(layout2)
+    if a2 == "fine" and #g2 == 0 then return true end
+  end
+  return false
 end
 
------------------------------------------------------------------- timing
-
--- BeamMP puts its layout up some moments after the level, and on a big map
--- that is minutes rather than seconds. So this looks once a second for as
--- long as it takes, and stops only when it is done. It used to give up after
--- half a minute, and on a one gigabyte map that was before the layout was
--- there to be looked at, so Race Manager never came up at all.
+-- Keep trying for a long time: BeamMP can swap the layout minutes after join.
 local EVERY = 1.0
+local MAX_ARMED = 600.0  -- seconds of retries after arm()
 
-local armed, since = false, 0
+local armed, since, armedFor = false, 0, 0
 
 function M.arm()
-  armed, since = true, 0
+  armed, since, armedFor = true, 0, 0
+  -- Try immediately as well
+  pcall(M.force)
 end
 
 function M.disarm()
@@ -146,9 +152,19 @@ function M.onUpdate(dt)
   if not armed then return end
   dt = tonumber(dt) or 0
   since = since + dt
+  armedFor = armedFor + dt
+  if armedFor > MAX_ARMED then
+    -- keep a slow heartbeat forever while on a server so a late BeamMP layout
+    -- swap still gets Race Manager back on screen
+    if since < 15.0 then return end
+    since = 0
+    if not onAServer() then return end
+    M.force()
+    return
+  end
   if since < EVERY then return end
   since = 0
-  if M.force() then armed = false end
+  M.force()
 end
 
 return M

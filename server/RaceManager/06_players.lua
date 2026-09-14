@@ -296,17 +296,26 @@ function RM.players.setSubscribed(pid, on)
   local s = RM.identity.session(pid)
   if not s then return end
   on = on and true or false
-  if s.rosterSub == on then return end
+  local was = s.rosterSub and true or false
 
-  s.rosterSub = on
-  subs = subs + (on and 1 or -1)
-  if subs < 0 then subs = 0 end
+  if was ~= on then
+    s.rosterSub = on
+    subs = subs + (on and 1 or -1)
+    if subs < 0 then subs = 0 end
+  else
+    s.rosterSub = on
+  end
 
+  -- Always push a full snapshot when subscribing (including re-sub).
+  -- Re-sub used to no-op and clients that missed a join stayed stale.
   if on then
     local full, n = {}, 0
     for _, r in pairs(roster) do
       n = n + 1
-      full[n] = r
+      full[n] = {
+        id = r.id, name = r.name, level = r.level, guest = r.guest,
+        speed = r.speed, ping = r.ping, role = r.role, model = r.model,
+      }
     end
     RM.bus.queue(pid, "roster.full", full)
   end
@@ -325,13 +334,23 @@ function RM.players.tick()
   end
 
   if n > 0 then
+    -- Copy rows so every subscriber gets a stable payload (shared buffer used to
+    -- be cleared / mutated before encode on some ticks).
+    local payload = {}
+    for i = 1, n do
+      local r = deltaBuf[i]
+      if r then
+        payload[i] = {
+          id = r.id, name = r.name, level = r.level, guest = r.guest,
+          speed = r.speed, ping = r.ping, role = r.role, model = r.model,
+        }
+      end
+    end
     for pid, s in pairs(RM.identity.sessions()) do
-      if s.rosterSub then RM.bus.queue(pid, "roster.delta", deltaBuf) end
+      if s.rosterSub then RM.bus.queue(pid, "roster.delta", payload) end
     end
   end
 
-  -- the queued payload is encoded during this same tick's flush, so the buffer
-  -- is free to be reused on the next one
   for i = n + 1, #deltaBuf do deltaBuf[i] = nil end
   RM.util.clear(changed)
   anyChange = false
