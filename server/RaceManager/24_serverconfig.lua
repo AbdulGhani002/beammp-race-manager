@@ -18,6 +18,13 @@ RM.serverconfig.COPY = "Resources/Server/RaceManager/data/ServerConfig.toml.bak"
 local REAL = 100
 local EVERY = 60
 
+-- healthy means long enough and with an AuthKey in it. A config typed in
+-- by hand with the key still to come is not the one to keep a copy of.
+local function healthy(body)
+  return type(body) == "string" and #body > REAL
+     and body:match('AuthKey%s*=%s*"[^"]+"') ~= nil
+end
+
 local since = 0
 local said = nil
 
@@ -37,14 +44,14 @@ end
 
 -- "ok" when the file is healthy, "restored" when it was empty and the copy
 -- went back, "waiting" when it is empty and the disk will not take the copy
--- yet, "nocopy" when it is empty and there is nothing to put back, and
--- "absent" when there is no such file at all, which is somebody else's
--- setup and not ours to touch.
+-- yet, "nocopy" when it is empty and there is nothing to put back, "nokey"
+-- when it is written out but has no AuthKey, and "absent" when there is no
+-- such file at all, which is somebody else's setup and not ours to touch.
 function RM.serverconfig.check()
   local live = readAll(RM.serverconfig.FILE)
   if live == nil then return "absent" end
 
-  if #live > REAL then
+  if healthy(live) then
     if readAll(RM.serverconfig.COPY) ~= live then
       RM.store.writeFileAtomic(RM.serverconfig.COPY, live, true)
     end
@@ -52,8 +59,14 @@ function RM.serverconfig.check()
     return "ok"
   end
 
+  -- written out but without a key: left as it is, said once
+  if #live > REAL then
+    say("nokey", RM.serverconfig.FILE .. " has no AuthKey in it. Put the key in and restart.")
+    return "nokey"
+  end
+
   local copy = readAll(RM.serverconfig.COPY)
-  if not copy or #copy <= REAL then
+  if not healthy(copy) then
     say("nocopy", RM.serverconfig.FILE .. " is empty and there is no copy to put back. "
       .. "The disk was full when the server started. Put the AuthKey, Map and the rest back by hand before the next restart.")
     return "nocopy"
