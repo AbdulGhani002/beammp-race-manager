@@ -30,6 +30,12 @@ angular.module('beamng.apps').directive('bajastella', function () {
     '#stella-dev::before{content:"";position:absolute;inset:5px;border-radius:8px;pointer-events:none;' +
       'box-shadow:inset 0 0 0 1px rgba(255,255,255,.08);}' +
     '#stella-dev.st-off{opacity:0;pointer-events:none;}' +
+    '#stella-dev.st-powered-off .st-lcd{background:#07080a!important;border-color:#1a1b20!important;}' +
+    '#stella-dev.st-powered-off .st-lcd>*{visibility:hidden!important;}' +
+    '#stella-dev.st-powered-off .st-lcd::before,#stella-dev.st-powered-off .st-lcd::after{opacity:0!important;}' +
+    '#stella-dev.st-powered-off .st-led-d{background:#14151a!important;box-shadow:none!important;animation:none!important;opacity:.35;}' +
+    '#stella-dev.st-powered-off .st-logo-img,#stella-dev.st-powered-off .st-rnum,#stella-dev.st-powered-off .st-led-num{opacity:.28;}' +
+    '#stella-dev.st-powered-off .st-btn-row{box-shadow:none;}' +
 
     /* === Header === */
     '.st-hdr{height:33px;flex-shrink:0;display:grid;grid-template-columns:58px 1fr 58px;align-items:center;padding:0 8px;' +
@@ -207,7 +213,7 @@ angular.module('beamng.apps').directive('bajastella', function () {
   // HTML Template
   // -----------------------------------------------------------------------
   var HTML =
-    '<div id="stella-dev" ng-class="{\'st-off\': !visible}" ng-mousedown="dragStart($event)" style="width:362px;height:240px">' +
+    '<div id="stella-dev" ng-class="{\'st-off\': !visible, \'st-powered-off\': !powered}" ng-mousedown="dragStart($event)" style="width:362px;height:240px">' +
 
       /* Header */
       '<div class="st-hdr">' +
@@ -240,15 +246,17 @@ angular.module('beamng.apps').directive('bajastella', function () {
         '</div>' +
 
         /* Blue flag overlay */
-        '<div class="lcd-flag-overlay" ng-show="flagState===\'incoming\'">' +
-          '<div class="lcd-flag-pill"><span class="lcd-flag-txt lc">{{tr("stella.flag.overtake","OVERTAKE")}} \u2014 {{flagPlayer}}</span></div>' +
+        '<div class="lcd-flag-overlay" ng-show="flagState===\'incoming\' || flagState===\'delivered\' || flagState===\'requested\' || flagState===\'accepted\' || flagState===\'go\' || flagState===\'cancelled\'">' +
+          '<div class="lcd-flag-pill"><span class="lcd-flag-txt lc">' +
+            '{{ flagState===\'incoming\' ? tr("stella.flag.overtake","OVERTAKE") : (flagState===\'go\' || flagState===\'accepted\' ? tr("stella.flag.go","PASS") : (flagState===\'cancelled\' ? tr("stella.flag.none","NO PASS") : tr("stella.flag.asking","ASKING"))) }}' +
+            ' <span ng-if="flagPlayer">\u2014 {{flagPlayer}}</span></span></div>' +
         '</div>' +
 
         /* Idle mode */
         '<div class="lcd-idle" ng-show="!raceActive">' +
           '<div class="lc lc-label lcd-idle-lbl">{{tr("stella.idle.ready","READY")}}</div>' +
           '<div class="lc lcd-idle-hdg">{{hdg}}<sup>\u00B0</sup></div>' +
-          '<div class="lc lcd-idle-spd">{{spd}}<span class="lc-dim lcd-idle-unit">{{tr("stella.unit.kmh","km/h")}}</span></div>' +
+          '<div class="lc lcd-idle-spd">{{spd}}<span class="lc-dim lcd-idle-unit">{{tr("stella.unit.mph","mph")}}</span></div>' +
         '</div>' +
 
         /* Normal race mode */
@@ -321,6 +329,12 @@ angular.module('beamng.apps').directive('bajastella', function () {
 
       // ---- State ----
       $scope.visible     = true;
+      $scope.powered     = true;
+      try {
+        var savedPower = localStorage.getItem("rm.stella.powered");
+        if (savedPower === "0") $scope.powered = false;
+        if (savedPower === "1") $scope.powered = true;
+      } catch (_) {}
       $scope.hdg         = '000';
       $scope.spd         = '0';
       $scope.dVCP        = '00.00';
@@ -476,13 +490,34 @@ angular.module('beamng.apps').directive('bajastella', function () {
       }, 0);
 
       // ---- VCP checkpoint sound ----
+      // ~55% quieter than the stored / default VCP volume.
+      var STELLA_VOLUME_SCALE = 0.45;
+      var stellaBaseVolume = 0.5;
       var vcpAudio = new Audio('/ui/modules/apps/BajaStella/vcp_sound.mp3');
       try {
         var sv = localStorage.getItem('bajaVcpVolume');
-        vcpAudio.volume = (sv !== null) ? parseInt(sv, 10) / 100 : 0.5;
-      } catch (_) { vcpAudio.volume = 0.5; }
+        if (sv !== null) stellaBaseVolume = parseInt(sv, 10) / 100;
+      } catch (_) {}
+      if (isNaN(stellaBaseVolume)) stellaBaseVolume = 0.5;
+
+      function stellaVolume() {
+        if (!$scope.powered) return 0;
+        return Math.max(0, Math.min(1, stellaBaseVolume * STELLA_VOLUME_SCALE));
+      }
+
+      function applyStellaVolume() {
+        var vol = stellaVolume();
+        try { vcpAudio.volume = vol; } catch (_) {}
+        if (szEntryAudio) try { szEntryAudio.volume = vol; } catch (_) {}
+        if (szExceedAudio) try { szExceedAudio.volume = vol; } catch (_) {}
+        if (overtakeAudio) try { overtakeAudio.volume = vol; } catch (_) {}
+      }
+
+      applyStellaVolume();
 
       function playVCPSound() {
+        if (!$scope.powered) return;
+        applyStellaVolume();
         try { vcpAudio.currentTime = 0; vcpAudio.play(); } catch (e) { /* user gesture guard */ }
       }
 
@@ -498,7 +533,7 @@ angular.module('beamng.apps').directive('bajastella', function () {
       function initSZAudio(filename) {
         try {
           var a = new Audio(SZ_SOUND_PATH + filename);
-          a.volume = vcpAudio.volume;
+          a.volume = stellaVolume();
           return a;
         } catch (_) { return null; }
       }
@@ -516,15 +551,17 @@ angular.module('beamng.apps').directive('bajastella', function () {
       var _szExceedInterval = null;
 
       function playSZEntrySound() {
+        if (!$scope.powered) return;
         var a = getSZEntryAudio();
-        if (a) { try { a.currentTime = 0; a.play(); } catch (_) {} }
+        if (a) { try { a.volume = stellaVolume(); a.currentTime = 0; a.play(); } catch (_) {} }
       }
 
       function startSZExceedLoop() {
         stopSZExceedLoop();
+        if (!$scope.powered) return;
         var a = getSZExceedAudio();
         if (!a) return;
-        try { a.currentTime = 0; a.loop = true; a.play(); } catch (_) {}
+        try { a.volume = stellaVolume(); a.currentTime = 0; a.loop = true; a.play(); } catch (_) {}
       }
 
       function stopSZExceedLoop() {
@@ -538,8 +575,10 @@ angular.module('beamng.apps').directive('bajastella', function () {
         return overtakeAudio;
       }
       function playOvertakeBeep(times) {
+        if (!$scope.powered) return;
         var a = getOvertakeAudio();
         if (!a) return;
+        try { a.volume = stellaVolume(); } catch (_) {}
         var count = 0;
         function next() {
           if (count >= times) { a.onended = null; return; }
@@ -555,7 +594,8 @@ angular.module('beamng.apps').directive('bajastella', function () {
       $scope.$on('BajaVCP_Sound', playVCPSound);
       // Volume change from BajaConfigs
       $scope.$on('BajaVCP_VolumeChange', function (_ev, vol) {
-        vcpAudio.volume = Math.max(0, Math.min(1, vol));
+        stellaBaseVolume = Math.max(0, Math.min(1, vol));
+        applyStellaVolume();
       });
 
       // ---- Compass SVG update ----
@@ -682,6 +722,7 @@ angular.module('beamng.apps').directive('bajastella', function () {
           stopSZExceedLoop();
         } else if (d.event === 'exit') {
           stopSZExceedLoop();
+          playVCPSound();
         }
       });
 
@@ -701,9 +742,9 @@ angular.module('beamng.apps').directive('bajastella', function () {
         var ms = e.airspeed;
         if (ms == null || isNaN(ms)) ms = e.wheelspeed;
         if (ms == null || isNaN(ms)) return;
-        var kmh = Math.round(ms * 3.6);
-        $scope._airKmh = kmh;
-        $scope.$applyAsync(function () { $scope.spd = String(kmh); });
+        var mph = Math.round(ms * 2.2369362920544);
+        $scope._airKmh = mph;
+        $scope.$applyAsync(function () { $scope.spd = String(mph); });
       });
 
       $scope.$on('BajaStella_AlertSound', function (_ev, d) {
@@ -723,8 +764,58 @@ angular.module('beamng.apps').directive('bajastella', function () {
         });
       });
       var sosHoldTimer = null;
+      var comboPress = { sos: 0, ok: 0, flag: 0 };
+      var COMBO_MS = 3000;
+
+      function cancelSosHold() {
+        if (sosHoldTimer) { clearTimeout(sosHoldTimer); sosHoldTimer = null; }
+      }
+
+      function persistPower() {
+        try { localStorage.setItem("rm.stella.powered", $scope.powered ? "1" : "0"); } catch (_) {}
+      }
+
+      function powerOff() {
+        $scope.powered = false;
+        persistPower();
+        cancelSosHold();
+        comboPress.sos = comboPress.ok = comboPress.flag = 0;
+        stopSZExceedLoop();
+        try { vcpAudio.pause(); vcpAudio.currentTime = 0; } catch (_) {}
+        if (szEntryAudio) try { szEntryAudio.pause(); szEntryAudio.currentTime = 0; } catch (_) {}
+        if (overtakeAudio) try { overtakeAudio.pause(); overtakeAudio.onended = null; } catch (_) {}
+        applyStellaVolume();
+      }
+
+      function powerOn() {
+        $scope.powered = true;
+        persistPower();
+        comboPress.sos = comboPress.ok = comboPress.flag = 0;
+        applyStellaVolume();
+      }
+
+      // All three buttons pressed within 3 seconds powers off.
+      // While off, any one button press powers back on and swallows the action.
+      function noteButton(which) {
+        if (!$scope.powered) {
+          powerOn();
+          return true;
+        }
+        var now = Date.now();
+        comboPress[which] = now;
+        if (comboPress.sos && comboPress.ok && comboPress.flag
+            && (now - comboPress.sos) <= COMBO_MS
+            && (now - comboPress.ok) <= COMBO_MS
+            && (now - comboPress.flag) <= COMBO_MS) {
+          powerOff();
+          return true;
+        }
+        return false;
+      }
+
       $scope.pressSOSStart = function (e) {
         if (e && e.stopPropagation) e.stopPropagation();
+        if (noteButton('sos')) return;
         if (sosHoldTimer) return;
         sosHoldTimer = setTimeout(function () {
           sosHoldTimer = null;
@@ -733,17 +824,20 @@ angular.module('beamng.apps').directive('bajastella', function () {
       };
       $scope.pressSOSCancel = function (e) {
         if (e && e.stopPropagation) e.stopPropagation();
-        if (sosHoldTimer) { clearTimeout(sosHoldTimer); sosHoldTimer = null; }
+        cancelSosHold();
       };
 
       // ---- Button handlers ----
       $scope.pressSOS = function () {
+        if (!$scope.powered) return;
         lua('if extensions.bajaStella then extensions.bajaStella.requestMechanicalBreakdown() elseif extensions.gameCommands then extensions.gameCommands.stellaSOS() end');
       };
       $scope.pressOK = function () {
+        if (noteButton('ok')) return;
         lua('if extensions.bajaStella then extensions.bajaStella.acknowledgeBlueFlag() elseif extensions.gameCommands then extensions.gameCommands.stellaOK() end');
       };
       $scope.pressFlag = function () {
+        if (noteButton('flag')) return;
         if ($scope.flagState === 'incoming') {
           lua('if extensions.bajaStella then extensions.bajaStella.acknowledgeBlueFlag() elseif extensions.gameCommands then extensions.gameCommands.stellaOK() end');
         } else {

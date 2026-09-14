@@ -12,19 +12,25 @@ local st = {
   circuit    = false,
   count      = 0,
   gate       = { w = 20, h = 8, d = 3 },
+  szBox      = { w = 20, h = 8, d = 40 },
+  szMph      = 37,
+  szCount    = 0,
   fitWidth   = true,
   lastError  = nil,
   lastGateAt = nil,
   distance   = 0,
   previewing = false,
+  wantShow   = false,  -- next track.full is an explicit Show gates click
 }
 
 -- the gates dropped so far, kept here so they can be drawn while the capture
 -- is still going. the server holds the real copy.
 local gates = {}
+local szBoxes = {}
 
 local function pushDraft()
   extensions.raceManager_triggers.setDraft(gates)
+  extensions.raceManager_triggers.setDraftSz(szBoxes)
 end
 
 local acc = 0
@@ -196,6 +202,56 @@ function M.undoPit()
   extensions.raceManager_net.send("track.pitundo", {})
 end
 
+function M.markSpeedZone()
+  if not st.active then return end
+  local pos, yaw = readPose()
+  if not pos then
+    st.lastError, st.errorFor = "no_vehicle", 6
+    extensions.raceManager_ui.push()
+    return
+  end
+  local box = st.szBox or { w = 20, h = 8, d = 40 }
+  extensions.raceManager_net.send("track.sz", {
+    pos = pos, yaw = yaw,
+    w = box.w, h = box.h, d = box.d,
+    mph = tonumber(st.szMph) or 37,
+  })
+end
+
+function M.undoSpeedZone()
+  if not st.active then return end
+  extensions.raceManager_net.send("track.szundo", {})
+end
+
+function M.setSzMph(mph)
+  st.szMph = tonumber(mph) or st.szMph or 37
+  extensions.raceManager_ui.push()
+end
+
+function M.setSzBox(w, h, d)
+  if type(w) == "table" then
+    h = w.h or w[2]
+    d = w.d or w[3]
+    w = w.w or w[1]
+  end
+  st.szBox = st.szBox or { w = 20, h = 8, d = 40 }
+  st.szBox.w = math.max(2, math.min(200, tonumber(w) or st.szBox.w))
+  st.szBox.h = math.max(2, math.min(60, tonumber(h) or st.szBox.h))
+  st.szBox.d = math.max(2, math.min(400, tonumber(d) or st.szBox.d))
+  if st.active and st.szCount and st.szCount > 0 and szBoxes[st.szCount] then
+    szBoxes[st.szCount].size = {
+      w = st.szBox.w, h = st.szBox.h, d = st.szBox.d,
+    }
+    pushDraft()
+    extensions.raceManager_net.send("track.szsize", {
+      i = st.szCount, w = st.szBox.w, h = st.szBox.h, d = st.szBox.d,
+    })
+  end
+  extensions.raceManager_state.notice(
+    ("Speed zone box: %.0f x %.0f x %.0f m"):format(st.szBox.w, st.szBox.h, st.szBox.d))
+  extensions.raceManager_ui.push()
+end
+
 function M.setGate(w, h, d)
   if tonumber(w) and tonumber(w) ~= st.gate.w then st.fitWidth = false end
   st.gate.w = tonumber(w) or st.gate.w
@@ -234,6 +290,8 @@ function M.deleteTrack(id)
 end
 
 function M.openTrack(id)
+  -- mark that this track.get is an explicit Show gates request
+  st.wantShow = true
   extensions.raceManager_net.send("track.get", { id = id })
 end
 
@@ -260,13 +318,22 @@ end
 -- a saved course was opened with Show, so the hide button has to appear
 function M.onPreview()
   st.previewing = extensions.raceManager_triggers.count() > 0
+  st.wantShow = false
   extensions.raceManager_ui.push()
+end
+
+function M.consumeWantShow()
+  local v = st.wantShow and true or false
+  st.wantShow = false
+  return v
 end
 
 -- an unfinished capture came back from the server on reconnect
 function M.resume(draft)
   st.active  = true
   st.pits    = #(draft.pits or {})
+  szBoxes    = draft.szGates or {}
+  st.szCount = #szBoxes
   st.id      = draft.id
   st.name    = draft.name
   st.kind    = draft.kind
@@ -287,8 +354,10 @@ end
 
 local function onBegin(d)
   gates = {}
+  szBoxes = {}
   pushDraft()
   st.pits = 0
+  st.szCount = 0
   st.active     = true
   st.id         = d.id
   st.name       = d.name
@@ -338,6 +407,18 @@ function M.onResult(d)
     st.pits = type(d.data) == "table" and d.data.i or ((st.pits or 0) + 1)
   elseif a == "pitundo" then
     st.pits = tonumber(d.data) or math.max(0, (st.pits or 0) - 1)
+  elseif a == "sz" then
+    local box = type(d.data) == "table" and d.data or {}
+    st.szCount = tonumber(box.i) or ((st.szCount or 0) + 1)
+    szBoxes[st.szCount] = box
+    pushDraft()
+    local mph = box.mph or st.szMph
+    extensions.raceManager_state.notice(
+      ("Speed zone box %d at %d mph"):format(st.szCount, tonumber(mph) or 37))
+  elseif a == "szundo" then
+    st.szCount = tonumber(d.data) or math.max(0, (st.szCount or 0) - 1)
+    for i = st.szCount + 1, #szBoxes do szBoxes[i] = nil end
+    pushDraft()
   elseif a == "undo" then
     st.count = tonumber(d.data) or math.max(0, st.count - 1)
     for i = st.count + 1, #gates do gates[i] = nil end
@@ -367,6 +448,8 @@ function M.onResult(d)
     st.active = false
     st.count  = 0
     st.lastGateAt = nil
+    szBoxes = {}
+    st.szCount = 0
     gates = {}
     extensions.raceManager_triggers.clearDraft()
   end

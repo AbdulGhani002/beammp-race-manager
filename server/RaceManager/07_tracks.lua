@@ -46,6 +46,17 @@ local function gateFrom(d)
   }
 end
 
+-- Speed-zone volumes are a box you sit in, not a thin gate. Depth is allowed
+-- to run much longer than a checkpoint so a street or pit lane can be covered.
+local DEFAULT_SZ = { w = 20.0, h = 8.0, d = 40.0 }
+local function boxFrom(d)
+  return {
+    w = RM.util.clamp(tonumber(d and d.w) or DEFAULT_SZ.w, 2.0, 200.0),
+    h = RM.util.clamp(tonumber(d and d.h) or DEFAULT_SZ.h, 2.0, 60.0),
+    d = RM.util.clamp(tonumber(d and d.d) or DEFAULT_SZ.d, 2.0, 400.0),
+  }
+end
+
 local function unit(dx, dy)
   local m = math.sqrt(dx * dx + dy * dy)
   if m < 1e-6 then return nil end
@@ -157,7 +168,8 @@ end
 function RM.tracks.squareUp(track, every)
   if type(track) ~= "table" or type(track.checkpoints) ~= "table" then return end
   local problem = gridFacesGateOne(track)
-  local turned = faceAlongTheLine(track.checkpoints, track.circuit and true or false, every)
+  -- Leave captured yaw alone. Gates face the car that marked them.
+  local turned = 0
 
   if turned > 0 then
     RM.info(every
@@ -262,7 +274,7 @@ function RM.tracks.countTracks()
 end
 
 function RM.tracks.beginCapture(pid, d)
-  if not RM.roles.atLeast(pid, "admin") then return false, "not_allowed" end
+  if not RM.roles.atLeast(pid, "staff") then return false, "not_allowed" end
   if type(d) ~= "table" then return false, "bad_request" end
   local key = keyOf(pid)
   if not key then return false, "no_session" end
@@ -291,6 +303,7 @@ function RM.tracks.beginCapture(pid, d)
     circuit     = d.circuit and true or false,
     checkpoints = {},
     pits        = {},
+    szGates     = {},
     zones       = {},
     start       = nil,
     createdBy   = key,
@@ -351,6 +364,61 @@ function RM.tracks.markPit(pid, d)
   return true, pit
 end
 
+-- A speed zone is a box on the ground. The limit only applies while the car
+-- is inside it. Size is its own setting, not the checkpoint gate size.
+function RM.tracks.markSpeedZone(pid, d)
+  local key = keyOf(pid)
+  local draft = key and drafts[key]
+  if not draft then return false, "no_draft" end
+  if type(d) ~= "table" then return false, "bad_request" end
+
+  local pos = readVec(d.pos)
+  if not pos then return false, "bad_pos" end
+  if not RM.util.isNum(d.yaw) then return false, "bad_yaw" end
+
+  draft.szGates = draft.szGates or {}
+  if #draft.szGates >= 32 then return false, "too_many_sz" end
+
+  local mph = tonumber(d.mph) or 37
+  if mph < 5 then mph = 5 end
+  if mph > 200 then mph = 200 end
+
+  local box = {
+    i = #draft.szGates + 1,
+    mph = mph,
+    pos = pos,
+    yaw = d.yaw,
+    size = boxFrom(d),
+  }
+  draft.szGates[box.i] = box
+  RM.store.markDirty(DSTORE)
+  return true, box
+end
+
+function RM.tracks.setSzSize(pid, d)
+  local key = keyOf(pid)
+  local draft = key and drafts[key]
+  if not draft then return false, "no_draft" end
+  local n = #(draft.szGates or {})
+  local i = math.floor(tonumber(d and d.i) or n)
+  local box = draft.szGates and draft.szGates[i]
+  if not box then return false, "no_sz" end
+  box.size = boxFrom(d)
+  RM.store.markDirty(DSTORE)
+  return true, box
+end
+
+function RM.tracks.undoSpeedZone(pid)
+  local key = keyOf(pid)
+  local draft = key and drafts[key]
+  if not draft then return false, "no_draft" end
+  local n = #(draft.szGates or {})
+  if n == 0 then return false, "no_sz" end
+  draft.szGates[n] = nil
+  RM.store.markDirty(DSTORE)
+  return true, n - 1
+end
+
 function RM.tracks.undoPit(pid)
   local key = keyOf(pid)
   local draft = key and drafts[key]
@@ -388,7 +456,7 @@ function RM.tracks.setZonesDirect(id, zones)
 end
 
 function RM.tracks.setZones(pid, d)
-  if not RM.roles.atLeast(pid, "admin") then return false, "not_allowed" end
+  if not RM.roles.atLeast(pid, "staff") then return false, "not_allowed" end
   if type(d) ~= "table" then return false, "bad_request" end
   local ok, result = RM.tracks.setZonesDirect(d.id, d.zones)
   if ok then
@@ -457,7 +525,7 @@ function RM.tracks.setWidthDirect(id, w)
 end
 
 function RM.tracks.refit(pid, d)
-  if not RM.roles.atLeast(pid, "admin") then return false, "not_allowed" end
+  if not RM.roles.atLeast(pid, "staff") then return false, "not_allowed" end
   if type(d) ~= "table" or type(d.widths) ~= "table" then return false, "bad_request" end
 
   local track = tracks[type(d.id) == "string" and d.id or ""]
@@ -502,8 +570,9 @@ function RM.tracks.finishCapture(pid)
   if not draft then return false, "no_draft" end
   if #draft.checkpoints < 2 then return false, "need_two_checkpoints" end
 
-  draft.pits  = draft.pits or {}
-  draft.zones = draft.zones or {}
+  draft.pits    = draft.pits or {}
+  draft.szGates = draft.szGates or {}
+  draft.zones   = draft.zones or {}
 
   -- the grid sits at the first gate unless it was placed by hand
   if not draft.start then
@@ -567,6 +636,9 @@ function RM.tracks.deleteTrack(pid, id)
   RM.store.flushNow(STORE)
   RM.info(("track %s deleted by %s"):format(id, RM.identity.displayName(pid)))
   RM.tracks.broadcastList()
+  if RM.challenges and RM.challenges.dropForTrack then
+    RM.challenges.dropForTrack(id)
+  end
   return true
 end
 
@@ -586,6 +658,7 @@ function RM.tracks.summary()
       id = id, name = t.name, kind = t.kind, level = t.level,
       circuit = t.circuit, count = #t.checkpoints,
       zones = type(t.zones) == "table" and t.zones or {},
+      szBoxes = #(type(t.szGates) == "table" and t.szGates or {}),
     }
   end
   return out

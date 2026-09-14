@@ -15,6 +15,16 @@ local requests   = {}   -- id  -> { id, from, to, state, at, until_ }
 local openBy     = {}   -- requester pid -> request id
 local nextId     = 1
 
+-- If this player is watching someone, Stella buttons act as that driver.
+function RM.stella.actingPid(pid)
+  if not RM.copilot or not RM.copilot.watchingOf then return pid end
+  local s = RM.identity.session(pid)
+  if not s or not s.key then return pid end
+  local driverKey = RM.copilot.watchingOf(s.key)
+  if not driverKey then return pid end
+  return RM.identity.pidForKey(driverKey) or pid
+end
+
 local function cfg(name, fallback)
   local c = RM.config.stella
   local v = type(c) == "table" and tonumber(c[name]) or nil
@@ -71,29 +81,49 @@ end
 -- the nearest car in front on the same course, inside the window
 function RM.stella.ahead(pid)
   local myDone, myToNext, track = progress(pid)
-  if not myDone then return nil, "not_racing" end
   local window = cfg("passWindowM", 300)
+  local mine = RM.race.get(pid)
+  if not track and mine then track = mine.track end
+  if not mine or mine.state ~= "running" then return nil, "not_racing" end
 
-  local best, bestDist = nil, nil
+  local best, bestDist, fallback, fallDist = nil, nil, nil, nil
   for other in pairs(RM.identity.sessions()) do
     if other ~= pid then
       local r = RM.race.get(other)
-      if r and r.state == "running" and r.track == track and isAhead(other, myDone, myToNext) then
+      if r and r.state == "running" and r.track == track then
         local d = distance(pid, other)
-        if d and d <= window and (not bestDist or d < bestDist) then
-          best, bestDist = other, d
+        if d and d <= window then
+          if (not fallDist or d < fallDist) then
+            fallback, fallDist = other, d
+          end
+          if myDone and isAhead(other, myDone, myToNext) then
+            if not bestDist or d < bestDist then
+              best, bestDist = other, d
+            end
+          end
         end
       end
     end
   end
-  if not best then return nil, "nobody_ahead" end
-  return best, bestDist
+  if best then return best, bestDist end
+  if fallback then return fallback, fallDist end
+  return nil, "nobody_ahead"
 end
 
 ------------------------------------------------------------------ breakdown
 
+-- Send to the driver and anyone copiloting them, so both Stellas match.
 local function tell(pid, channel, payload)
   RM.bus.queue(pid, channel, payload)
+  if not RM.copilot or not RM.copilot.watchersOf then return end
+  local s = RM.identity.session(pid)
+  if not s or not s.key then return end
+  for _, wkey in ipairs(RM.copilot.watchersOf(s.key)) do
+    local wpid = RM.identity.pidForKey(wkey)
+    if wpid and wpid ~= pid then
+      RM.bus.queue(wpid, channel, payload)
+    end
+  end
 end
 
 local function vehicleOf(pid)
@@ -209,6 +239,11 @@ end
 
 function RM.stella.acceptPass(pid, requestId)
   local req = requests[tonumber(requestId) or -1]
+  if not req then
+    for _, r in pairs(requests) do
+      if r.to == pid and r.state == "delivered" then req = r break end
+    end
+  end
   if not req then return false, "no_such_request" end
   if req.to ~= pid then return false, "not_yours" end
   if req.state ~= "delivered" then return false, "not_open" end

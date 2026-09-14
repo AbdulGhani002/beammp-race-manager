@@ -18,7 +18,7 @@ local st = {
   waited   = 0,
 }
 
-local LOOK_FOR = 20   -- seconds to keep looking for a car that is still loading
+local LOOK_FOR = 20   -- seconds to keep looking for a car that is still loading (raised after queue take)
 
 local function net() return extensions.raceManager_net end
 local function notice(text) extensions.raceManager_state.notice(text) end
@@ -67,7 +67,14 @@ end
 -- what the screen shows
 function M.status()
   return {
-    watching = st.watching and { name = st.watching.name, found = st.gameId ~= nil } or nil,
+    watching = st.watching and {
+      name = st.watching.name,
+      found = st.gameId ~= nil,
+      pid = st.watching.pid,
+      vid = st.watching.vid,
+      gameId = st.gameId,
+    } or nil,
+    gameId = st.gameId,
   }
 end
 
@@ -169,9 +176,41 @@ function M.onVehicleSwitched(oldId, newId, player)
   if not onServer() then return end
   if type(newId) ~= "number" or newId < 0 then return end
 
+  -- Still copiloting: if this is the car we were waiting on (or already on), keep it.
+  if st.watching then
+    if st.gameId == newId then return end
+    local expected = gameIdFor(st.watching.pid, st.watching.vid)
+    if expected and expected == newId then
+      st.gameId = newId
+      st.pending = nil
+      st.waited = 0
+      extensions.raceManager_ui.push()
+      return
+    end
+    -- Any vehicle belonging to the driver we are watching counts as their seat
+    -- (vid can change when they swap cars / queue applies a new spawn).
+    local okOwner, ownerPid = pcall(function()
+      if not MPVehicleGE or not MPVehicleGE.getVehicleByGameID then return nil end
+      local veh = MPVehicleGE.getVehicleByGameID(newId)
+      if type(veh) == "table" then
+        return tonumber(veh.ownerID) or tonumber(tostring(veh.serverVehicleID or ""):match("^(%d+)%-"))
+      end
+      return nil
+    end)
+    if okOwner and ownerPid and tonumber(ownerPid) == tonumber(st.watching.pid) then
+      st.gameId = newId
+      st.pending = nil
+      st.waited = 0
+      st.watching.vid = st.watching.vid  -- keep last known; server will refresh via look()
+      extensions.raceManager_ui.push()
+      return
+    end
+  end
+
   if isOwn(newId) then
     st.ownId = newId
     if st.watching then
+      -- Manual switch back to own car ends the watch session.
       st.watching, st.gameId, st.pending = nil, nil, nil
       local n = net()
       if n then n.send("copilot.stop", {}) end
@@ -188,6 +227,19 @@ function M.onVehicleSwitched(oldId, newId, player)
     enter(back)
     notice("Watching is by invite or request. Ask them under CoPilot.")
   end
+end
+
+-- Called after their BeamMP spawn/edit queue is applied so we keep looking for the car.
+function M.keepWatchingAfterQueue(pid)
+  pid = tonumber(pid)
+  if not pid or not st.watching then return end
+  if tonumber(st.watching.pid) ~= pid then return end
+  st.pending = true
+  st.waited = 0
+  -- Give BeamMP time to finish the spawn after the queue is applied.
+  LOOK_FOR = 45
+  tryLook()
+  extensions.raceManager_ui.push()
 end
 
 function M.onUpdate(dt)

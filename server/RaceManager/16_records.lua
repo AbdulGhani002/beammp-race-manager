@@ -242,7 +242,8 @@ function RM.records.wire(trackId, key, class)
     for i = 1, math.min(#kept, KEEP) do
       local r = kept[i]
       local ran = RM.records.classFor(r)
-      rows[i] = { pos = i, name = r.name, corrected = r.corrected,
+      rows[i] = { pos = i, name = r.name, key = r.key,
+                  corrected = r.corrected, clean = r.clean,
                   laps = r.laps, at = r.at, vehicle = r.vehicle,
                   class = ran ~= ALL and ran or nil,
                   me = (r.key == key) or nil }
@@ -268,9 +269,77 @@ function RM.records.wire(trackId, key, class)
   return out
 end
 
+function RM.records.clearDriver(actorPid, key)
+  if not RM.roles.atLeast(actorPid, "owner") then return false, "not_allowed" end
+  key = tostring(key or "")
+  if key == "" then return false, "no_such_player" end
+  local rec = RM.identity.record(key)
+  if not rec then return false, "no_such_player" end
+  local d = load()
+  local n = 0
+  for _, modes in pairs(d.tracks or {}) do
+    for _, b in pairs(modes) do
+      if type(b) == "table" and type(b.runs) == "table" then
+        local keep = {}
+        for i = 1, #b.runs do
+          if b.runs[i].key ~= key then keep[#keep + 1] = b.runs[i] end
+        end
+        n = n + (#b.runs - #keep)
+        b.runs = keep
+      end
+      if type(b) == "table" and type(b.lap) == "table" and b.lap.key == key then
+        b.lap = nil
+        n = n + 1
+      end
+    end
+  end
+  if rec.history then rec.history = {} end
+  rec.lastRace = nil
+  RM.identity.markDirty()
+  RM.store.markDirty(STORE)
+  RM.store.flushNow(STORE)
+  RM.info(("%s cleared records for %s (%d lines)"):format(
+    RM.identity.displayName(actorPid), rec.name or key, n))
+  return true, rec.name or key
+end
+
 function RM.records.count()
   local d = load()
   local n = 0
   for _ in pairs(d.tracks) do n = n + 1 end
   return n
+end
+
+function RM.records.forDriver(key)
+  key = tostring(key or "")
+  local d = load()
+  local runs, bestLap = {}, nil
+  for trackId, modes in pairs(d.tracks or {}) do
+    local track = RM.tracks.get(trackId)
+    local trackName = track and track.name or trackId
+    for mode, b in pairs(modes) do
+      if type(b) == "table" then
+        for i = 1, #(b.runs or {}) do
+          local r = b.runs[i]
+          if r.key == key then
+            runs[#runs + 1] = {
+              track = trackId, trackName = trackName, mode = mode,
+              class = RM.records.classFor(r), corrected = r.corrected,
+              laps = r.laps, at = r.at, vehicle = r.vehicle, pos = i,
+            }
+          end
+        end
+        if b.lap and b.lap.key == key then
+          if not bestLap or (b.lap.time or 0) < (bestLap.time or 1e9) then
+            bestLap = { track = trackId, trackName = trackName, mode = mode,
+                        time = b.lap.time, at = b.lap.at }
+          end
+        end
+      end
+    end
+  end
+  table.sort(runs, function(a, b)
+    return (a.corrected or 0) < (b.corrected or 0)
+  end)
+  return { runs = runs, bestLap = bestLap }
 end

@@ -151,6 +151,7 @@ function RM.identity.setName(pid, raw)
   RM.store.markDirty(STORE)
   RM.store.flushNow(STORE)
   RM.info(("player %d (%s) is now %s"):format(pid, s.key, result))
+  if RM.live and RM.live.writeRoster then RM.live.writeRoster() end
   return true, result, rec.code
 end
 
@@ -194,6 +195,7 @@ function RM.identity.onJoin(pid)
     end
   end
 
+  if RM.live and RM.live.writeRoster then RM.live.writeRoster() end
   return s, rec
 end
 
@@ -208,6 +210,7 @@ function RM.identity.onLeave(pid)
     RM.info(("player %d (%s) left"):format(pid, s.name or s.key))
   end
   session[pid] = nil
+  if RM.live and RM.live.writeRoster then RM.live.writeRoster() end
 end
 
 function RM.identity.displayName(pid)

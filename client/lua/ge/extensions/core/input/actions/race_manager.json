@@ -58,7 +58,7 @@
   "rm_fuel": {
     "onDown": "extensions.raceManager_bottombar.fuel()",
     "title": "Race Manager: fuel +25%",
-    "desc": "Add a quarter of a tank. Car must be stopped. 20 second hold, no penalty",
+    "desc": "Add fuel. Only works inside a pit box during a race. 20 second hold",
     "cat": "gameplay",
     "order": 23
   },

@@ -41,6 +41,7 @@ end
 -- them. one rule, and it covers both directions.
 function RM.roles.set(actorPid, targetKey, newRole)
   if not RM.roles.isValid(newRole) then return false, "bad_role" end
+  if not RM.roles.atLeast(actorPid, "owner") then return false, "not_allowed" end
 
   local actor = RM.identity.session(actorPid)
   if not actor then return false, "no_session" end

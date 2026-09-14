@@ -27,24 +27,64 @@ function RM.xp.forPlace(pos)
   return paid
 end
 
--- Levels are a flat climb: the same XP for every one of them. His document set
--- what a finish pays and said nothing about levels, so this is the plainest
--- thing that can be explained in a sentence. One number in config moves it.
-function RM.xp.levelFor(total)
-  local per = tonumber(RM.config.xpPerLevel) or 1000
-  if per < 1 then per = 1 end
-  local t = tonumber(total) or 0
-  if t < 0 then t = 0 end
-  return math.floor(t / per) + 1
+-- Growing ladder: 750 to hit 2, 1,750 to hit 3, 3,000 to hit 4, and so on.
+-- Each next level costs 250 more than the last (750, 1000, 1250, 1500…).
+-- Cumulative XP to *be* level n is 125 * (n-1) * (n+4).
+function RM.xp.neededFor(level)
+  local n = math.floor(tonumber(level) or 1)
+  if n < 2 then return 0 end
+  if n > 500 then n = 500 end
+  return 125 * (n - 1) * (n + 4)
 end
 
--- how far through the current level, for a bar on the screen one day
-function RM.xp.progress(total)
-  local per = tonumber(RM.config.xpPerLevel) or 1000
-  if per < 1 then per = 1 end
+function RM.xp.levelFor(total)
   local t = tonumber(total) or 0
   if t < 0 then t = 0 end
-  return t % per, per
+  local n = 1
+  while RM.xp.neededFor(n + 1) <= t and n < 500 do
+    n = n + 1
+  end
+  return n
+end
+
+-- XP already in this level, XP this level spans, current level
+function RM.xp.progress(total)
+  local t = tonumber(total) or 0
+  if t < 0 then t = 0 end
+  local lvl = RM.xp.levelFor(t)
+  local floor = RM.xp.neededFor(lvl)
+  local span = RM.xp.neededFor(lvl + 1) - floor
+  if span < 1 then span = 1 end
+  return t - floor, span, lvl
+end
+
+function RM.xp.rankOf(key)
+  key = tostring(key or "")
+  local rec = RM.identity.record(key)
+  if not rec then return nil, 0 end
+  local mine = tonumber(rec.xp) or 0
+  local rank, total = 1, 0
+  for k, r in pairs(RM.identity.all() or {}) do
+    if type(r) == "table" and r.name and r.name ~= "" then
+      total = total + 1
+      if k ~= key and (tonumber(r.xp) or 0) > mine then
+        rank = rank + 1
+      end
+    end
+  end
+  return rank, total
+end
+
+-- Recompute saved levels after the curve changes.
+function RM.xp.resyncLevels()
+  local dirty = false
+  for _, rec in pairs(RM.identity.all() or {}) do
+    if type(rec) == "table" then
+      local lvl = RM.xp.levelFor(tonumber(rec.xp) or 0)
+      if rec.level ~= lvl then rec.level = lvl; dirty = true end
+    end
+  end
+  if dirty then RM.identity.markDirty() end
 end
 
 -- Puts XP on a saved identity and moves the level with it. Returns the new

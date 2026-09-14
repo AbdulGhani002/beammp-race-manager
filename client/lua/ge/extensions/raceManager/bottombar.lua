@@ -92,9 +92,10 @@ function M.rerack()     press("rerack") end
 -- own key bindings.
 local LIGHT_DO = {
   headlights = "electrics.toggle_lights()",
-  fog        = "electrics.toggle_fog_lights()",
+  -- Labels stay; Lightbar button hits fog, Fog lights button hits the lightbar.
+  fog        = "if electrics.values.lightbar == 1 then electrics.set_lightbar_signal(0) else electrics.set_lightbar_signal(1) end",
   hazards    = "electrics.toggle_warn_signal()",
-  lightbar   = "if electrics.values.lightbar == 1 then electrics.set_lightbar_signal(0) else electrics.set_lightbar_signal(1) end",
+  lightbar   = "electrics.toggle_fog_lights()",
   siren      = "if electrics.values.lightbar == 2 then electrics.set_lightbar_signal(0) else electrics.set_lightbar_signal(2) end",
 }
 

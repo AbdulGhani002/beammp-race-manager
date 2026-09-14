@@ -221,6 +221,10 @@ end
 -- electric cars have no tank to fill, and finding that out after a twenty
 -- second wait is worse than being told now
 local function askFuel()
+  if extensions.raceManager_race.isActive() and not extensions.raceManager_race.inPit() then
+    notice("Fuel is only in a pit box")
+    return
+  end
   local v = playerVehicle()
   if not v then notice("Get in a car first") return end
   local ok = pcall(function()
@@ -247,6 +251,9 @@ function M.ask(which)
     notice("Already busy with " .. st.which)
     return
   end
+  pcall(function()
+    if which ~= "fuel" then captureFuel() end
+  end)
   if which == "spare" then askFlat() return end
   if which == "fuel" then askFuel() return end
   if which == "rerack" then
@@ -331,32 +338,40 @@ local function placeHere(v, mend)
   end)
 end
 
--- Standing the car up where it rolled leaves it in the scenery, nose into a
--- bank, which is not what anyone means by reposition. Back onto the leg being
--- driven instead, at the nearest point on it and pointing the way the course
--- goes. The nearest point is the fair one: no ground is given and none is
--- taken, so it cannot be used to skip a corner. Damage comes with it.
-local function putBack(v)
-  local okPos, pos = pcall(function() return v:getPosition() end)
-  if not okPos or not pos then return placeHere(v, false) end
-
-  local ok, a, b = pcall(function() return extensions.raceManager_triggers.leg() end)
-  if not ok or type(a) ~= "table" or type(b) ~= "table" then
-    return placeHere(v, false)     -- no race on, so where it stands is all there is
-  end
-
-  local okp, x, y, z, yaw = pcall(function()
-    return extensions.raceManager_triggers.legPoint(pos.x, pos.y, a, b)
+-- F7: drop the car as it is at the camera. Damage stays. A downward ray
+-- from the camera is used so the car lands on the ground instead of in the
+-- air or inside a wall when we can see one.
+local function dropAtCamera(v)
+  local ok = pcall(function()
+    if commands and type(commands.dropPlayerAtCameraNoReset) == "function" then
+      commands.dropPlayerAtCameraNoReset()
+    elseif core_camera and core_camera.dropPlayerAtCameraNoReset then
+      core_camera.dropPlayerAtCameraNoReset()
+    else
+      error("no f7")
+    end
   end)
-  if not okp or type(x) ~= "number" then return placeHere(v, false) end
+  if ok then return true end
 
-  local fwd = vec3(math.cos(yaw), math.sin(yaw), 0)
-  local moved = pcall(function()
-    spawn.safeTeleport(v, vec3(x, y, z + UPRIGHT_LIFT),
-      quatFromDir(fwd, vec3(0, 0, 1)), nil, nil, nil, nil, false)
+  local cam, fwd
+  pcall(function() cam = core_camera.getPosition() end)
+  pcall(function() fwd = core_camera.getForward() end)
+  if not cam then return false end
+  fwd = fwd or vec3(0, 1, 0)
+  local dest = vec3(cam.x, cam.y, cam.z)
+  pcall(function()
+    local from = vec3(cam.x, cam.y, cam.z + 2)
+    local to = vec3(cam.x, cam.y, cam.z - 80)
+    if castRayDefault then
+      local hit = castRayDefault(from, to)
+      if hit and hit.pt then dest = vec3(hit.pt.x, hit.pt.y, hit.pt.z + UPRIGHT_LIFT) end
+    end
   end)
-  if moved then return true end
-  return placeHere(v, false)
+  local look = vec3(fwd.x or 0, fwd.y or 1, 0)
+  if look:length() < 0.1 then look = vec3(0, 1, 0) else look = look:normalized() end
+  return pcall(function()
+    spawn.safeTeleport(v, dest, quatFromDir(look, vec3(0, 0, 1)), nil, nil, nil, nil, false)
+  end)
 end
 
 local function repairAll(v)
@@ -380,6 +395,66 @@ local WHY = {
   no_config       = "The car's parts could not be read",
   swap_failed     = "The spare would not go on",
 }
+
+local pendingFuelRestore = nil
+local savedFuel = nil
+local fuelRestoreAt = 0
+local snapshotTanks, applyTanks
+
+local function captureFuel(v)
+  v = v or playerVehicle()
+  if not v then return end
+  pcall(function()
+    core_vehicleBridge.requestValue(v, function(ret)
+      local snap = snapshotTanks(ret)
+      if #snap > 0 then savedFuel = snap end
+    end, "energyStorage")
+  end)
+end
+
+function M.onFuelSnap(snap)
+  if type(snap) == "table" and #snap > 0 then
+    savedFuel = snap
+  end
+end
+
+function M.reapplyFuel()
+  applyTanks(playerVehicle(), pendingFuelRestore or savedFuel)
+end
+
+snapshotTanks = function(ret)
+  local snap = {}
+  for _, tank in ipairs((ret and ret[1]) or {}) do
+    if type(tank) == "table" and tank.name and tank.energyType ~= "electricEnergy" then
+      snap[#snap + 1] = { name = tank.name, energy = tonumber(tank.currentEnergy) or 0 }
+    end
+  end
+  return snap
+end
+
+applyTanks = function(v, snap)
+  if not v or type(snap) ~= "table" then return end
+  for i = 1, #snap do
+    local t = snap[i]
+    pcall(function()
+      core_vehicleBridge.executeAction(v, "setEnergyStorageEnergy", t.name, t.energy)
+    end)
+  end
+end
+
+local function keepFuelAround(v, after)
+  if not v then after() return end
+  local ok = pcall(function()
+    core_vehicleBridge.requestValue(v, function(ret)
+      local snap = snapshotTanks(ret)
+      after()
+      pendingFuelRestore = snap
+      fuelRestoreAt = (extensions.raceManager_clock.now() or 0) + 0.25
+      applyTanks(playerVehicle() or v, snap)
+    end, "energyStorage")
+  end)
+  if not ok then after() end
+end
 
 local function doJob(which, full)
   local v = playerVehicle()
@@ -406,7 +481,7 @@ local function doJob(which, full)
     return ok, (not ok) and "no_tank" or nil
   end
   if which == "reposition" then
-    local ok = putBack(v)
+    local ok = dropAtCamera(v)
     return ok, (not ok) and "no_vehicle" or nil
   end
   return false, "no_such_action"
@@ -422,6 +497,7 @@ local function onHold(d)
   st.left  = st.hold
   st.endsAt = st.hold > 0 and (extensions.raceManager_clock.now() + st.hold) or nil
 
+  if st.which ~= "fuel" then captureFuel() end
   if st.hold > 0 then
     local v = playerVehicle()
     if v then unfreeze(nil); freeze(v, true) end
@@ -441,6 +517,12 @@ local function onRun(d)
   unfreeze(v)
 
   local ok, why = doJob(which, full)
+  if which ~= "fuel" then
+    pendingFuelRestore = pendingFuelRestore or savedFuel
+    fuelRestoreAt = (extensions.raceManager_clock.now() or 0) + 0.35
+  else
+    pendingFuelRestore, savedFuel = nil, nil
+  end
 
   st.which, st.endsAt, st.hold, st.left = nil, nil, 0, 0
 
@@ -482,6 +564,15 @@ local GRACE = 5.0
 local shown = -1
 
 local function onUpdate()
+  if pendingFuelRestore and (extensions.raceManager_clock.now() or 0) >= fuelRestoreAt then
+    applyTanks(playerVehicle(), pendingFuelRestore)
+    -- second pass a moment later in case the rebuild finished after the first
+    if fuelRestoreAt > 0 and (extensions.raceManager_clock.now() or 0) < fuelRestoreAt + 1.5 then
+      fuelRestoreAt = fuelRestoreAt + 0.4
+    else
+      pendingFuelRestore = nil
+    end
+  end
   if not st.endsAt then return end
   local left = st.endsAt - extensions.raceManager_clock.now()
 

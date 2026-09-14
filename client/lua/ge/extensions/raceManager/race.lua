@@ -24,6 +24,8 @@ local st = {
   penaltyBy = nil,
   waiting   = nil,
   results   = nil,
+  lastResults = nil,
+  board     = {},
   why       = nil,
   problem   = nil,
   lobby     = nil,
@@ -39,22 +41,77 @@ function M.isArmed()   return st.state == "armed" end
 function M.isActive()  return st.state == "armed" or st.state == "running" end
 function M.inPit()     return st.inPit and true or false end
 
+-- Stock recover / reset / rewind / last-road / saved-home. During a race
+-- those keys must do nothing; the bottom bar and its binds are the only way.
+local STOCK_BLOCK = {
+  "recover_vehicle", "recover_vehicle_alt", "recover_to_last_road",
+  "reset_physics", "reset_all_physics", "reload_vehicle", "reload_all_vehicles",
+  "loadHome", "saveHome", "dropPlayerAtCamera", "dropPlayerAtCameraNoReset",
+  -- no arcade boost / node grab while a race or challenge is live
+  "boost", "vehicleboost", "vehicle_boost", "nitro", "nitrous", "toggleNitrous",
+  "toggle_nitrous", "nitrousOxide", "nitrous_oxide",
+  "nodegrabber", "nodegrabberGrab", "nodegrabberAction", "nodegrabberRender",
+  "nodegrabberStrength", "nodegrabberStrengthChange", "grabber", "grab_node",
+}
+local stockBlocked = false
+local function blockStock(on)
+  on = on and true or false
+  if stockBlocked == on then return end
+  stockBlocked = on
+  pcall(function()
+    local f = core_input_actionFilter
+    if not (f and f.addAction) then return end
+    for i = 1, #STOCK_BLOCK do
+      local name = STOCK_BLOCK[i]
+      local ok = pcall(f.addAction, 0, name, on)
+      if not ok then pcall(f.addAction, name, on) end
+    end
+    local ours = { "rm_reposition", "rm_spare_tire", "rm_repair", "rm_fuel", "rm_lights", "rm_end_race" }
+    for i = 1, #ours do
+      pcall(f.addAction, 0, ours[i], false)
+      pcall(f.addAction, ours[i], false)
+    end
+  end)
+end
+M.blockStock = blockStock
+
+function M.onVehicleResetted()
+  if not M.isActive() then return end
+  if extensions.raceManager_service and extensions.raceManager_service.busy
+     and extensions.raceManager_service.busy() then
+    return
+  end
+  -- a stock reset slipped through: put the fuel back if we still have it
+  pcall(function()
+    if extensions.raceManager_service and extensions.raceManager_service.reapplyFuel then
+      extensions.raceManager_service.reapplyFuel()
+    end
+  end)
+end
+
 local function push()
   extensions.raceManager_ui.push()
 end
 
 ------------------------------------------------------------ asked from html
 
-function M.arm(trackId, mode, laps, class, challenge)
+function M.arm(trackId, mode, laps, class, challenge, official, officialName)
   if type(trackId) ~= "string" or trackId == "" then return end
   st.problem = nil
-  extensions.raceManager_net.send("race.arm", {
+  local payload = {
     id    = trackId,
     mode  = tostring(mode or "controller"),
     laps  = math.floor(tonumber(laps) or 1),
     class = type(class) == "string" and class ~= "" and class or nil,
     challenge = type(challenge) == "string" and challenge ~= "" and challenge or nil,
-  })
+  }
+  if official then
+    payload.official = true
+    if type(officialName) == "string" and officialName ~= "" then
+      payload.officialName = officialName
+    end
+  end
+  extensions.raceManager_net.send("race.arm", payload)
 end
 
 function M.endRace()
@@ -80,16 +137,23 @@ function M.restart()
 end
 
 -- the race you make and the ones you can join
-function M.createLobby(trackId, mode, laps, open, class)
+function M.createLobby(trackId, mode, laps, open, class, official, officialName)
   if type(trackId) ~= "string" or trackId == "" then return end
   st.problem = nil
-  extensions.raceManager_net.send("race.create", {
+  local payload = {
     track = trackId,
     mode  = tostring(mode or "controller"),
     laps  = math.floor(tonumber(laps) or 1),
     open  = open and true or false,
     class = type(class) == "string" and class ~= "" and class or nil,
-  })
+  }
+  if official then
+    payload.official = true
+    if type(officialName) == "string" and officialName ~= "" then
+      payload.officialName = officialName
+    end
+  end
+  extensions.raceManager_net.send("race.create", payload)
 end
 
 function M.joinLobby(id)
@@ -176,6 +240,7 @@ local function onState(d)
   st.inPit     = d.inPit and true or false
   st.waiting   = d.waiting
   st.why       = d.why
+  st.board     = type(d.board) == "table" and d.board or {}
 
   local S = extensions.raceManager_state.get()
   for _, t in ipairs(S.tracks or {}) do
@@ -193,6 +258,8 @@ local function onState(d)
       ("%s is on. Your clock starts when you cross the start line."):format(
         st.trackName or st.track or "The race"))
   end
+
+  blockStock(st.state == "armed" or st.state == "running")
 
   if st.state == "idle" or st.state == "abandoned" then
     startedLocal = nil
@@ -266,6 +333,7 @@ end
 
 local function onResults(d)
   st.results = type(d) == "table" and d or nil
+  if type(d) == "table" then st.lastResults = d end
   st.waiting = nil
   startedLocal = nil
   extensions.raceManager_triggers.stopRace()
@@ -282,6 +350,22 @@ end
 local function onZoneWarn(d)
   if type(d) ~= "table" then return end
   local zone = type(d.zone) == "table" and d.zone or {}
+  local stella = extensions.raceManager_stella
+  if stella and type(stella.setPairZone) == "function" and (d.event == "on" or d.event == "off" or zone.box) then
+    if d.event == "off" or not zone.mph then
+      stella.setPairZone(nil)
+    else
+      stella.setPairZone({ mph = zone.mph, pair = zone.pair, box = true })
+    end
+  end
+  if d.event == "on" then
+    extensions.raceManager_state.notice(("Speed zone on: %d mph"):format(tonumber(zone.mph) or 0))
+    return
+  end
+  if d.event == "off" then
+    extensions.raceManager_state.notice("Speed zone off")
+    return
+  end
   if d.charged then
     local pens = extensions.raceManager_state.get().config.penalties
     local cost = type(pens) == "table" and tonumber(pens.speeding) or 30
@@ -328,7 +412,32 @@ end
 -- one subtraction and one compare while a car is on track, and nothing at all
 -- when there is not one. the push only happens when the tenth on screen
 -- actually changes, so the interface still redraws ten times a second at most.
+local function suppressCheatInputs()
+  if not M.isActive() then return end
+  blockStock(true)
+  pcall(function()
+    if core_nodegrabber and core_nodegrabber.hide then core_nodegrabber.hide() end
+  end)
+  pcall(function()
+    local veh = be and be.getPlayerVehicle and be:getPlayerVehicle(0)
+    if not veh then return end
+    veh:queueLuaCommand([[
+      if input then
+        if input.boost ~= nil then input.boost = 0 end
+        if input.nitrous ~= nil then input.nitrous = 0 end
+      end
+      if electrics and electrics.values then
+        electrics.values.boost = 0
+        electrics.values.nitrous = 0
+        electrics.values.nitro = 0
+        electrics.values.n2o = 0
+      end
+    ]])
+  end)
+end
+
 local function onUpdate(dt)
+  suppressCheatInputs()
   if st.lastSplitFor then
     st.lastSplitFor = st.lastSplitFor - dt
     if st.lastSplitFor <= 0 then

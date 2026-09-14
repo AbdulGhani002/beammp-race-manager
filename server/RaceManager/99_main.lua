@@ -14,7 +14,15 @@ local function onTick()
     return
   end
 
-  if ticks % rosterEvery == 0 then RM.players.sample() end
+  if ticks % rosterEvery == 0 then pcall(RM.players.sample) end
+  if ticks % (rosterEvery * 8) == 0 and RM.players.flushStats then pcall(RM.players.flushStats) end
+  if ticks % (rosterEvery * 4) == 0 and RM.live then
+    pcall(function() RM.live.writeRoster() end)
+    pcall(function() RM.live.writeChallenges() end)
+  end
+  if ticks % (rosterEvery * 20) == 0 and RM.live and RM.live.writeDrivers then
+    pcall(function() RM.live.writeDrivers() end)
+  end
 
   RM.players.tick()
 
@@ -36,10 +44,12 @@ local function onTick()
     for pid, sess in pairs(RM.identity.sessions()) do
       local verdict = RM.zones.sample(pid, sess.speed)
       if verdict == "warn" or verdict == "charged" then
-        RM.bus.queue(pid, "zone.warn", {
+        local zw = {
           charged = verdict == "charged",
           zone = RM.zones.wire(pid),
-        })
+        }
+        RM.bus.queue(pid, "zone.warn", zw)
+        if RM.copilot and RM.copilot.relay then RM.copilot.relay(pid, "zone.warn", zw) end
         if verdict == "charged" then
           RM.bus.queue(pid, "race.state", RM.race.wire(pid))
         end
@@ -139,10 +149,10 @@ local function wireChannels()
       config = RM.config.public,
       serverVersion = RM.VERSION,
     })
-    RM.tracks.sendList(pid)
-    RM.tracks.sendDraft(pid)
-    RM.bus.queue(pid, "race.lobbies", RM.lobby.list())
-    RM.challenges.sendList(pid)
+    pcall(function() RM.tracks.sendList(pid) end)
+    pcall(function() RM.tracks.sendDraft(pid) end)
+    pcall(function() RM.bus.queue(pid, "race.lobbies", RM.lobby.list()) end)
+    pcall(function() RM.challenges.sendList(pid) end)
   end)
 
   RM.bus.on("name.set", function(pid, d)
@@ -314,6 +324,11 @@ local function wireChannels()
   RM.bus.on("cp.hit", function(pid, d)
     if type(d) ~= "table" then return end
     if not RM.identity.session(pid) then return end
+    -- A passenger is in the car; their client must not count gates.
+    local sess = RM.identity.session(pid)
+    if sess and RM.copilot and RM.copilot.watchingOf and RM.copilot.watchingOf(sess.key) then
+      return
+    end
 
     local ok, result = RM.race.gate(pid, d.i, tonumber(d.t))
     if not ok then
@@ -323,6 +338,7 @@ local function wireChannels()
     end
 
     RM.bus.queue(pid, "race.split", result)
+    if RM.copilot and RM.copilot.mirrorRace then RM.copilot.mirrorRace(pid) end
     if result.finished then
       RM.bus.queue(pid, "race.state", RM.race.wire(pid))
       RM.results.onRunEnded(pid)
@@ -380,9 +396,6 @@ local function wireChannels()
       RM.bus.queue(pid, "race.result", { ok = false, reason = result })
       return
     end
-    local who = math.floor(tonumber(type(d) == "table" and d.who or d) or -1)
-    RM.bus.queue(who, "toast", { kind = "info",
-      text = RM.identity.displayName(pid) .. " invited you to a race. Open the Race panel." })
     lobbyFan(result)
   end)
 
@@ -411,7 +424,9 @@ local function wireChannels()
       RM.results.forget(member)
       local armed = RM.race.arm(member,
         { id = result.track, mode = result.mode, laps = result.laps,
-          class = result.class })
+          class = result.class,
+          official = result.official,
+          officialName = result.officialName })
       if armed then
         RM.results.join(member, result.track)
         RM.bus.queue(member, "race.lobby", nil)
@@ -437,6 +452,76 @@ local function wireChannels()
 
   RM.bus.on("track.pitundo", function(pid)
     reply(pid, "pitundo", RM.tracks.undoPit(pid))
+  end)
+
+  RM.bus.on("track.sz", function(pid, d)
+    reply(pid, "sz", RM.tracks.markSpeedZone(pid, d))
+  end)
+  RM.bus.on("track.szundo", function(pid)
+    reply(pid, "szundo", RM.tracks.undoSpeedZone(pid))
+  end)
+  RM.bus.on("track.szsize", function(pid, d)
+    reply(pid, "sz", RM.tracks.setSzSize(pid, d))
+  end)
+  local function watching(pid)
+    local s = RM.identity.session(pid)
+    return s and RM.copilot and RM.copilot.watchingOf and RM.copilot.watchingOf(s.key)
+  end
+  RM.bus.on("sz.hit", function(pid, d)
+    if watching(pid) then return end
+    local i = type(d) == "table" and tonumber(d.i) or nil
+    if not i then return end
+    local what = RM.zones.onSzHit(pid, i)
+    if what then
+      local zw = { charged = false, event = what, zone = RM.zones.wire(pid) }
+      RM.bus.queue(pid, "race.state", RM.race.wire(pid))
+      RM.bus.queue(pid, "zone.warn", zw)
+      if RM.copilot and RM.copilot.relay then RM.copilot.relay(pid, "zone.warn", zw) end
+    end
+  end)
+  RM.bus.on("sz.state", function(pid, d)
+    if watching(pid) then return end
+    local inside = type(d) == "table" and d.inside == true
+    local mph = type(d) == "table" and tonumber(d.mph) or nil
+    local what = RM.zones.onSzState(pid, inside, mph)
+    if what then
+      local zw = { charged = false, event = what, zone = RM.zones.wire(pid) }
+      RM.bus.queue(pid, "race.state", RM.race.wire(pid))
+      RM.bus.queue(pid, "zone.warn", zw)
+      if RM.copilot and RM.copilot.relay then RM.copilot.relay(pid, "zone.warn", zw) end
+    end
+  end)
+
+  RM.bus.on("profile.get", function(pid, d)
+    local key = type(d) == "table" and tostring(d.key or d.id or "") or tostring(d or "")
+    if key == "" then
+      local s = RM.identity.session(pid)
+      key = s and s.key or ""
+    end
+    -- clicking a roster row sends a live player id
+    local asPid = tonumber(key)
+    if asPid and RM.identity.session(asPid) then
+      local s = RM.identity.session(asPid)
+      key = s.key
+    end
+    if (not key or key == "" or not RM.identity.record(key)) and type(d) == "table" and d.name then
+      key = RM.identity.keyForName(tostring(d.name)) or key
+    end
+    RM.bus.queue(pid, "profile.data", RM.players.profile(key))
+  end)
+  RM.bus.on("profile.list", function(pid)
+    local list = {}
+    local all = RM.identity.all() or {}
+    for key, rec in pairs(all) do
+      if type(rec) == "table" and rec.name and rec.name ~= "" then
+        list[#list + 1] = {
+          key = key, name = rec.name, level = rec.level or 1,
+          xp = rec.xp or 0, role = rec.role,
+        }
+      end
+    end
+    table.sort(list, function(a, b) return tostring(a.name) < tostring(b.name) end)
+    RM.bus.queue(pid, "profile.list", list)
   end)
 
   RM.bus.on("track.zones", function(pid, d)
@@ -499,16 +584,17 @@ local function wireChannels()
 
   -- The Stella box. A stopped car, and asking the car in front to let you by.
   -- The client only ever says what it wants; who is where is decided here.
+  -- A copilot watching a driver presses the same buttons for that driver.
   RM.bus.on("stella.breakdown.set", function(pid, d)
-    RM.stella.setBreakdown(pid, type(d) == "table" and d.active == true)
+    RM.stella.setBreakdown(RM.stella.actingPid(pid), type(d) == "table" and d.active == true)
   end)
 
   RM.bus.on("stella.pass.request", function(pid)
-    RM.stella.requestPass(pid)
+    RM.stella.requestPass(RM.stella.actingPid(pid))
   end)
 
   RM.bus.on("stella.pass.accept", function(pid, d)
-    local ok, why = RM.stella.acceptPass(pid, type(d) == "table" and d.requestId or nil)
+    local ok, why = RM.stella.acceptPass(RM.stella.actingPid(pid), type(d) == "table" and d.requestId or nil)
     if not ok then
       RM.bus.queue(pid, "stella.pass.status", { state = "cancelled", reason = why })
     end
@@ -519,6 +605,28 @@ local function wireChannels()
     local s = RM.identity.session(pid)
     local class = type(d) == "table" and d.class or nil
     RM.bus.queue(pid, "records.data", RM.records.wire(id, s and s.key or nil, class))
+  end)
+
+  local function staffReply(pid, action, ok, result)
+    RM.bus.queue(pid, "staff.result", {
+      action = action, ok = ok and true or false,
+      reason = (not ok) and result or nil,
+      name = ok and result or nil,
+    })
+  end
+  RM.bus.on("staff.role", function(pid, d)
+    local key = type(d) == "table" and d.key or nil
+    local role = type(d) == "table" and d.role or nil
+    staffReply(pid, "role", RM.roles.set(pid, key, role))
+  end)
+  RM.bus.on("staff.kick", function(pid, d)
+    staffReply(pid, "kick", RM.mod.kick(pid, type(d) == "table" and d.key or d, type(d) == "table" and d.why or nil))
+  end)
+  RM.bus.on("staff.ban", function(pid, d)
+    staffReply(pid, "ban", RM.mod.ban(pid, type(d) == "table" and d.key or d, type(d) == "table" and d.why or nil))
+  end)
+  RM.bus.on("staff.clearRecords", function(pid, d)
+    staffReply(pid, "clearRecords", RM.records.clearDriver(pid, type(d) == "table" and d.key or d))
   end)
 
   -- the FPS baseline every later delivery is measured against
@@ -560,6 +668,9 @@ local function onInit()
 
   RM.identity.init()
   RM.identity.readGate()
+  pcall(function()
+    if RM.xp and RM.xp.resyncLevels then RM.xp.resyncLevels() end
+  end)
   RM.mod.init()
   RM.tracks.init()
   RM.challenges.init()
@@ -596,16 +707,3 @@ RM.handler("onVehicleReset",     onVehicleReset)
 RM.handler("onVehicleEdited",    onVehicleEdited)
 RM.handler("onVehicleDeleted",   onVehicleDeleted)
 RM.handler("onConsoleInput",     function(input) return RM.console.handle(input) end)
-
--- !resetui in chat puts that player's windows back and asks their game for
--- the whole screen again. Returning 1 keeps it out of everybody's chat.
-local function onChatMessage(pid, name, message)
-  local text = RM.util.tidy(message):lower()
-  if text == "!resetui" or text == "!ui" then
-    RM.bus.queue(pid, "ui.reset", {})
-    RM.info(("%s asked for their interface back with %s"):format(RM.identity.displayName(pid), text))
-    return 1
-  end
-  return nil
-end
-RM.handler("onChatMessage", onChatMessage)

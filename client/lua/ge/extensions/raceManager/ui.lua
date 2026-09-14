@@ -9,7 +9,26 @@ local UI_EVENT = "rmState"
 local MIN_GAP  = 0.1
 
 local dirty, acc = false, 0
+local queueAcc, lastQueueKey = 0, ""
 local snap = { me = {}, roster = {}, tracks = {}, capture = {} }
+
+local function beamQueues()
+  local flags = {}
+  local ok, vehs = pcall(function()
+    return MPVehicleGE and MPVehicleGE.getVehicles and MPVehicleGE.getVehicles()
+  end)
+  if not ok or type(vehs) ~= "table" then return flags end
+  for sid, veh in pairs(vehs) do
+    if type(veh) == "table" and (veh.spawnQueue or veh.editQueue) then
+      local pid = tonumber(veh.ownerID)
+      if not pid then
+        pid = tonumber(tostring(sid):match("^(%d+)%-"))
+      end
+      if pid then flags[pid] = true end
+    end
+  end
+  return flags
+end
 
 function M.push()
   dirty = true
@@ -23,8 +42,11 @@ local function build()
   snap.nameError = S.nameError
   snap.level     = S.level
   snap.isAdmin   = extensions.raceManager_state.isAdmin()
+  snap.isOwner   = extensions.raceManager_state.isOwner and extensions.raceManager_state.isOwner()
+  snap.isStaff   = extensions.raceManager_state.isStaff and extensions.raceManager_state.isStaff()
   snap.connected = extensions.raceManager_net.isConnected()
   snap.toast     = S.toast
+  snap.invites   = S.invites or {}
   snap.config    = S.config
 
   -- the html gates the player list on this. leaving it out of the snapshot
@@ -45,8 +67,11 @@ local function build()
 
   -- watching: what the server says, and whether the car has been found here
   snap.copilot  = S.copilot
-  snap.watching = extensions.raceManager_copilot.status().watching
+  local watchOk, watchSt = pcall(function() return extensions.raceManager_copilot.status() end)
+  snap.watching = (watchOk and watchSt and watchSt.watching) or false
   snap.challenges = S.challenges
+  snap.profile    = S.profile
+  snap.drivers    = S.drivers
 
   -- angular wants a list, and it wants it sorted the same way every time
   local n = 0
@@ -56,6 +81,13 @@ local function build()
   end
   for i = n + 1, #snap.roster do snap.roster[i] = nil end
   table.sort(snap.roster, function(a, b) return (a.name or "") < (b.name or "") end)
+  local qflags = beamQueues()
+  for i = 1, #snap.roster do
+    local row = snap.roster[i]
+    if row then
+      row.queued = qflags[tonumber(row.id)] and true or false
+    end
+  end
 
   snap.tracks = S.tracks
   snap.capture = extensions.raceManager_capture.status()
@@ -70,7 +102,14 @@ end
 local function flush()
   dirty = false
   acc = 0
-  guihooks.trigger(UI_EVENT, build())
+  local ok, payload = pcall(build)
+  if not ok then
+    log("E", "raceManager", "ui build failed: " .. tostring(payload))
+    local S = extensions.raceManager_state.get()
+    payload = { ready = S.ready, needsName = S.needsName, me = S.me or {},
+                roster = {}, tracks = {}, connected = true }
+  end
+  guihooks.trigger(UI_EVENT, payload)
 end
 
 local function onUpdate(dt)
@@ -81,6 +120,21 @@ local function onUpdate(dt)
     S.toastFor = (S.toastFor or 0) - dt
     if S.toastFor <= 0 then
       S.toast = nil
+      dirty = true
+    end
+  end
+  pcall(function() extensions.raceManager_state.tickInvites(dt) end)
+
+  queueAcc = queueAcc + dt
+  if queueAcc >= 0.4 then
+    queueAcc = 0
+    local flags = beamQueues()
+    local keys = {}
+    for pid in pairs(flags) do keys[#keys + 1] = tostring(pid) end
+    table.sort(keys)
+    local sig = table.concat(keys, ",")
+    if sig ~= lastQueueKey then
+      lastQueueKey = sig
       dirty = true
     end
   end
@@ -114,8 +168,22 @@ end
 function M.setRosterOpen(open)
   local on = open and true or false
   extensions.raceManager_state.get().rosterOpen = on
-  extensions.raceManager_net.send("roster.sub", { on = on })
+  -- Keep the roster feed on even when the window is shut. CoPilot, teams
+  -- and queued names all read that list.
+  extensions.raceManager_net.send("roster.sub", { on = true })
   M.push()
+end
+
+function M.keepRoster()
+  extensions.raceManager_net.send("roster.sub", { on = true })
+end
+
+function M.takeInvite(id)
+  extensions.raceManager_state.takeInvite(id)
+end
+
+function M.refuseInvite(id)
+  extensions.raceManager_state.refuseInvite(id)
 end
 
 function M.toggleLights()
@@ -207,13 +275,104 @@ function M.getRecords(id, class)
   })
 end
 
+function M.getProfile(keyOrPid)
+  local key, id, name = keyOrPid, keyOrPid, nil
+  if type(keyOrPid) == "table" then
+    key  = keyOrPid.key or keyOrPid.id or keyOrPid.name
+    id   = keyOrPid.id or keyOrPid.key
+    name = keyOrPid.name
+  end
+  extensions.raceManager_net.send("profile.get", { key = key, id = id, name = name })
+end
+
+function M.getDrivers()
+  local net = extensions.raceManager_net
+  if net and type(net.send) == "function" then
+    net.send("profile.list", {})
+  end
+end
+M.drivers = M.getDrivers
+
+function M.staffRole(key, role)
+  extensions.raceManager_net.send("staff.role", { key = key, role = role })
+end
+function M.staffKick(key)
+  extensions.raceManager_net.send("staff.kick", { key = key })
+end
+function M.staffBan(key)
+  extensions.raceManager_net.send("staff.ban", { key = key, why = "banned" })
+end
+function M.staffClearRecords(key)
+  extensions.raceManager_net.send("staff.clearRecords", { key = key })
+end
+
+function M.takePlayerQueue(pid)
+  pid = tonumber(type(pid) == "table" and pid.id or pid)
+  if not pid then return false end
+  local ok, vehs = pcall(function()
+    return MPVehicleGE and MPVehicleGE.getVehicles and MPVehicleGE.getVehicles()
+  end)
+  if not ok or type(vehs) ~= "table" then return false end
+  local saved, had = {}, false
+  for sid, veh in pairs(vehs) do
+    if type(veh) == "table" then
+      local owner = tonumber(veh.ownerID) or tonumber(tostring(sid):match("^(%d+)%-"))
+      if owner == pid and (veh.spawnQueue or veh.editQueue) then
+        had = true
+      elseif owner ~= pid and (veh.spawnQueue or veh.editQueue) then
+        saved[sid] = { spawn = veh.spawnQueue, edit = veh.editQueue }
+        veh.spawnQueue, veh.editQueue = nil, nil
+      end
+    end
+  end
+  if had then
+    pcall(function() MPVehicleGE.applyQueuedEvents() end)
+  end
+  for sid, q in pairs(saved) do
+    local veh = vehs[sid]
+    if veh then
+      if q.spawn and not veh.spawnQueue then veh.spawnQueue = q.spawn end
+      if q.edit and not veh.editQueue then veh.editQueue = q.edit end
+    end
+  end
+  -- If we are copiloting this driver, stay on them and re-seek their car after the queue applies.
+  pcall(function()
+    local cp = extensions.raceManager_copilot
+    if cp and type(cp.keepWatchingAfterQueue) == "function" then
+      cp.keepWatchingAfterQueue(pid)
+    end
+  end)
+  M.push()
+  return had
+end
+
+function M.queuePlayerThenProfile(pid)
+  local id, key, name
+  if type(pid) == "table" then
+    id, key, name = tonumber(pid.id), pid.key, pid.name
+  else
+    id = tonumber(pid)
+  end
+  -- Best-effort BeamMP apply queue so their car is here before the card opens.
+  pcall(function()
+    if MPVehicleGE and type(MPVehicleGE.applyQueuedEvents) == "function" then
+      MPVehicleGE.applyQueuedEvents()
+    end
+  end)
+  extensions.raceManager_net.send("profile.get", { id = id, key = key or id, name = name })
+end
+
 function M.clearToast()
   extensions.raceManager_state.get().toast = nil
   M.push()
 end
 
-function M.armRace(id, mode, laps, class, challenge)
-  extensions.raceManager_race.arm(id, mode, laps, class, challenge)
+function M.armRace(id, mode, laps, class, challenge, official, officialName)
+  extensions.raceManager_race.arm(id, mode, laps, class, challenge, official, officialName)
+end
+
+function M.createLobby(trackId, mode, laps, open, class, official, officialName)
+  extensions.raceManager_race.createLobby(trackId, mode, laps, open, class, official, officialName)
 end
 
 -- the challenge board and its tools
@@ -221,14 +380,34 @@ function M.challengesGet()
   extensions.raceManager_net.send("challenges.get", {})
 end
 
+local function formTable(form)
+  if type(form) == "string" then
+    local ok, t = pcall(jsonDecode, form)
+    if ok and type(t) == "table" then return t end
+    return nil
+  end
+  if type(form) == "table" then return form end
+  return nil
+end
+
 function M.challengeCreate(form)
-  if type(form) ~= "table" then return end
+  form = formTable(form)
+  if not form then
+    extensions.raceManager_state.notice("Challenge was not posted: the form did not send")
+    return
+  end
   extensions.raceManager_net.send("challenge.create", form)
+  extensions.raceManager_state.notice("Posting challenge…")
 end
 
 function M.challengeUpdate(form)
-  if type(form) ~= "table" or not form.id then return end
+  form = formTable(form)
+  if not form or not form.id then
+    extensions.raceManager_state.notice("Challenge was not saved: the form did not send")
+    return
+  end
   extensions.raceManager_net.send("challenge.update", form)
+  extensions.raceManager_state.notice("Saving challenge…")
 end
 
 function M.challengeDelete(id)
@@ -239,13 +418,6 @@ end
 function M.challengeEnd(id)
   if type(id) ~= "string" then return end
   extensions.raceManager_net.send("challenge.end", { id = id })
-end
-
--- !resetui in chat: every window back in place and the whole screen asked
--- for again. The screen does the clearing; this only passes the word on.
-function M.resetWindows()
-  guihooks.trigger("rmResetAsked", {})
-  pcall(function() extensions.raceManager_layout.arm() end)
 end
 
 -- XP and challenge tracking, on or off for yourself

@@ -1,58 +1,5 @@
 angular.module("beamng.apps")
 
-// Where a window or a bar is, measured from the app's own corner and not the
-// screen's. The game gives the app a box, and that box is meant to be the
-// whole screen, but it is not always: a layout somebody edited, or a game
-// that has not been told yet, can leave it a smaller box off in the middle.
-// Positions used to be saved in screen pixels and put back as box pixels, so
-// every restore slid by the box's offset and a bar could walk off the edge
-// for good. A saved position also remembers the size of the box it was
-// saved in, and is thrown away if the box is a different size now, because
-// a spot picked for one screen is nowhere in particular on another.
-var rmFrame = (function () {
-  function root(node) {
-    var n = node;
-    while (n && !(n.classList && n.classList.contains("rm-root"))) n = n.parentNode;
-    return n || null;
-  }
-  return {
-    // the box the coordinates live in
-    box: function (node) {
-      var r = root(node);
-      var b = r ? r.getBoundingClientRect() : null;
-      if (!b || !(b.width > 0)) {
-        return { left: 0, top: 0, width: window.innerWidth, height: window.innerHeight };
-      }
-      return { left: b.left, top: b.top, width: b.width, height: b.height };
-    },
-    // screen to box
-    local: function (node, screenX, screenY) {
-      var b = rmFrame.box(node);
-      return { x: screenX - b.left, y: screenY - b.top };
-    },
-    // a saved spot, if it was saved in a box this size and lies inside it
-    read: function (node, key) {
-      var saved = null;
-      try { saved = JSON.parse(localStorage.getItem(key)); } catch (e) { }
-      if (!saved || typeof saved.x !== "number" || typeof saved.y !== "number") return null;
-      var b = rmFrame.box(node);
-      if (typeof saved.fw !== "number" || typeof saved.fh !== "number") return null;
-      if (Math.abs(saved.fw - b.width) > 4 || Math.abs(saved.fh - b.height) > 4) return null;
-      if (saved.x < -b.width || saved.x > b.width || saved.y < 0 || saved.y > b.height) return null;
-      return saved;
-    },
-    write: function (node, key, spot) {
-      var b = rmFrame.box(node);
-      var out = { x: spot.x, y: spot.y, fw: b.width, fh: b.height };
-      if (typeof spot.w === "number") out.w = spot.w;
-      if (typeof spot.h === "number") out.h = spot.h;
-      try { localStorage.setItem(key, JSON.stringify(out)); } catch (e) { }
-    }
-  };
-})();
-
-angular.module("beamng.apps")
-
 // Drag a panel by its heading, resize it from the bottom right corner, and
 // remember where it was put. He asked for this after using it: a window that
 // sits where the mod decided is fine until it covers the bit of road you are
@@ -82,12 +29,19 @@ angular.module("beamng.apps")
         return h;
       }
 
-      function place(box) {
-        var f = rmFrame.box(node);
-        var maxX = f.width - EDGE;
-        var maxY = f.height - EDGE;
-        node.style.left = clamp(box.x, -MIN_W + EDGE, maxX) + "px";
-        node.style.top = clamp(box.y, 0, maxY) + "px";
+      function place(box, clampToView) {
+        // saved left/top are relative to the Race Manager window, not the
+        // monitor. mixing those with getBoundingClientRect is what made
+        // every Escape (pause menu) shove the UI.
+        var x = box.x, y = box.y;
+        if (clampToView) {
+          var maxX = (node.offsetParent ? node.offsetParent.clientWidth : window.innerWidth) - EDGE;
+          var maxY = (node.offsetParent ? node.offsetParent.clientHeight : window.innerHeight) - EDGE;
+          x = clamp(x, -MIN_W + EDGE, maxX);
+          y = clamp(y, 0, maxY);
+        }
+        node.style.left = x + "px";
+        node.style.top = y + "px";
         node.style.transform = "none";
         node.style.right = "auto";
         node.style.bottom = "auto";
@@ -105,11 +59,12 @@ angular.module("beamng.apps")
       }
 
       function remember(box) {
-        rmFrame.write(node, key, box);
+        try { localStorage.setItem(key, JSON.stringify(box)); } catch (e) { }
       }
 
-      var saved = rmFrame.read(node, key);
-      if (saved) place(saved);
+      var saved = null;
+      try { saved = JSON.parse(localStorage.getItem(key)); } catch (e) { }
+      if (saved && typeof saved.x === "number") place(saved, false);
 
       // What is in a window arrives after it is built: courses land when the
       // server answers, lobby rows come and go. So the fit is checked on every
@@ -118,7 +73,7 @@ angular.module("beamng.apps")
       // opens rather than being made permanent by a measurement taken early.
       function unclip() {
         if (!node.style.height) return;
-        var room = rmFrame.box(node).height * 0.72;
+        var room = window.innerHeight * 0.72;
         if (room < MIN_H) return;              // no viewport to measure against
         var need = contentHeight();
         if (need > node.clientHeight + 1) {
@@ -129,26 +84,22 @@ angular.module("beamng.apps")
 
       function beginDrag(startEvent, mode) {
         startEvent.preventDefault();
-        var rect = node.getBoundingClientRect();
-        var at = rmFrame.local(node, rect.left, rect.top);
         var ox = startEvent.clientX, oy = startEvent.clientY;
-        var box = { x: at.x, y: at.y, w: rect.width, h: rect.height };
+        var box = { x: node.offsetLeft, y: node.offsetTop, w: node.offsetWidth, h: node.offsetHeight };
 
         function onMove(e) {
           var dx = e.clientX - ox, dy = e.clientY - oy;
           if (mode === "move") {
-            place({ x: box.x + dx, y: box.y + dy, w: box.w, h: box.h });
+            place({ x: box.x + dx, y: box.y + dy, w: box.w, h: box.h }, true);
           } else {
-            place({ x: box.x, y: box.y, w: box.w + dx, h: box.h + dy });
+            place({ x: box.x, y: box.y, w: box.w + dx, h: box.h + dy }, true);
           }
         }
 
         function onUp() {
           document.removeEventListener("mousemove", onMove);
           document.removeEventListener("mouseup", onUp);
-          var r = node.getBoundingClientRect();
-          var at = rmFrame.local(node, r.left, r.top);
-          remember({ x: at.x, y: at.y, w: r.width, h: r.height });
+          remember({ x: node.offsetLeft, y: node.offsetTop, w: node.offsetWidth, h: node.offsetHeight });
         }
 
         document.addEventListener("mousemove", onMove);
@@ -248,8 +199,9 @@ angular.module("beamng.apps")
       var key = "rm.panel." + attrs.rmSpot;
 
       function restore() {
-        var saved = rmFrame.read(node, key);
-        if (saved) {
+        var saved = null;
+        try { saved = JSON.parse(localStorage.getItem(key)); } catch (e) { }
+        if (saved && typeof saved.x === "number") {
           node.style.left = saved.x + "px";
           node.style.top = saved.y + "px";
           node.style.right = "auto";
@@ -261,8 +213,7 @@ angular.module("beamng.apps")
       node.addEventListener("mousedown", function () {
         function done() {
           document.removeEventListener("mouseup", done);
-          var r = node.getBoundingClientRect();
-          rmFrame.write(node, key, rmFrame.local(node, r.left, r.top));
+          try { localStorage.setItem(key, JSON.stringify({ x: node.offsetLeft, y: node.offsetTop })); } catch (e) { }
         }
         document.addEventListener("mouseup", done);
       });
@@ -288,18 +239,24 @@ angular.module("beamng.apps")
 
       function clamp(v, lo, hi) { return v < lo ? lo : (v > hi ? hi : v); }
 
-      function put(x, y) {
-        var r = node.getBoundingClientRect();
-        var f = rmFrame.box(node);
-        node.style.left = clamp(x, EDGE - r.width, f.width - EDGE) + "px";
-        node.style.top = clamp(y, 0, f.height - EDGE) + "px";
+      function put(x, y, clampToView) {
+        if (clampToView) {
+          var host = node.offsetParent;
+          var maxX = (host ? host.clientWidth : window.innerWidth) - EDGE;
+          var maxY = (host ? host.clientHeight : window.innerHeight) - EDGE;
+          x = clamp(x, EDGE - node.offsetWidth, maxX);
+          y = clamp(y, 0, maxY);
+        }
+        node.style.left = x + "px";
+        node.style.top = y + "px";
         node.style.right = "auto";
         node.style.bottom = "auto";
         node.style.transform = "none";
       }
 
-      var saved = rmFrame.read(node, key);
-      if (saved) put(saved.x, saved.y);
+      var saved = null;
+      try { saved = JSON.parse(localStorage.getItem(key)); } catch (e) { }
+      if (saved && typeof saved.x === "number") put(saved.x, saved.y, false);
 
       // The whole bar takes hold, buttons included. Nearly all of a bar is
       // buttons, with five pixels between them and six around, and that
@@ -324,8 +281,8 @@ angular.module("beamng.apps")
           t = t.parentNode;
         }
         e.preventDefault();
-        var r = node.getBoundingClientRect();
-        var dx = e.clientX - r.left, dy = e.clientY - r.top;
+        var startX = node.offsetLeft, startY = node.offsetTop;
+        var mx = e.clientX, my = e.clientY;
         var sx = e.clientX, sy = e.clientY;
         var moving = false;
         dragged = false;
@@ -335,15 +292,16 @@ angular.module("beamng.apps")
             moving = true;
             dragged = true;
           }
-          var at = rmFrame.local(node, ev.clientX - dx, ev.clientY - dy);
-          put(at.x, at.y);
+          put(startX + (ev.clientX - mx), startY + (ev.clientY - my), true);
         }
         function done() {
           document.removeEventListener("mousemove", move);
           document.removeEventListener("mouseup", done);
           if (!moving) return;
-          var q = node.getBoundingClientRect();
-          rmFrame.write(node, key, rmFrame.local(node, q.left, q.top));
+          try {
+            localStorage.setItem(key, JSON.stringify({
+              x: node.offsetLeft, y: node.offsetTop }));
+          } catch (er) { }
         }
         document.addEventListener("mousemove", move);
         document.addEventListener("mouseup", done);
@@ -370,6 +328,7 @@ angular.module("beamng.apps")
       // everything drawn comes from here. the server owns it, this only mirrors.
       $scope.s = { ready: false, needsName: false, me: {}, roster: [], tracks: [],
                    capture: {}, perf: {}, config: {}, race: {}, service: {} };
+      $scope.speed = 0;
       $scope.panel = null;
       // ng-if and ng-repeat each make a child scope, so a bare string model is
       // written on the child and the parent never sees it. Anything two way
@@ -378,7 +337,7 @@ angular.module("beamng.apps")
       $scope.recovering = false;
       $scope.speed = 0;
       $scope.newTrack = { name: "", kind: "race", circuit: true, overwrite: false };
-      $scope.entry = { track: null, mode: "controller", laps: 1, raceClass: null };
+      $scope.entry = { track: null, mode: "controller", laps: 1, raceClass: null, official: false, officialName: "" };
 
       // The instruments on the dash, on unless switched off. A choice about
       // your own screen, so it lives with the window positions and never
@@ -434,30 +393,6 @@ angular.module("beamng.apps")
       function ui(fn, value) { call("raceManager_ui", fn, value); }
       $scope.cap = function (fn, value) { call("raceManager_capture", fn, value); };
 
-      // The app's box is meant to be the whole screen, and the game side puts
-      // it there when the level loads. A layout edited afterwards, or a game
-      // that restored some other layout, can leave it a smaller box in the
-      // middle with the bars stuck inside it. So the box is measured now and
-      // then, and when it is not the screen the game side is asked again.
-      // Once a minute at most, so an open layout editor is not fought with.
-      var boxAskedAt = 0;
-      function watchBox() {
-        var root = document.querySelector(".rm-root");
-        if (!root) return;
-        var b = root.getBoundingClientRect();
-        if (!(b.width > 0) || !(window.innerWidth > 0)) return;
-        var off = Math.abs(b.left) > 4 || Math.abs(b.top) > 4
-               || Math.abs(b.width - window.innerWidth) > 4
-               || Math.abs(b.height - window.innerHeight) > 4;
-        if (!off) return;
-        var now = Date.now();
-        if (now - boxAskedAt < 60000) return;
-        boxAskedAt = now;
-        call("raceManager_layout", "arm");
-      }
-      var boxTimer = setInterval(watchBox, 3000);
-      $scope.$on("$destroy", function () { clearInterval(boxTimer); });
-
       // the car has to be stopped for the bottom bar. electrics is already
       // streamed to the ui by the game, so reading it here costs us no lua.
       var streams = ["electrics"];
@@ -467,10 +402,10 @@ angular.module("beamng.apps")
       // everything on screen and not just the panels with a close button.
       function onKey(e) {
         if (e.key !== "Escape" && e.keyCode !== 27) return;
+        // Player list is toggled only by the Players button — Escape never closes it.
         if ($scope.s.lights) ui("closeLights");
         else if (($scope.s.race || {}).results) $scope.closeResults();
         else if ($scope.panel) $scope.panel = null;
-        else if ($scope.s.rosterOpen) ui("setRosterOpen", false);
         else return;
         $scope.$applyAsync();
       }
@@ -480,7 +415,7 @@ angular.module("beamng.apps")
         stopSounds();
         StreamsManager.remove(streams);
         document.removeEventListener("keydown", onKey);
-        ui("setRosterOpen", false);
+        // Leave rosterOpen alone — list stays open across app reloads unless toggled.
       });
 
       $scope.$on("streamsUpdate", function (_, s) {
@@ -643,14 +578,33 @@ angular.module("beamng.apps")
 
           soundsForState(data);
 
+          var toast = data && data.toast && (data.toast.text || data.toast.msg || data.toast);
+          if (typeof toast === "string") {
+            if (/challenge posted/i.test(toast) || /challenge changed/i.test(toast)) {
+              $scope.chForm = null;
+              $scope.chFormBusy = false;
+              $scope.chFormError = "";
+            } else if ($scope.chFormBusy && /did not work|not posted|not saved|only admin|pick a course|rung|daily challenges|weekly challenges/i.test(toast)) {
+              $scope.chFormBusy = false;
+              $scope.chFormError = toast;
+            }
+          }
+
           var race = (data && data.race) || {};
           if ((race.state === "armed" || race.state === "running") &&
               $scope.panel === "race") $scope.panel = null;
 
-          // default the course picker to something real rather than an empty
-          // select the Go button refuses to work with
-          if (!$scope.entry.track && data && data.tracks && data.tracks.length) {
-            $scope.entry.track = data.tracks[0].id;
+          // Top of the current-map list (most gates). Never keep a course
+          // from another map selected just because it arrived first.
+          var here = $scope.trackList() || [];
+          var stillHere = false;
+          if ($scope.entry.track) {
+            for (var ti = 0; ti < here.length; ti++) {
+              if (here[ti].id === $scope.entry.track) { stillHere = true; break; }
+            }
+          }
+          if ((!stillHere || !$scope.entry.track) && here.length) {
+            $scope.entry.track = here[0].id;
           }
         });
       });
@@ -666,12 +620,32 @@ angular.module("beamng.apps")
         en: {
           race: "Race", records: "Records", team: "Team", copilot: "CoPilot",
           challenges: "Challenges", options: "Options", discord: "Discord", players: "Players",
+          "players.ontrack": "On track", "board.live": "Live",
           endrace: "End race", close: "close", back: "Back", accept: "Accept", nothanks: "No thanks",
           nobody: "Nobody else is on the server yet.", edit: "Edit", delete: "Delete",
           remove: "Remove", save: "Save", name: "Name", course: "Course", lap: "lap", laps: "laps",
           now: "Now", on: "On", off: "Off", drivingwith: "Driving with", controller: "Controller",
           wheel: "Wheel", language: "Language", tracking: "XP and challenge tracking",
-          "language_note": "The bars, the titles and the CoPilot and Challenges windows change. The rest stays in English.",
+          "language_note": "The whole Race Manager switches to this language.",
+          "opt.courses": "Course tools",
+          "opt.capture": "Checkpoint capture",
+          "opt.staff": "Drivers and staff",
+          "opt.staff.note": "Click a driver. Staff and admins can mark courses and post challenges. Only you can change roles or clear records. Admins cannot demote anyone.",
+          "opt.nodrivers": "No named drivers yet.",
+          "opt.player": "Player",
+          "opt.makestaff": "Staff",
+          "opt.makeadmin": "Admin",
+          "opt.kick": "Kick",
+          "opt.ban": "Ban",
+          "opt.clearrec": "Clear records",
+          "opt.framerate": "Frame rate",
+          "opt.dash": "Dash",
+          "opt.windows": "Windows",
+          "opt.resetwindows": "Put the windows back",
+          "opt.demote": "Demote myself",
+          "opt.leave": "Leave server",
+          "opt.unranked": "unranked, results are not recorded",
+          "level": "level",
           "tracking_note": "Off means a run counts for nothing: no XP, no challenge time. For practice.",
           "cp.watching": "Watching", "cp.stop": "Stop watching",
           "cp.camera": "You are in their car. C changes the camera: CoPilot from the seat, Chase from behind.",
@@ -704,12 +678,32 @@ angular.module("beamng.apps")
         es: {
           race: "Carrera", records: "Récords", team: "Equipo", copilot: "Copiloto",
           challenges: "Retos", options: "Opciones", discord: "Discord", players: "Pilotos",
+          "players.ontrack": "En pista", "board.live": "En vivo",
           endrace: "Terminar", close: "cerrar", back: "Volver", accept: "Aceptar", nothanks: "No, gracias",
           nobody: "Todavía no hay nadie más en el servidor.", edit: "Editar", delete: "Borrar",
           remove: "Quitar", save: "Guardar", name: "Nombre", course: "Circuito", lap: "vuelta", laps: "vueltas",
           now: "Ahora", on: "Sí", off: "No", drivingwith: "Conduces con", controller: "Mando",
           wheel: "Volante", language: "Idioma", tracking: "Registro de XP y retos",
-          "language_note": "Cambian las barras, los títulos y las ventanas de Copiloto y Retos. El resto sigue en inglés.",
+          "language_note": "Todo el Race Manager cambia a este idioma.",
+          "opt.courses": "Herramientas de circuito",
+          "opt.capture": "Captura de checkpoints",
+          "opt.staff": "Pilotos y staff",
+          "opt.staff.note": "Pulsa un piloto. Staff y admin pueden marcar circuitos y publicar retos. Solo tú cambias roles o borras récords. Un admin no puede bajar a nadie.",
+          "opt.nodrivers": "Aún no hay pilotos con nombre.",
+          "opt.player": "Piloto",
+          "opt.makestaff": "Staff",
+          "opt.makeadmin": "Admin",
+          "opt.kick": "Expulsar",
+          "opt.ban": "Banear",
+          "opt.clearrec": "Borrar récords",
+          "opt.framerate": "Fotogramas",
+          "opt.dash": "Cuadro",
+          "opt.windows": "Ventanas",
+          "opt.resetwindows": "Volver a colocar las ventanas",
+          "opt.demote": "Quitarme el cargo",
+          "opt.leave": "Salir del servidor",
+          "opt.unranked": "sin rango, los resultados no se guardan",
+          "level": "nivel",
           "tracking_note": "En No, una carrera no cuenta para nada: ni XP ni tiempo de reto. Para practicar.",
           "cp.watching": "Viendo a", "cp.stop": "Dejar de ver",
           "cp.camera": "Estás en su coche. C cambia la cámara: Copiloto desde el asiento, Persecución desde atrás.",
@@ -753,13 +747,13 @@ angular.module("beamng.apps")
       };
 
       $scope.buttons = [
-        { key: "race",       label: "Race" },
-        { key: "records",    label: "Records" },
-        { key: "team",       label: "Team" },
-        { key: "copilot",    label: "CoPilot" },
-        { key: "challenges", label: "Challenges" },
-        { key: "options",    label: "Options" },
-        { key: "discord",    label: "Discord" }
+        { key: "race",       labelKey: "race" },
+        { key: "records",    labelKey: "records" },
+        { key: "team",       labelKey: "team" },
+        { key: "copilot",    labelKey: "copilot" },
+        { key: "challenges", labelKey: "challenges" },
+        { key: "options",    labelKey: "options" },
+        { key: "discord",    labelKey: "discord" }
       ];
 
       $scope.open = function (key) {
@@ -768,12 +762,32 @@ angular.module("beamng.apps")
         if (key === "race" && $scope.raceActive()) { $scope.endRace(); return; }
         $scope.panel = ($scope.panel === key) ? null : key;
         if ($scope.panel === "team") call("raceManager_race", "teamGet");
-        if ($scope.panel === "copilot") call("raceManager_copilot", "get");
+        if ($scope.panel === "copilot") {
+          call("raceManager_copilot", "get");
+          ui("keepRoster");
+        }
         if ($scope.panel === "challenges") { $scope.chOpen = null; $scope.chForm = null; ui("challengesGet"); }
+        if ($scope.panel === "options" && $scope.s && $scope.s.isOwner) {
+          bngApi.engineLua(
+            "pcall(function() " +
+            "local u = extensions.raceManager_ui; " +
+            "if u and type(u.getDrivers) == 'function' then u.getDrivers() end; " +
+            "end)"
+          );
+        }
         if ($scope.panel === "records") {
-          var id = $scope.recPick.track ||
-                   ($scope.s.tracks[0] && $scope.s.tracks[0].id);
-          if (id) $scope.recordsFor(id);
+          $scope.recOpen = false;
+          $scope.drvOpen = false;
+          bngApi.engineLua(
+            "pcall(function() " +
+            "local u = extensions.raceManager_ui; " +
+            "if u and type(u.getDrivers) == 'function' then u.getDrivers(); return end; " +
+            "if extensions.raceManager_net then extensions.raceManager_net.send('profile.list', {}) end; " +
+            "end)"
+          );
+          var last = $scope.lastRace();
+          if (last && last.track && !$scope.recPick.track) $scope.recordsFor(last.track);
+          else if ($scope.recPick.track) $scope.recordsFor($scope.recPick.track);
         }
       };
 
@@ -863,6 +877,155 @@ angular.module("beamng.apps")
 
       $scope.recordsAny = function () {
         return $scope.recordModes().length > 0;
+      };
+
+      $scope.recOpen = false;
+      $scope.recDetail = null;
+      $scope.drvOpen = false;
+      $scope.drvLocal = null;
+
+      $scope.lastRace = function () {
+        var r = $scope.s.race || {};
+        return r.lastResults || r.results || null;
+      };
+
+      $scope.resultForName = function (name, key) {
+        var last = $scope.lastRace();
+        if (!last || !last.finished) return null;
+        var i, e;
+        for (i = 0; i < last.finished.length; i++) {
+          e = last.finished[i];
+          if ((name && e.name === name) || (key && e.key === key)) return e;
+        }
+        return null;
+      };
+
+      $scope.modeLabel = function (m) {
+        if (m === "wheel") return "Wheel";
+        if (m === "controller") return "Controller";
+        return m || "";
+      };
+
+      $scope.driverRows = function () {
+        var seen = {};
+        var out = [];
+        function add(d) {
+          if (!d || !d.name) return;
+          var key = String(d.key || d.id || d.name);
+          if (seen[key] || seen[d.name]) return;
+          seen[key] = true;
+          seen[d.name] = true;
+          out.push({
+            key: d.key || d.id || d.name,
+            name: d.name,
+            level: d.level || 1,
+            xp: d.xp || 0,
+            role: d.role || "player"
+          });
+        }
+        angular.forEach($scope.s.drivers || [], add);
+        angular.forEach($scope.s.roster || [], add);
+        out.sort(function (a, b) { return (b.xp || 0) - (a.xp || 0); });
+        return out;
+      };
+
+      function mergeRun(base, extra) {
+        var out = angular.extend({}, base || {});
+        if (!extra) return out;
+        var k;
+        for (k in extra) {
+          if (Object.prototype.hasOwnProperty.call(extra, k) && extra[k] != null && extra[k] !== "") {
+            out[k] = extra[k];
+          }
+        }
+        return out;
+      }
+
+      $scope.openRecordRow = function (mode, row) {
+        if (!row) return;
+        $scope.drvOpen = false;
+        $scope.recOpen = true;
+        var fromLast = $scope.resultForName(row.name, row.key);
+        $scope.recDetail = mergeRun({
+          name: row.name,
+          mode: (mode && mode.label) || row.mode,
+          pos: row.pos,
+          corrected: row.corrected,
+          clean: row.clean,
+          class: row.class,
+          at: row.at,
+          vehicle: row.vehicle,
+          laps: row.laps,
+          key: row.key,
+          trackName: ($scope.s.records && $scope.s.records.id) ? null : null
+        }, fromLast);
+        if (!$scope.recDetail.trackName && $scope.lastRace()) {
+          $scope.recDetail.trackName = $scope.lastRace().trackName;
+        }
+      };
+      $scope.recShown = function () { return $scope.recDetail; };
+      $scope.recBack = function () { $scope.recOpen = false; $scope.recDetail = null; };
+
+      $scope.openResultRecord = function (e) {
+        if (!e) return;
+        $scope.panel = "records";
+        $scope.drvOpen = false;
+        $scope.recOpen = true;
+        $scope.recDetail = angular.extend({
+          trackName: ($scope.lastRace() || {}).trackName,
+          mode: e.mode
+        }, e);
+        if (e.track || ($scope.lastRace() && $scope.lastRace().track)) {
+          $scope.recordsFor(e.track || $scope.lastRace().track);
+        }
+      };
+
+      $scope.openDriver = function (key, name) {
+        $scope.recOpen = false;
+        $scope.drvOpen = true;
+        $scope.drvLocal = { key: key, name: name || key, pending: true };
+        ui("getProfile", { key: key, name: name || key });
+      };
+      $scope.drvBack = function () { $scope.drvOpen = false; $scope.drvLocal = null; };
+      $scope.drvShown = function () {
+        var p = $scope.s.profile;
+        var loc = $scope.drvLocal;
+        var out = loc || p;
+        if (p && loc) {
+          var same = (p.key && loc.key && String(p.key) === String(loc.key))
+                  || (p.name && loc.name && String(p.name) === String(loc.name));
+          out = same ? mergeRun(loc, p) : (p.missing ? loc : mergeRun(loc, p));
+        } else if (p) {
+          out = p;
+        }
+        if (!out) return null;
+        if (out.xpNeed == null || out.xpNeed === 0) {
+          var xp = Number(out.xp) || 0;
+          out.xpNeed = 750;
+          out.xpInto = xp;
+          out.xpPct = Math.max(0, Math.min(100, Math.floor((xp / 750) * 100)));
+        }
+        if (out.miles != null || out.xpNeed) out.pending = false;
+        return out;
+      };
+
+      $scope.openPlayer = function (p) {
+        if (!p) return;
+        if ($scope.isQueued(p)) {
+          // Apply their BeamMP spawn queue without dropping CoPilot if we are watching them.
+          ui("takePlayerQueue", { id: p.id });
+          p.queued = false;
+          return;
+        }
+        $scope.panel = "records";
+        $scope.recOpen = false;
+        $scope.drvOpen = true;
+        $scope.drvLocal = {
+          key: p.key || p.id, name: p.name, level: p.level,
+          xp: p.xp || 0, pending: true
+        };
+        ui("queuePlayerThenProfile", { id: p.id, key: p.key, name: p.name });
+        ui("getProfile", { key: p.key || p.id, id: p.id, name: p.name });
       };
 
       // whole days are enough for a record book
@@ -1159,8 +1322,13 @@ angular.module("beamng.apps")
       // the form: an admin posting or changing one. tiers are typed as
       // 1:32.43 and sent as seconds.
       function parseTime(text) {
-        var s = String(text == null ? "" : text).trim();
+        var s = String(text == null ? "" : text).trim().replace(",", ".");
         if (!s) return null;
+        var hms = s.match(/^(\d+):(\d{1,2}):(\d{1,2})(?:\.(\d{1,3}))?$/);
+        if (hms) {
+          return parseInt(hms[1], 10) * 3600 + parseInt(hms[2], 10) * 60
+            + parseInt(hms[3], 10) + (hms[4] ? parseFloat("0." + hms[4]) : 0);
+        }
         var m = s.match(/^(\d+):(\d{1,2})(?:\.(\d{1,3}))?$/);
         if (m) return parseInt(m[1], 10) * 60 + parseInt(m[2], 10) + (m[3] ? parseFloat("0." + m[3]) : 0);
         if (/^\d+(\.\d{1,3})?$/.test(s)) return parseFloat(s);
@@ -1220,18 +1388,25 @@ angular.module("beamng.apps")
       };
       $scope.chSave = function () {
         var f = $scope.chForm;
-        if (!f || $scope.chFormProblem()) return;
+        if (!f) return;
+        var problem = $scope.chFormProblem();
+        if (problem) {
+          $scope.chFormError = problem;
+          return;
+        }
+        $scope.chFormError = "";
         var t = $scope.chFormTrack();
         var tiers = [];
-        list(f.tiers).forEach(function (r) { tiers.push({ time: parseTime(r.time), xp: parseInt(r.xp, 10) }); });
-        var out = { name: (f.name || "").trim(), kind: f.kind, track: f.track,
+        list(f.tiers).forEach(function (r) { tiers.push({ time: parseTime(r.time), xp: parseInt(r.xp, 10) || 0 }); });
+        var out = { name: (f.name || "").trim(), kind: f.kind || "daily", track: f.track,
                     laps: (t && t.circuit) ? Math.max(1, parseInt(f.laps, 10) || 1) : 1,
-                    classes: f.classes.length ? f.classes : null, tiers: tiers,
+                    classes: (f.classes && f.classes.length) ? f.classes : null, tiers: tiers,
                     description: (f.description || "").trim() };
         if (f.startInHours != null) out.startInHours = f.startInHours;
-        if (f.id) { out.id = f.id; ui("challengeUpdate", [out]); }
-        else ui("challengeCreate", [out]);
-        $scope.chForm = null;
+        if (f.id) out.id = f.id;
+        // JSON string, not a Lua table literal — engineLua used to swallow the post.
+        ui(f.id ? "challengeUpdate" : "challengeCreate", JSON.stringify(out));
+        $scope.chFormBusy = true;
       };
       $scope.chEndNow = function (id) { ui("challengeEnd", id); $scope.chOpen = null; };
       $scope.chDelete = function (id) { ui("challengeDelete", id); $scope.chOpen = null; };
@@ -1384,9 +1559,10 @@ angular.module("beamng.apps")
       // ------------------------------------------------------------- lobby
 
       $scope.lobbyCreate = function (open) {
+        var off = !!( $scope.s.isStaff || $scope.s.isAdmin || $scope.s.isOwner ) && !!$scope.entry.official;
         call("raceManager_race", "createLobby",
           [$scope.entry.track, $scope.entry.mode, $scope.entry.laps, !!open,
-           $scope.entry.raceClass]);
+           $scope.entry.raceClass, off, off ? ($scope.entry.officialName || "") : ""]);
       };
       $scope.lobbyJoin  = function (id) { call("raceManager_race", "joinLobby", id); };
       $scope.lobbyLeave = function () { call("raceManager_race", "leaveLobby"); };
@@ -1435,26 +1611,49 @@ angular.module("beamng.apps")
       // so. A course belongs to the map it was captured on and a server runs
       // one map at a time. Cached on the list and the level, since a fresh
       // array every digest never settles.
-      var listFrom = null, listLevel = null, listCache = [];
+      function levelKey(s) {
+        if (!s) return "";
+        var p = String(s).replace(/\\/g, "/").toLowerCase();
+        var m = p.match(/(?:^|\/)levels\/([^/]+)/) || p.match(/([^/]+)\/info\.json$/);
+        if (m) return m[1];
+        var parts = p.split("/").filter(Boolean);
+        return parts.length ? parts[parts.length - 1] : p;
+      }
+      function onThisMap(t) {
+        var here = levelKey($scope.s.level);
+        if (!here || !t || !t.level) return true;
+        return levelKey(t.level) === here;
+      }
+
+      var listFrom = null, listLevel = null, listCache = [], awayCache = [];
       $scope.trackList = function () {
         var all = list($scope.s.tracks), lvl = $scope.s.level || "";
         if (all !== listFrom || lvl !== listLevel) {
           listFrom = all; listLevel = lvl;
           var here = [], away = [];
           for (var i = 0; i < all.length; i++) {
-            (all[i].level && lvl && all[i].level !== lvl ? away : here).push(all[i]);
+            (onThisMap(all[i]) ? here : away).push(all[i]);
           }
-          listCache = here.concat(away);
+          var byGates = function (a, b) {
+            var ca = Number(a && a.count) || 0, cb = Number(b && b.count) || 0;
+            if (cb !== ca) return cb - ca;
+            return String((a && a.name) || "").localeCompare(String((b && b.name) || ""));
+          };
+          here.sort(byGates);
+          away.sort(byGates);
+          listCache = here;
+          awayCache = away;
         }
         return listCache;
       };
+      $scope.trackListOther = function () {
+        $scope.trackList();
+        return awayCache;
+      };
       $scope.trackAway = function (t) {
-        return !!(t && t.level && $scope.s.level && t.level !== $scope.s.level);
+        return !onThisMap(t);
       };
-      $scope.anyAway = function () {
-        var l = $scope.trackList();
-        return l.length > 0 && $scope.trackAway(l[l.length - 1]);
-      };
+      $scope.anyAway = function () { return false; };
 
       $scope.pickTrack = function (id) { $scope.entry.track = id; };
       $scope.pickMode  = function (m)  { $scope.entry.mode = m; };
@@ -1485,8 +1684,9 @@ angular.module("beamng.apps")
         if (!$scope.entry.track) return;
         var t = $scope.chosen();
         var laps = (t && !t.circuit) ? 1 : Math.max(1, parseInt($scope.entry.laps, 10) || 1);
+        var off = !!( $scope.s.isStaff || $scope.s.isAdmin || $scope.s.isOwner ) && !!$scope.entry.official;
         ui("armRace", [$scope.entry.track, $scope.entry.mode, laps,
-                       $scope.entry.raceClass]);
+                       $scope.entry.raceClass, null, off, off ? ($scope.entry.officialName || "") : ""]);
       };
 
       $scope.endRace = function () { ui("endRace"); };
@@ -1630,23 +1830,18 @@ angular.module("beamng.apps")
 
       // a window dragged somewhere silly on one monitor is hard to find on
       // another, so there is a way back
-      // Every window, bar and dash spot back where the css puts it, and the
-      // game asked to give the app the whole screen again. The same thing
-      // runs when somebody types !resetui in chat, which is what they try.
       $scope.resetPanels = function () {
         try {
           var kill = [];
           for (var i = 0; i < localStorage.length; i++) {
             var k = localStorage.key(i);
-            if (k && (k.indexOf("rm.panel.") === 0 || k.indexOf("rm.bar.") === 0)) kill.push(k);
+            if (k && k.indexOf("rm.panel.") === 0) kill.push(k);
           }
           for (var j = 0; j < kill.length; j++) localStorage.removeItem(kill[j]);
         } catch (e) { }
         $scope.panel = null;
         $scope.$broadcast("rmReset");
-        call("raceManager_layout", "arm");
       };
-      $scope.$on("rmResetAsked", function () { $scope.resetPanels(); });
 
       $scope.nameProblem = function () {
         var map = {
@@ -1666,6 +1861,66 @@ angular.module("beamng.apps")
       $scope.togglePlayers = function () {
         ui("setRosterOpen", !$scope.s.rosterOpen);
         $scope.s.rosterOpen = !$scope.s.rosterOpen;
+      };
+
+      $scope.isQueued = function (p) {
+        if (!p) return false;
+        return p.queued === true || p.queued === 1;
+      };
+
+      $scope.takeInvite = function (inv) {
+        if (!inv) return;
+        ui("takeInvite", inv.id);
+      };
+      $scope.refuseInvite = function (inv) {
+        if (!inv) return;
+        ui("refuseInvite", inv.id);
+      };
+
+      function fmtBoardTime(sec) {
+        sec = Number(sec) || 0;
+        if (sec < 0) sec = Math.abs(sec);
+        var m = Math.floor(sec / 60);
+        var s = sec - m * 60;
+        var whole = Math.floor(s);
+        var hundred = Math.round((s - whole) * 100);
+        if (hundred >= 100) { whole += 1; hundred = 0; }
+        if (whole >= 60) { m += 1; whole = 0; }
+        var mm = m < 10 ? "0" + m : String(m);
+        var ss = whole < 10 ? "0" + whole : String(whole);
+        var hh = hundred < 10 ? "0" + hundred : String(hundred);
+        return mm + ":" + ss + "." + hh;
+      }
+
+      $scope.liveBoard = function () {
+        var race = ($scope.s && $scope.s.race) || {};
+        var board = race.board;
+        if (!board || !board.length) return [];
+        if (race.state !== "running" && race.state !== "armed" && race.state !== "finished") return [];
+        var queued = {};
+        angular.forEach($scope.s.roster || [], function (p) {
+          if (p && p.queued) queued[p.id] = true;
+        });
+        return board.map(function (row) {
+          var copy = angular.extend({}, row);
+          if (queued[row.id]) copy.queued = true;
+          return copy;
+        });
+      };
+
+      $scope.boardLap = function (p) {
+        var race = ($scope.s && $scope.s.race) || {};
+        var total = (p && p.laps) || race.laps || 0;
+        var lap = (p && p.lap) || 0;
+        if (!total) return String(lap || 1);
+        return lap + "/" + total;
+      };
+
+      $scope.boardClock = function (p) {
+        if (!p) return "00:00.00";
+        if (p.pos === 1) return fmtBoardTime(p.elapsed);
+        if (p.gapLaps && p.gapLaps > 0) return "-" + p.gapLaps + " lap";
+        return "-" + fmtBoardTime(p.gap || 0);
       };
 
       $scope.pingClass = function (p) {
@@ -1705,6 +1960,27 @@ angular.module("beamng.apps")
         return map[e] || (e ? String(e) : null);
       };
 
+      $scope.staffPick = null;
+      $scope.openStaff = function (d) {
+        $scope.staffPick = d ? { key: d.key, name: d.name, role: d.role || "player" } : null;
+      };
+      $scope.staffRole = function (role) {
+        if (!$scope.staffPick) return;
+        ui("staffRole", [$scope.staffPick.key, role]);
+        $scope.staffPick.role = role;
+      };
+      $scope.staffKick = function () {
+        if (!$scope.staffPick) return;
+        ui("staffKick", $scope.staffPick.key);
+      };
+      $scope.staffBan = function () {
+        if (!$scope.staffPick) return;
+        ui("staffBan", $scope.staffPick.key);
+      };
+      $scope.staffClear = function () {
+        if (!$scope.staffPick) return;
+        ui("staffClearRecords", $scope.staffPick.key);
+      };
       $scope.demoteSelf = function () { ui("demoteSelf"); };
       $scope.exitServer = function () { ui("exitServer"); };
       $scope.clearToast = function () { ui("clearToast"); };

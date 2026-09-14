@@ -15,7 +15,9 @@ local M = {}
 
 local PREFIX = "rm_cp_"
 local PIT_PREFIX = "rm_pit_"
+local SZ_PREFIX = "rm_sz_"
 local DEFAULT_GATE = { w = 20, h = 8, d = 3 }
+local DEFAULT_SZ = { w = 20, h = 8, d = 40 }
 
 -- A pit is a place you sit in, not a line you cross. Built to a gate's three
 -- metres it fired enter and exit in the same tenth of a second, so driving
@@ -31,6 +33,7 @@ local visible = false
 -- leaving one box while still inside another used to report the car out of
 -- the pit, and a course with a pit either end of the lane does that every time.
 local inPits = {}
+local inSz = {}
 
 -- a race has the same volumes up but a different job for them: the debug box
 -- stays off and the gate you are being scored on is drawn differently to the
@@ -56,16 +59,19 @@ function M.clear()
   -- the boxes are gone, so nobody is standing in one. without this a car that
   -- was in the pit when the course changed stays in it for ever.
   M.pitsForgotten()
+  M.szForgotten()
 end
 
 local function gateOf(cp, kind)
-  local base = (kind == "pit") and DEFAULT_PIT or DEFAULT_GATE
+  local base = DEFAULT_GATE
+  if kind == "pit" then base = DEFAULT_PIT
+  elseif kind == "sz" then base = DEFAULT_SZ end
   local s = cp.size or base
   return tonumber(s.w) or base.w,
          tonumber(s.h) or base.h,
-         -- a pit keeps its length whatever the capture wrote, because the
-         -- capture screen only ever offered a gate's depth
-         (kind == "pit") and base.d or (tonumber(s.d) or base.d)
+         -- pits keep a long default depth; speed-zone boxes use the size
+         -- captured for them, separate from checkpoint gate depth
+         (kind == "pit" and not (s and s.d)) and base.d or (tonumber(s.d) or base.d)
 end
 
 -- The one place a gate's shape is worked out. The volume and the posts you see
@@ -261,6 +267,53 @@ end
 -- whole reason parking in a pit used to register nothing.
 M.boxOf = gateBox
 
+-- Same numbers drawBox uses. Inside the painted box = inside the zone.
+-- dist is to the nearest face, not the centre, so a long box warns on every side.
+function M.boxOffset(cp, pos, kind)
+  if not (cp and cp.pos and pos) then return nil end
+  local across, along, bottom, top, off = gateBox(cp, kind or "sz")
+  local yaw = tonumber(cp.yaw) or 0
+  local fx, fy = math.cos(yaw), math.sin(yaw)
+  local rx, ry = -math.sin(yaw), math.cos(yaw)
+  local cx = cp.pos.x + rx * off
+  local cy = cp.pos.y + ry * off
+  local dx, dy = pos.x - cx, pos.y - cy
+  local alongPos = dx * fx + dy * fy
+  local acrossPos = dx * rx + dy * ry
+  local halfA, halfD = across * 0.5, along * 0.5
+  local clampedA = math.max(-halfA, math.min(halfA, acrossPos))
+  local clampedD = math.max(-halfD, math.min(halfD, alongPos))
+  local ox = math.max(math.abs(acrossPos) - halfA, 0)
+  local oy = math.max(math.abs(alongPos) - halfD, 0)
+  local inside = ox == 0 and oy == 0
+    and (not pos.z or (pos.z >= bottom - 2 and pos.z <= top + 4))
+  local dist = math.sqrt(ox * ox + oy * oy)
+  local face = {
+    x = cx + rx * clampedA + fx * clampedD,
+    y = cy + ry * clampedA + fy * clampedD,
+    z = cp.pos.z,
+  }
+  return inside, dist, face
+end
+
+function M.nearestSz(pos)
+  local boxes = course and type(course.szGates) == "table" and course.szGates or draftSz
+  if type(boxes) ~= "table" or not pos then return nil end
+  local best, bestD, bestIn, bestFace
+  for i = 1, #boxes do
+    local b = boxes[i]
+    if b and b.pos then
+      local inside, dist, face = M.boxOffset(b, pos, "sz")
+      if inside or dist then
+        if not bestD or (inside and not bestIn) or (inside == bestIn and dist < bestD) then
+          best, bestD, bestIn, bestFace = b, dist or 0, inside, face
+        end
+      end
+    end
+  end
+  return best, bestIn, bestD, bestFace
+end
+
 local function spawnGate(cp, index, prefix, kind)
   local name = (prefix or PREFIX) .. index
   removeOne(name)
@@ -294,28 +347,33 @@ local function spawnGate(cp, index, prefix, kind)
 
     obj:registerObject(name)
 
-    -- the engine draws the box itself, which is a truer preview than a marker
-    -- because it is the exact volume you have to drive through
-    obj.debug = visible
+    -- Our overlay is the preview. Engine debug was a second box on a
+    -- different axis and looked like a sheared yellow slab.
+    obj.debug = false
 
     local across, along, bottom, top, off = gateBox(cp, kind)
     local yaw = tonumber(cp.yaw) or 0
+    local fx, fy = math.cos(yaw), math.sin(yaw)
     local rx, ry = -math.sin(yaw), math.cos(yaw)
 
-    -- the box is centred on its position: at the middle of the vertical span,
-    -- and slid sideways to the middle of the measured gap rather than sitting
-    -- on the line the capture car happened to drive
     obj:setPosition(vec3(cp.pos.x + rx * off, cp.pos.y + ry * off, (bottom + top) * 0.5))
 
-    -- yaw sends local x along the way you drive, so the width goes in y and the
-    -- depth in x. these were swapped, which built a three metre slot twenty
-    -- metres long down the middle of the road instead of a gate across it.
-    obj:setScale(vec3(along, across, top - bottom))
+    -- BeamNG objects face +Y. Width on X, depth (drive-through) on Y.
+    obj:setScale(vec3(across, along, top - bottom))
 
-    -- yaw only. a gate leaning with the camber of the road buys nothing and
-    -- makes the volume harder to drive through.
-    local q = quat(0, 0, math.sin(yaw * 0.5), math.cos(yaw * 0.5)):toTorqueQuat()
-    obj:setField("rotation", 0, q.x .. " " .. q.y .. " " .. q.z .. " " .. q.w)
+    local q
+    local okq, builtQ = pcall(function()
+      return quatFromDir(vec3(fx, fy, 0), vec3(0, 0, 1))
+    end)
+    if okq then q = builtQ end
+    if q then
+      pcall(function() obj:setRotation(q) end)
+      local tq = q
+      pcall(function() tq = q:toTorqueQuat() end)
+      if tq and tq.x then
+        obj:setField("rotation", 0, tq.x .. " " .. tq.y .. " " .. tq.z .. " " .. tq.w)
+      end
+    end
   end)
 
   if not built then
@@ -333,7 +391,9 @@ function M.build(track, showBoxes)
 
   -- rebuilding the same course on every message is wasted work and makes the
   -- log unreadable. the volumes are the gates plus the pits.
-  local want = #track.checkpoints + #(type(track.pits) == "table" and track.pits or {})
+  local want = #track.checkpoints
+    + #(type(track.pits) == "table" and track.pits or {})
+    + #(type(track.szGates) == "table" and track.szGates or {})
   if course and course.id == track.id and #spawned == want then
     M.setVisible(showBoxes and true or false)
     return #spawned
@@ -342,7 +402,8 @@ function M.build(track, showBoxes)
   M.clear()
   course = track
   visible = showBoxes and true or false
-  fitSpans(track.checkpoints)
+  -- Keep the heading and size from capture. Fitting to the road was
+  -- twisting the volumes off the preview.
 
   local made = 0
   for i = 1, #track.checkpoints do
@@ -359,6 +420,12 @@ function M.build(track, showBoxes)
   fitSpans(pits, "pit")
   for i = 1, #pits do
     local name = spawnGate(pits[i], i, PIT_PREFIX, "pit")
+    if name then spawned[#spawned + 1] = name end
+  end
+
+  local boxes = type(track.szGates) == "table" and track.szGates or {}
+  for i = 1, #boxes do
+    local name = spawnGate(boxes[i], i, SZ_PREFIX, "sz")
     if name then spawned[#spawned + 1] = name end
   end
 
@@ -380,14 +447,38 @@ function M.preview(track)
   return M.build(track, true)
 end
 
+-- Load course data without forcing the Show-gates toggle on.
+-- Used when the track arrives for Stella/copilot mirror or other non-UI
+-- reasons so checkpoint visibility stays under the user's Hide/Show button.
+-- When the gates are currently hidden we only store the course for Stella
+-- and later Show; we do not spawn volumes or change shownId.
+function M.loadCourse(track)
+  if type(track) ~= "table" then return 0 end
+  if visible and shownId == track.id then
+    -- already showing this course; refresh volumes without forcing visibility
+    local made = M.build(track, true)
+    M.setVisible(true)
+    return made
+  end
+  if visible then
+    -- user has gates on for a different course; switch to this one
+    shownId = track.id
+    local made = M.build(track, true)
+    M.setVisible(true)
+    return made
+  end
+  -- gates are hidden: just keep the data available, leave UI toggle alone
+  course = track
+  return 0
+end
+
 function M.stopPreview()
   shownId = nil
   M.setVisible(false)
 end
 
--- the volumes a race is scored on. the same ones the preview uses, without
--- the engine debug box, because during a run the gate is drawn by us and a
--- second wireframe on top of it is just noise.
+-- the volumes a race is scored on. same as the preview, but nothing is
+-- drawn: live and freeplay stay clean unless Show gates is pressed.
 function M.startRace(track, gate)
   racing = true
   nextGate = tonumber(gate) or 1
@@ -401,9 +492,10 @@ function M.stopRace()
   racing = false
   nextGate = 1
 
-  -- a course somebody asked to look at outlives the run they just did
+  -- a course somebody asked to look at outlives the run they just did,
+  -- but do not force the gates visible — leave the Show/Hide toggle alone
   if shownId and course and shownId == course.id then
-    M.setVisible(true)
+    -- keep volumes; visibility stays whatever the user last set
   else
     M.clear()
   end
@@ -498,6 +590,29 @@ function M.pitsForgotten()
   inPits = {}
 end
 
+function M.szForgotten()
+  inSz = {}
+end
+
+local function szMphNow()
+  local lowest
+  for id in pairs(inSz) do
+    local g = course and course.szGates and course.szGates[tonumber(id)]
+    local mph = g and tonumber(g.mph)
+    if mph and (not lowest or mph < lowest) then lowest = mph end
+  end
+  return lowest
+end
+
+function M.szCrossed(id, event)
+  local was = next(inSz) ~= nil
+  if event == "enter" then inSz[tostring(id)] = true
+  else inSz[tostring(id)] = nil end
+  local now = next(inSz) ~= nil
+  if now == was and not now then return nil end
+  return now, szMphNow()
+end
+
 local function onBeamNGTrigger(data)
   if type(data) ~= "table" or not course then return end
 
@@ -515,6 +630,15 @@ local function onBeamNGTrigger(data)
     -- overlap often enough that saying so every time would be a flood
     if now ~= nil then
       extensions.raceManager_net.send("pit.state", { inside = now })
+    end
+    return
+  end
+
+  local sz = name:match("^" .. SZ_PREFIX .. "(%d+)$")
+  if sz then
+    local now, mph = M.szCrossed(sz, data.event)
+    if now ~= nil then
+      extensions.raceManager_net.send("sz.state", { inside = now, mph = mph, i = tonumber(sz) })
     end
     return
   end
@@ -574,12 +698,17 @@ local REST_BG     = ColorI(122, 20, 24, 140)
 local PIT_POST = ColorF(0.20, 0.75, 0.85, 0.95)
 local PIT_FACE = ColorF(0.10, 0.55, 0.65, 0.18)
 local PIT_BG   = ColorI(12, 95, 110, 215)
+local SZ_POST  = ColorF(0.18, 0.92, 0.32, 0.95)
+local SZ_FACE  = ColorF(0.12, 0.78, 0.28, 0.16)
+local SZ_EDGE  = ColorF(0.20, 1.00, 0.38, 0.90)
+local SZ_BG    = ColorI(18, 110, 36, 215)
 
 local DRAW_RANGE = 900
 local RACE_RANGE = 400
 local errLogged = false
 
 local draft = nil
+local draftSz = nil
 
 -- the gates dropped so far in a capture. drawn but not built: there is nothing
 -- to collide with until the course is saved.
@@ -588,33 +717,86 @@ function M.setDraft(checkpoints)
   if type(draft) == "table" then fitSpans(draft) end
 end
 
+function M.setDraftSz(boxes)
+  draftSz = boxes
+end
+
 function M.clearDraft()
   draft = nil
+  draftSz = nil
+end
+
+local function drawBox(cp, index, post, face, edge, bg, kind)
+  -- full volume: width across the road, depth along the car, height up.
+  local across, along, bottom, top, off = gateBox(cp, kind or "sz")
+  local yaw = tonumber(cp.yaw) or 0
+  local fx, fy = math.cos(yaw), math.sin(yaw)
+  local rx, ry = -math.sin(yaw), math.cos(yaw)
+  local cx, cy = cp.pos.x + rx * off, cp.pos.y + ry * off
+  local ha, hd = across * 0.5, along * 0.5
+  local function corner(sa, sd, z)
+    return vec3(cx + rx * ha * sa + fx * hd * sd,
+                cy + ry * ha * sa + fy * hd * sd, z)
+  end
+  local lfb, rfb = corner(-1, -1, bottom), corner(1, -1, bottom)
+  local lrb, rrb = corner(-1,  1, bottom), corner(1,  1, bottom)
+  local lft, rft = corner(-1, -1, top),    corner(1, -1, top)
+  local lrt, rrt = corner(-1,  1, top),    corner(1,  1, top)
+  local e = edge or post
+  local function beam(a, b)
+    debugDrawer:drawCylinder(a, b, 0.12, e)
+  end
+  beam(lfb, rfb); beam(rfb, rrb); beam(rrb, lrb); beam(lrb, lfb)
+  beam(lft, rft); beam(rft, rrt); beam(rrt, lrt); beam(lrt, lft)
+  beam(lfb, lft); beam(rfb, rft); beam(rrb, rrt); beam(lrb, lrt)
+  debugDrawer:drawQuadSolid(lfb, rfb, rft, lft, face)
+  debugDrawer:drawQuadSolid(rrb, lrb, lrt, rrt, face)
+  debugDrawer:drawQuadSolid(lrb, lfb, lft, lrt, face)
+  debugDrawer:drawQuadSolid(rfb, rrb, rrt, rft, face)
+  debugDrawer:drawQuadSolid(lft, rft, rrt, lrt, face)
+  local label = tostring(index)
+  if cp.mph then label = label .. "  " .. tostring(math.floor(cp.mph + 0.5)) .. " mph" end
+  debugDrawer:drawTextAdvanced(vec3(cx, cy, top + 1.2), String(label), LABEL, true, false, bg)
+end
+
+local function drawBoxSet(list, eye, post, face, edge, bg, kind)
+  if type(list) ~= "table" then return end
+  for i = 1, #list do
+    local cp = list[i]
+    if cp and cp.pos then
+      local near = true
+      if eye then
+        local dx, dy = cp.pos.x - eye.x, cp.pos.y - eye.y
+        near = (dx * dx + dy * dy) < (DRAW_RANGE * DRAW_RANGE)
+      end
+      if near then drawBox(cp, cp.i or i, post, face, edge, bg, kind) end
+    end
+  end
 end
 
 local function drawGate(cp, index, post, face, bg)
-  -- the same box the volume uses, so what you see is what you drive through
-  local across, _, bottom, top, off = gateBox(cp)
+  -- Same OBB as the trigger: width across the car, depth along it.
+  local across, along, bottom, top, off = gateBox(cp)
   local yaw = tonumber(cp.yaw) or 0
-
-  -- across the gate is perpendicular to the way you drive through it
+  local fx, fy = math.cos(yaw), math.sin(yaw)
   local rx, ry = -math.sin(yaw), math.cos(yaw)
-  local half = across * 0.5
   local cx, cy = cp.pos.x + rx * off, cp.pos.y + ry * off
-
-  local lx, ly = cx + rx * half, cy + ry * half
-  local mx, my = cx - rx * half, cy - ry * half
-
-  local l  = vec3(lx, ly, bottom)
-  local r  = vec3(mx, my, bottom)
-  local lt = vec3(lx, ly, top)
-  local rt = vec3(mx, my, top)
-
-  debugDrawer:drawCylinder(l, lt, 0.22, post)
-  debugDrawer:drawCylinder(r, rt, 0.22, post)
-  debugDrawer:drawCylinder(lt, rt, 0.16, post)
-  debugDrawer:drawQuadSolid(l, r, rt, lt, face)
-
+  local ha, hd = across * 0.5, along * 0.5
+  local function corner(sa, sd, z)
+    return vec3(cx + rx * ha * sa + fx * hd * sd,
+                cy + ry * ha * sa + fy * hd * sd, z)
+  end
+  local lfb, rfb = corner(-1, -1, bottom), corner(1, -1, bottom)
+  local lrb, rrb = corner(-1,  1, bottom), corner(1,  1, bottom)
+  local lft, rft = corner(-1, -1, top),    corner(1, -1, top)
+  local lrt, rrt = corner(-1,  1, top),    corner(1,  1, top)
+  debugDrawer:drawCylinder(lfb, lft, 0.22, post)
+  debugDrawer:drawCylinder(rfb, rft, 0.22, post)
+  debugDrawer:drawCylinder(lft, rft, 0.16, post)
+  debugDrawer:drawQuadSolid(lfb, rfb, rft, lft, face)
+  debugDrawer:drawQuadSolid(lrb, rrb, rrt, lrt, face)
+  debugDrawer:drawQuadSolid(lfb, lrb, lrt, lft, face)
+  debugDrawer:drawQuadSolid(rfb, rrb, rrt, rft, face)
   debugDrawer:drawTextAdvanced(
     vec3(cx, cy, top + 1.2),
     String(tostring(index)), LABEL, true, false, bg)
@@ -658,11 +840,40 @@ local function drawRace(cps, eye)
   end
 end
 
+local lastGeomInside = nil
+local lastGeomMph = nil
+
+local function pollSzGeometry()
+  if not racing or not course or type(course.szGates) ~= "table" or #course.szGates == 0 then
+    lastGeomInside, lastGeomMph = nil, nil
+    return
+  end
+  local pos
+  local ok, veh = pcall(function() return be:getPlayerVehicle(0) end)
+  if ok and veh then
+    local ok2, p = pcall(function() return veh:getPosition() end)
+    if ok2 then pos = p end
+  end
+  if not pos then return end
+  local box, inside, dist = M.nearestSz(pos)
+  local now = inside and true or false
+  local mph = now and box and tonumber(box.mph) or nil
+  if now == lastGeomInside and mph == lastGeomMph then return end
+  lastGeomInside, lastGeomMph = now, mph
+  extensions.raceManager_net.send("sz.state", {
+    inside = now, mph = mph, i = box and box.i or nil,
+  })
+end
+
 local function onUpdate()
-  local showRace  = racing and course
+  pollSzGeometry()
+
+  -- Live race and freeplay draw nothing. Show gates is `visible`.
+  -- Capture still draws the draft you are placing.
   local showSaved = (not racing) and visible and course
   local showDraft = draft and #draft > 0
-  if not showRace and not showSaved and not showDraft then return end
+  local showDraftSz = draftSz and #draftSz > 0
+  if not showSaved and not showDraft and not showDraftSz then return end
 
   local eye
   local okEye, p = pcall(function() return core_camera.getPosition() end)
@@ -671,12 +882,16 @@ local function onUpdate()
   local pits = course and type(course.pits) == "table" and course.pits or nil
 
   local ok, err = pcall(function()
-    if showRace  then drawRace(course.checkpoints, eye) end
     if showSaved then drawSet(course.checkpoints, eye, SAVED_POST, SAVED_FACE, SAVED_BG) end
-    if (showRace or showSaved) and pits and #pits > 0 then
+    if showSaved and pits and #pits > 0 then
       drawSet(pits, eye, PIT_POST, PIT_FACE, PIT_BG)
     end
+    local boxes = course and type(course.szGates) == "table" and course.szGates or nil
+    if showSaved and boxes and #boxes > 0 then
+      drawBoxSet(boxes, eye, SZ_POST, SZ_FACE, SZ_EDGE, SZ_BG, "sz")
+    end
     if showDraft then drawSet(draft, eye, DRAFT_POST, DRAFT_FACE, DRAFT_BG) end
+    if showDraftSz then drawBoxSet(draftSz, eye, SZ_POST, SZ_FACE, SZ_EDGE, SZ_BG, "sz") end
   end)
 
   if not ok and not errLogged then

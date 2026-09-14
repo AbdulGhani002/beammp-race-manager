@@ -16,7 +16,7 @@ local ACTIONS = {
   spare      = { hold = "spareTire",  penalty = "flatTire", needsFlat = true,
                  takesSpare = true },
   repair     = { hold = "repair",     penalty = "repair" },
-  fuel       = { hold = "fuel",       penalty = nil },
+  fuel       = { hold = "fuel",       penalty = nil, pitOnly = true },
   -- filling the rack again is a pit job. it costs the wait and nothing else,
   -- which is the point of driving in rather than fixing it where you stopped.
   rerack     = { hold = "rerack",     penalty = nil, pitOnly = true,

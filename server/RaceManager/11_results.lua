@@ -235,8 +235,89 @@ local function close(trackId)
   local sent = send(h, payload)
   heats[trackId] = nil
 
-  -- one line on disk for their discord bot
-  if RM.racelog then RM.racelog.record(payload) end
+  -- who hosted, so Bobby can pick the official vs open results channel
+  local hostPid, hostName, hostKey
+  if RM.lobby then
+    local l = RM.lobby.get and RM.lobby.get(trackId)
+    if not l then
+      for pid, _ in pairs(h.members or {}) do
+        local lobby = RM.lobby.of and RM.lobby.of(pid)
+        if lobby and lobby.host then hostPid = lobby.host break end
+      end
+    else
+      hostPid = l.host
+    end
+  end
+  if hostPid then
+    hostName = RM.identity.displayName(hostPid)
+    local hs = RM.identity.session(hostPid)
+    hostKey = hs and hs.key
+  end
+  payload.hostName = hostName
+  payload.hostKey = hostKey
+  local official = false
+  local officialName = nil
+  -- Prefer the explicit official flag set when the host armed / created the race
+  for pid, _ in pairs(h.members or {}) do
+    local run = RM.race.get and RM.race.get(pid)
+    if not run and RM.race.runs then run = RM.race.runs()[pid] end
+    -- fall through: runs table is local to 10_race; use finished payload rows later
+  end
+  for i = 1, #(payload.finished or {}) do
+    local e = payload.finished[i]
+    if type(e) == "table" and e.official then
+      official = true
+      if e.officialName and e.officialName ~= "" then officialName = e.officialName end
+    end
+  end
+  local nm = tostring(hostName or ""):lower()
+  if nm:find("dard", 1, true) then official = true end
+  if hostPid and RM.roles and RM.roles.atLeast and RM.roles.atLeast(hostPid, "staff") then
+    -- staff host alone does not force official unless they checked the box;
+    -- keep host-role stamp for Bobby channel routing of staff-hosted public heats
+  end
+  local hostRole = nil
+  if hostPid and RM.roles and RM.roles.of then
+    hostRole = RM.roles.of(hostPid)
+  end
+  -- Staff+ hosts without the official checkbox still go to the staff results channel
+  local staffHost = hostPid and RM.roles and RM.roles.atLeast and RM.roles.atLeast(hostPid, "staff")
+  if staffHost and not official then
+    -- leave official false for series points; channel routing uses staffHost below
+  end
+  payload.hostRole = hostRole
+  payload.official = official
+  payload.officialName = officialName
+  payload.staffHost = staffHost and true or false
+  if official then
+    if officialName and officialName ~= "" then
+      payload.title = "Baja Sim Official Race (" .. officialName .. ")"
+      payload.trackName = payload.title
+    else
+      payload.title = "Baja Sim Official Race"
+    end
+  end
+
+  -- last-three history on each driver so the rank card can reopen it
+  for i = 1, #payload.finished do
+    local e = payload.finished[i]
+    if e.key and RM.players and RM.players.remember then
+      RM.players.remember(e.key, {
+        kind = "race", track = payload.track, trackName = payload.trackName,
+        pos = e.pos, corrected = e.corrected, clean = e.clean,
+        class = e.class, vehicle = e.vehicle, mode = e.mode,
+        at = os.time(), record = e.record, classRecord = e.classRecord,
+        bestLap = e.bestLap, penalties = e.penalties, laps = e.laps,
+        toLeader = e.toLeader, toAhead = e.toAhead, xp = e.xp,
+      })
+    end
+  end
+
+  -- Discord and the log only keep heats somebody finished.
+  if type(payload.finished) == "table" and #payload.finished > 0 then
+    if RM.racelog then RM.racelog.record(payload) end
+    if RM.live and RM.live.writeResults then RM.live.writeResults(payload) end
+  end
 
   RM.info(("results for %s: %d finished, %d out, sent to %d"):format(
     trackId, #payload.finished, #payload.dnf, sent))
@@ -259,6 +340,8 @@ function RM.results.onRunEnded(pid)
       entry.vehicle = RM.players.modelOf(pid)
       entry.class   = r.class
       entry.challenge = r.challenge
+      entry.official = r.official and true or false
+      entry.officialName = r.officialName
       h.done[#h.done + 1] = entry
     end
   else

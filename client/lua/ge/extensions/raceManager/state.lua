@@ -12,15 +12,18 @@ local S = {
   challenges = {},          -- the board, as the server last sent it
   config     = {},
   roster     = {},          -- id -> row
-  rosterOpen = false,
+  rosterOpen = true,
   tracks     = {},          -- summary list
   track      = nil,         -- one full course, when asked for
   draft      = nil,         -- capture in progress
   level      = nil,
   serverTime = 0,
   toast      = nil,
+  invites    = {},          -- small accept/decline cards
   lights     = false,
   team       = nil,         -- { team = {...} } or { offer = {...} }
+  profile    = nil,
+  drivers    = {},
 }
 
 function M.get() return S end
@@ -41,6 +44,15 @@ function M.isAdmin()
   return S.me.role == "admin" or S.me.role == "owner"
 end
 
+function M.isOwner()
+  return S.me.role == "owner"
+end
+
+function M.isStaff()
+  local r = S.me.role
+  return r == "staff" or r == "admin" or r == "owner"
+end
+
 local function changed()
   extensions.raceManager_ui.push()
 end
@@ -58,7 +70,17 @@ local function onWelcome(d)
   S.config    = d.config or {}
   S.needsName = (d.name == nil or d.name == "")
   extensions.raceManager_main.handshakeDone()
+  S.rosterOpen = true
+  pcall(function() extensions.raceManager_net.send("roster.sub", { on = true }) end)
   log("I", "raceManager", "welcome: " .. tostring(d.name or "unnamed") .. " / " .. tostring(d.role))
+  pcall(function() extensions.raceManager_editorlock.sync() end)
+  pcall(function()
+    if extensions.raceManager_ui and extensions.raceManager_ui.getDrivers then
+      extensions.raceManager_ui.getDrivers()
+    else
+      extensions.raceManager_net.send("profile.list", {})
+    end
+  end)
   changed()
 end
 
@@ -108,13 +130,24 @@ local function onTrackFull(d)
   S.track = type(d) == "table" and d or nil
 
   -- the same course arrives for two different reasons. armed means the
-  -- volumes go up to be raced on; anything else is somebody looking at it.
+  -- volumes go up to be raced on; anything else is data for Stella, copilot
+  -- mirror, or an explicit Show gates. Only an explicit Show forces the
+  -- gates visible — the Hide/Show toggle stays in control otherwise.
   if S.track then
     local race = extensions.raceManager_race
     if race.isActive() and race.status().track == S.track.id then
       race.onTrackReady(S.track)
     else
-      extensions.raceManager_triggers.preview(S.track)
+      local wantShow = false
+      pcall(function()
+        wantShow = extensions.raceManager_capture.consumeWantShow()
+      end)
+      if wantShow then
+        extensions.raceManager_triggers.preview(S.track)
+      else
+        -- load volumes/data but preserve the user's Show/Hide preference
+        extensions.raceManager_triggers.loadCourse(S.track)
+      end
     end
   end
 
@@ -166,6 +199,7 @@ local function onMe(d)
   if d.tracking ~= nil then S.me.tracking = d.tracking and true or false end
   S.needsName = (S.me.name == nil or S.me.name == "")
   log("I", "raceManager", "you are now " .. tostring(S.me.role))
+  pcall(function() extensions.raceManager_editorlock.sync() end)
   changed()
 end
 
@@ -206,12 +240,135 @@ local CHALLENGE_DONE = {
   ["end"] = "Challenge ended",
 }
 
+local function onStaffResult(d)
+  if type(d) ~= "table" then return end
+  if d.ok then
+    local who = d.name or "them"
+    local done = {
+      role = "Role updated for " .. tostring(who),
+      kick = "Kicked " .. tostring(who),
+      ban = "Banned " .. tostring(who),
+      clearRecords = "Cleared records for " .. tostring(who),
+    }
+    M.notice(done[tostring(d.action)] or "Done")
+  else
+    local no = {
+      not_allowed = "Only the owner can do that",
+      outranks_you = "They outrank you",
+      not_yourself = "Not yourself",
+      no_such_player = "No such driver",
+      not_here = "They are not on the server",
+      already_banned = "Already banned",
+      cannot_change_own_role = "You cannot change your own role here",
+      cannot_grant_that_high = "You cannot grant that role",
+      target_outranks_you = "They outrank you",
+    }
+    M.notice(no[tostring(d.reason)] or ("That did not work: " .. tostring(d.reason)))
+  end
+end
+
 local function onChallengeResult(d)
   if type(d) ~= "table" then return end
   if d.ok then
     M.notice(CHALLENGE_DONE[tostring(d.action)] or "Done")
   else
     M.notice(CHALLENGE_NO[tostring(d.reason)] or ("That did not work: " .. tostring(d.reason)))
+  end
+end
+
+local inviteSeq = 0
+local function onInvitePush(d)
+  if type(d) ~= "table" or not d.kind then return end
+  inviteSeq = inviteSeq + 1
+  S.invites = S.invites or {}
+  local kind = tostring(d.kind)
+  local sub = tostring(d.sub or d.kind)
+  local from = tostring(d.from or "A driver")
+  local text
+  if kind == "race" then
+    text = from .. " invited you to a race" .. (d.track and (" on " .. tostring(d.track)) or "")
+  elseif kind == "team" and sub == "request" then
+    text = from .. " asked to team with you"
+  elseif kind == "team" then
+    text = from .. " invited you to their team"
+  elseif kind == "copilot" and sub == "request" then
+    text = from .. " asked to watch you"
+  elseif kind == "copilot" then
+    text = from .. " invited you to copilot"
+  else
+    text = from .. " sent you an invite"
+  end
+  S.invites[#S.invites + 1] = {
+    id = inviteSeq,
+    kind = kind,
+    sub = sub,
+    from = from,
+    lobby = d.lobby,
+    text = text,
+    left = 30,
+    secs = 30,
+  }
+  changed()
+end
+
+function M.dismissInvite(id)
+  id = tonumber(id)
+  local keep = {}
+  for i = 1, #(S.invites or {}) do
+    if S.invites[i].id ~= id then keep[#keep + 1] = S.invites[i] end
+  end
+  S.invites = keep
+  changed()
+end
+
+function M.takeInvite(id)
+  id = tonumber(id)
+  local card
+  for i = 1, #(S.invites or {}) do
+    if S.invites[i].id == id then card = S.invites[i] break end
+  end
+  if not card then return end
+  M.dismissInvite(id)
+  if card.kind == "race" and card.lobby then
+    extensions.raceManager_race.joinLobby(card.lobby)
+  elseif card.kind == "team" then
+    extensions.raceManager_race.teamAccept()
+  elseif card.kind == "copilot" then
+    extensions.raceManager_copilot.accept()
+  end
+end
+
+function M.tickInvites(dt)
+  dt = tonumber(dt) or 0
+  if dt <= 0 or not S.invites or #S.invites == 0 then return end
+  local expired = {}
+  local dirty = false
+  for i = 1, #S.invites do
+    local card = S.invites[i]
+    local left = (tonumber(card.left) or 30) - dt
+    card.left = left
+    card.secs = math.max(0, math.ceil(left))
+    dirty = true
+    if left <= 0 then expired[#expired + 1] = card.id end
+  end
+  if dirty then changed() end
+  for i = 1, #expired do
+    M.refuseInvite(expired[i])
+  end
+end
+
+function M.refuseInvite(id)
+  id = tonumber(id)
+  local card
+  for i = 1, #(S.invites or {}) do
+    if S.invites[i].id == id then card = S.invites[i] break end
+  end
+  M.dismissInvite(id)
+  if not card then return end
+  if card.kind == "team" then
+    extensions.raceManager_race.teamDecline()
+  elseif card.kind == "copilot" then
+    extensions.raceManager_copilot.decline()
   end
 end
 
@@ -228,6 +385,28 @@ end
 
 local function onRecords(d)
   S.records = type(d) == "table" and d or nil
+  changed()
+end
+
+local function onProfile(d)
+  S.profile = type(d) == "table" and d or nil
+  changed()
+end
+
+local function onDrivers(d)
+  if type(d) == "table" and #d > 0 then
+    S.drivers = d
+  elseif type(d) == "table" and d[1] then
+    S.drivers = d
+  else
+    local list = {}
+    if type(d) == "table" then
+      for _, rec in pairs(d) do
+        if type(rec) == "table" and rec.name then list[#list + 1] = rec end
+      end
+    end
+    S.drivers = list
+  end
   changed()
 end
 
@@ -308,17 +487,20 @@ local function onExtensionLoaded()
   net.on("track.draft",    onDraft)
   net.on("me",             onMe)
   net.on("toast",          onToast)
+  net.on("invite.push",    onInvitePush)
   net.on("capture.result", onCaptureResult)
   net.on("records.data",   onRecords)
+  net.on("profile.data",   onProfile)
+  net.on("profile.list",   onDrivers)
   net.on("options.result", onOptionsResult)
   net.on("team.state",     onTeamState)
   net.on("team.gone",      onTeamGone)
   net.on("team.failed",    onTeamFailed)
   net.on("xp.gain",        onXpGain)
-  net.on("ui.reset",       function() extensions.raceManager_ui.resetWindows() end)
   net.on("copilot.state",  onCopilotState)
   net.on("challenges.list", onChallenges)
   net.on("challenge.result", onChallengeResult)
+  net.on("staff.result", onStaffResult)
 end
 
 M.onExtensionLoaded = onExtensionLoaded

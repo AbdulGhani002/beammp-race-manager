@@ -66,6 +66,13 @@ function RM.lobby.create(pid, d)
     if not class then return false, "no_such_class" end
   end
 
+  local official, officialName = false, nil
+  if d.official and RM.roles and RM.roles.atLeast and RM.roles.atLeast(pid, "staff") then
+    official = true
+    local nm = tostring(d.officialName or d.official_name or ""):gsub("^%s+", ""):gsub("%s+$", "")
+    if nm ~= "" then officialName = nm:sub(1, 80) end
+  end
+
   local id = shortId()
   lobbies[id] = {
     id      = id,
@@ -75,6 +82,8 @@ function RM.lobby.create(pid, d)
     mode    = tostring(d.mode or "controller"),
     class   = class,
     open    = d.open and true or false,
+    official = official,
+    officialName = officialName,
     state   = "waiting",
     members = { [pid] = true },
     joined  = { [pid] = 1 },
@@ -110,9 +119,17 @@ function RM.lobby.invite(pid, who)
   if l.host ~= pid then return false, "not_the_host" end
   if l.state ~= "waiting" then return false, "already_started" end
 
-  local key = keyOf(math.floor(tonumber(who) or -1))
+  local targetPid = math.floor(tonumber(who) or -1)
+  local key = keyOf(targetPid)
   if not key then return false, "no_such_player" end
   l.invited[key] = true
+  local track = RM.tracks.get(l.track)
+  RM.bus.queue(targetPid, "invite.push", {
+    kind = "race",
+    from = RM.identity.displayName(pid),
+    track = (track and (track.name or track.id)) or l.track,
+    lobby = l.id,
+  })
   return true, l
 end
 
@@ -189,14 +206,22 @@ function RM.lobby.list()
     local track = RM.tracks.get(l.track)
     local n = 0
     for _ in pairs(l.members) do n = n + 1 end
+    local display = track and track.name or l.track
+    if l.official and l.officialName and l.officialName ~= "" then
+      display = "Baja Sim Official Race (" .. l.officialName .. ")"
+    elseif l.official then
+      display = "Baja Sim Official Race"
+    end
     out[#out + 1] = {
       id      = l.id,
       track   = l.track,
-      name    = track and track.name or l.track,
+      name    = display,
       host    = RM.identity.displayName(l.host),
       laps    = l.laps,
       class   = l.class,
       open    = l.open,
+      official = l.official and true or false,
+      officialName = l.officialName,
       drivers = n,
     }
   end
@@ -219,14 +244,22 @@ function RM.lobby.wire(pid)
     }
   end
 
+  local display = track and track.name or l.track
+  if l.official and l.officialName and l.officialName ~= "" then
+    display = "Baja Sim Official Race (" .. l.officialName .. ")"
+  elseif l.official then
+    display = "Baja Sim Official Race"
+  end
   return {
     id      = l.id,
     track   = l.track,
-    name    = track and track.name or l.track,
+    name    = display,
     laps    = l.laps,
     mode    = l.mode,
     class   = l.class,
     open    = l.open,
+    official = l.official and true or false,
+    officialName = l.officialName,
     host    = l.host == pid,
     members = members,
   }

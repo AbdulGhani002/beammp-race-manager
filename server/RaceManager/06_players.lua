@@ -20,7 +20,7 @@ local deltaBuf  = {}   -- reused every tick, encoded before it is cleared
 local function rowFor(pid)
   local r = roster[pid]
   if not r then
-    r = { id = pid, name = "", level = 1, speed = 0, ping = -1, role = "player", guest = false }
+    r = { id = pid, key = nil, name = "", level = 1, speed = 0, ping = -1, role = "player", guest = false, queued = true }
     roster[pid] = r
   end
   return r
@@ -35,10 +35,11 @@ function RM.players.onJoin(pid)
   local s = RM.identity.session(pid)
   if not s then return end
   local r = rowFor(pid)
-  r.id, r.name    = pid, RM.identity.displayName(pid)
+  r.id, r.key, r.name = pid, s.key, RM.identity.displayName(pid)
   r.level, r.role = s.level or 1, s.role or "player"
   r.speed, r.ping = 0, -1
   r.guest = s.guest or false
+  r.queued = not s.activeVid
   touch(pid)
 end
 
@@ -112,6 +113,11 @@ function RM.players.onVehicle(pid, vid, data)
   s.vehicles[vid] = true
   s.activeVid = vid
 
+  local rr = roster[pid]
+  if rr and rr.queued then
+    rr.queued = false
+    touch(pid)
+  end
   local model = modelFrom(data)
   if model then
     s.models = s.models or {}
@@ -141,13 +147,22 @@ function RM.players.onVehicleGone(pid, vid)
     for other in pairs(s.vehicles) do s.activeVid = other break end
   end
   local r = roster[pid]
-  if r and not s.activeVid and r.speed ~= 0 then
-    r.speed = 0
+  if r and not s.activeVid then
+    if r.speed ~= 0 then r.speed = 0 end
+    if not r.queued then r.queued = true end
     touch(pid)
   end
 end
 
 local function sample(pid, s)
+  local r = roster[pid]
+  if r then
+    local q = not s.activeVid
+    if r.queued ~= q then
+      r.queued = q
+      touch(pid)
+    end
+  end
   if not s.activeVid then return end
   local raw = MP.GetPositionRaw(pid, s.activeVid)
   if type(raw) ~= "table" then return end
@@ -163,6 +178,20 @@ local function sample(pid, s)
       r.speed = v
       s.speed = v
       touch(pid)
+    end
+    -- cheap odometer + peaks for the driver card. written later, not every sample.
+    local rec = RM.identity.record(s.key)
+    if rec and v >= 0 then
+      rec.stats = rec.stats or { miles = 0, topMph = 0, sumMph = 0, samples = 0 }
+      local stt = rec.stats
+      local dt = (RM.config.rosterMs or 500) / 1000
+      if v > 1 then
+        stt.miles = (stt.miles or 0) + (v * dt / 3600)
+        stt.sumMph = (stt.sumMph or 0) + v
+        stt.samples = (stt.samples or 0) + 1
+      end
+      if v > (stt.topMph or 0) then stt.topMph = v end
+      s.statsDirty = true
     end
   end
 
@@ -181,10 +210,86 @@ end
 -- the list or somebody is mid run. The speed zones judge what is read here,
 -- and with the list closed they were judging nothing at all.
 function RM.players.sample()
-  if subs <= 0 and not RM.race.anyRunning() then return end
+  -- Always sample while anyone is on the server so mileage keeps moving
+  -- even with the player list closed. Roster push still only happens for
+  -- subscribers.
   for pid, s in pairs(RM.identity.sessions()) do
     sample(pid, s)
   end
+end
+
+function RM.players.remember(key, event)
+  local rec = RM.identity.record(tostring(key or ""))
+  if not rec or type(event) ~= "table" then return end
+  event.at = event.at or os.time()
+  rec.history = rec.history or {}
+  table.insert(rec.history, 1, event)
+  while #rec.history > 10 do rec.history[#rec.history] = nil end
+  rec.lastRace = event
+  RM.identity.markDirty()
+end
+
+function RM.players.flushStats()
+  local dirty = false
+  for _, s in pairs(RM.identity.sessions()) do
+    if s.statsDirty then
+      s.statsDirty = nil
+      dirty = true
+    end
+  end
+  if dirty then RM.identity.markDirty() end
+end
+
+function RM.players.profile(key)
+  key = tostring(key or "")
+  local rec = RM.identity.record(key)
+  if not rec then return { key = key, name = key, missing = true } end
+  local stats = rec.stats or {}
+  local samples = tonumber(stats.samples) or 0
+  local avg = 0
+  if samples > 0 then avg = (tonumber(stats.sumMph) or 0) / samples end
+  local xp = tonumber(rec.xp) or 0
+  local level = tonumber(rec.level) or (RM.xp and RM.xp.levelFor(xp)) or 1
+  local records = RM.records and RM.records.forDriver and RM.records.forDriver(key) or { runs = {}, bestLap = nil }
+  local challenges = RM.challenges and RM.challenges.forDriver and RM.challenges.forDriver(key) or {}
+  local into, need = 0, 750
+  if RM.xp and RM.xp.progress then
+    into, need, level = RM.xp.progress(xp)
+  end
+  local rank, ranked = 1, 1
+  if RM.xp and RM.xp.rankOf then
+    rank, ranked = RM.xp.rankOf(key)
+  end
+  local recent = {}
+  for i = 1, math.min(3, #(rec.history or {})) do
+    recent[i] = rec.history[i]
+  end
+  local pct = 0
+  if need and need > 0 then pct = math.floor((into / need) * 100 + 0.5) end
+  if pct < 0 then pct = 0 elseif pct > 100 then pct = 100 end
+  return {
+    key = key,
+    name = rec.name or key,
+    role = rec.role or "player",
+    guest = rec.guest and true or false,
+    level = level,
+    xp = xp,
+    xpInto = math.floor(into + 0.5),
+    xpNeed = math.floor(need + 0.5),
+    xpPct = pct,
+    rank = rank,
+    ranked = ranked,
+    miles = RM.util.round and RM.util.round(tonumber(stats.miles) or 0, 2) or (tonumber(stats.miles) or 0),
+    topMph = math.floor(tonumber(stats.topMph) or 0),
+    avgMph = math.floor(avg + 0.5),
+    firstSeen = rec.firstSeen,
+    lastSeen = rec.lastSeen,
+    records = records.runs,
+    challenges = challenges,
+    fastest = records.bestLap,
+    recent = recent,
+    lastRace = rec.lastRace,
+  }
 end
 
 function RM.players.setSubscribed(pid, on)

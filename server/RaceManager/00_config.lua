@@ -1,6 +1,6 @@
 RM = RM or {}
 
-RM.VERSION = "0.7.6-in-the-box"
+RM.VERSION = "0.7.5-framed"
 
 RM.config = {
   nameMinLen  = 3,
@@ -65,8 +65,8 @@ RM.config = {
   penalties = { recovery = 60.0, flatTire = 30.0, repair = 30.0, missedGate = 30.0,
                 speeding = 30.0 },
 
-  -- a run is thrown away if nobody crosses anything for this long
-  raceIdleTimeoutMs = 900000,
+  -- a run is thrown away if a lap has not been completed in this long
+  raceIdleTimeoutMs = 3600000,
 
   -- A course that folds back on itself puts the volume for one gate a few
   -- metres from another twenty six gates away, and driving the road near the
@@ -74,7 +74,7 @@ RM.config = {
   -- skips a gate or two; it does not skip twenty six. Anything past this is a
   -- volume that was brushed rather than a gate that was driven through, so it
   -- is ignored rather than priced.
-  maxGateSkip = 4,
+  maxGateSkip = 50,  -- each skipped gate still gets its own missed_gate penalty
 
   -- nothing on wheels does this, so a split implying it is a lie
   maxPlausibleMph = 300,
@@ -97,10 +97,10 @@ RM.config = {
   -- stay over it before it costs you. one bump over a crest is free.
   speedZoneMph   = 37,
   speedGraceSec  = 3.0,
-  -- what a finish pays by place, and how much a level costs. two hundred
-  -- for the win, two less each place after, never under the floor.
+  -- what a finish pays by place. two hundred for the win, two less each
+  -- place after, never under the floor. Levels grow: 750 / 1,750 / 3,000…
   xpCurve      = { first = 200, step = 2, floor = 20 },
-  xpPerLevel   = 1000,
+  xpPerLevel   = 1000, -- unused; kept so older configs still load
 
   -- The race classes, as he sent them on 2026-09-04, in his order.
   --

@@ -16,7 +16,7 @@ local byKey  = {}   -- key -> team id
 local offers = {}   -- key being asked -> { from, kind, at }
 local nextId = 1
 
-local OFFER_SECS = 60
+local OFFER_SECS = 30
 
 local function keyOf(pid)
   local s = RM.identity.session(pid)
@@ -66,7 +66,10 @@ function RM.team.wire(key)
   local who = {}
   for i = 1, #team.members do
     local k = team.members[i]
-    who[#who + 1] = { name = nameOf(k), me = k == key or nil }
+    who[#who + 1] = {
+      name = nameOf(k), me = k == key or nil,
+      pid = RM.identity.pidForKey(k), key = k,
+    }
   end
   return { team = { id = team.id, model = team.model, members = who } }
 end
@@ -98,6 +101,14 @@ function RM.team.offer(pid, targetPid, kind)
 
   offers[bKey] = { from = aKey, kind = kind, at = RM.now() }
   tell(bKey, "team.state", RM.team.wire(bKey))
+  local bPid = RM.identity.pidForKey(bKey)
+  if bPid then
+    RM.bus.queue(bPid, "invite.push", {
+      kind = "team",
+      sub = kind,
+      from = nameOf(aKey),
+    })
+  end
   RM.info(("%s sent a team %s to %s"):format(nameOf(aKey), kind, nameOf(bKey)))
   return true, kind
 end

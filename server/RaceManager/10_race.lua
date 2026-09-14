@@ -103,6 +103,14 @@ function RM.race.arm(pid, d)
     challenge = tostring(d.challenge)
   end
 
+  -- Official / series race (staff+ only). Name is shown on lobby and results.
+  local official, officialName = false, nil
+  if d.official and RM.roles and RM.roles.atLeast and RM.roles.atLeast(pid, "staff") then
+    official = true
+    local nm = tostring(d.officialName or d.official_name or ""):gsub("^%s+", ""):gsub("%s+$", "")
+    if nm ~= "" then officialName = nm:sub(1, 80) end
+  end
+
   runs[pid] = {
     key        = s.key,
     track      = track.id,
@@ -127,6 +135,8 @@ function RM.race.arm(pid, d)
     penalties  = {},
     suspect    = false,
     inPit      = false,
+    official   = official,
+    officialName = officialName,
     -- how many spare changes are left. seeded from what is really on the
     -- car's rack the first time the button is pressed, because the server
     -- has no way of knowing what the driver turned up in.
@@ -249,9 +259,12 @@ local function finish(pid, r, t)
   r.finishedAt = t
   r.clean = RM.util.round(t - r.startedAt, 3)
   r.corrected = RM.util.round(r.clean + RM.race.penaltyTotal(r), 3)
+  r.boardLap = r.currentLap
+  r.boardElapsed = r.clean
   RM.info(("%s finished %s: clean %.3f, corrected %.3f%s"):format(
     RM.identity.displayName(pid), r.track, r.clean, r.corrected,
     r.suspect and " (marked)" or ""))
+  RM.race.refreshBoard(r.track)
 end
 
 -- The offset between the two clocks is re-estimated every few seconds, and
@@ -297,10 +310,14 @@ function RM.race.gate(pid, index, clientTime)
     r.state      = "running"
     r.currentLap = 1
     r.startedAt  = t
+    r.lastLapAt  = t
     r.lastAt     = t
     r.splits[1][1] = 0
     r.lapStart[1] = 0
     r.nextGate   = 2
+    r.boardLap = 1
+    r.boardElapsed = 0
+    RM.race.refreshBoard(r.track)
     return true, { lap = 1, gate = 1, split = 0, started = true, next = 2,
                    done = 1, penalties = 0 }
   end
@@ -360,10 +377,14 @@ function RM.race.gate(pid, index, clientTime)
     end
 
     local doneLap = r.currentLap
+    r.lastLapAt = t
     r.currentLap = r.currentLap + 1
     r.splits[r.currentLap][1] = elapsed
     r.lapStart[r.currentLap] = elapsed
     r.nextGate = 2
+    r.boardLap = r.currentLap
+    r.boardElapsed = elapsed
+    RM.race.refreshBoard(r.track)
     return true, withPenalties(r, { lap = r.currentLap, gate = 1, split = elapsed,
                    lapTime = r.lapTime[doneLap], lapTimeLap = doneLap,
                    lapDone = true, next = 2, done = 1 })
@@ -425,6 +446,7 @@ function RM.race.gate(pid, index, clientTime)
 
   -- a later gate firing while an earlier one has no split means the earlier
   -- ones were cut or tunnelled through at speed
+  -- One missed_gate penalty per skipped checkpoint (gate 5 → gate 12 = six charges).
   if index > expected then
     local missed = r.missed[r.currentLap] or {}
     for g = expected, index - 1 do
@@ -511,7 +533,7 @@ function RM.race.sweep()
   local ended = nil
   for pid, r in pairs(runs) do
     if r.state == "armed" or r.state == "running" then
-      local since = now - (r.startedAt or r.armedAt or now)
+      local since = now - (r.lastLapAt or r.startedAt or r.armedAt or now)
       if since > limit then
         RM.race.abandon(pid, "no lap finished in " .. math.floor(limit / 60) .. " minutes")
         ended = ended or {}
@@ -553,6 +575,7 @@ function RM.race.wire(pid)
     challenge = r.challenge,
     inPit    = r.inPit and true or false,
     why      = r.why,
+    board    = RM.race.boardOf(r.track),
 
     -- only somebody who is off track is waiting on anyone. waitingOn counts
     -- every live run on the course including this one, so sending it while the
@@ -590,6 +613,66 @@ function RM.race.results(pid)
     laps      = laps,
     suspect   = r.suspect,
   }
+end
+
+local boards = {}
+
+function RM.race.boardOf(track)
+  if not track then return {} end
+  return boards[track] or {}
+end
+
+-- Positions freeze until a lap is completed. Times are raw (no penalties).
+function RM.race.refreshBoard(track)
+  if not track then return end
+  local rows = {}
+  for pid, r in pairs(runs) do
+    if r.track == track and (r.state == "running" or r.state == "finished") then
+      rows[#rows + 1] = {
+        id = pid,
+        key = r.key,
+        name = RM.identity.displayName(pid),
+        lap = tonumber(r.boardLap or r.currentLap) or 0,
+        laps = tonumber(r.laps) or 0,
+        elapsed = tonumber(r.boardElapsed) or 0,
+        finished = r.state == "finished" and true or false,
+        queued = (function()
+          if not (RM.players and RM.players.roster) then return false end
+          local rr = RM.players.roster()[pid]
+          return rr and rr.queued and true or false
+        end)(),
+      }
+    end
+  end
+  table.sort(rows, function(a, b)
+    if a.finished ~= b.finished then return a.finished and not b.finished end
+    if a.lap ~= b.lap then return a.lap > b.lap end
+    return a.elapsed < b.elapsed
+  end)
+  local lead = rows[1]
+  for i, row in ipairs(rows) do
+    row.pos = i
+    if not lead or i == 1 then
+      row.gap = 0
+      row.gapLaps = 0
+    elseif lead.lap ~= row.lap then
+      row.gap = 0
+      row.gapLaps = lead.lap - row.lap
+    else
+      row.gap = RM.util.round((row.elapsed or 0) - (lead.elapsed or 0), 3)
+      row.gapLaps = 0
+    end
+  end
+  boards[track] = rows
+  if RM.bus and RM.bus.queue then
+    for pid, r in pairs(runs) do
+      if r.track == track then
+        local w = RM.race.wire(pid)
+        w.board = rows
+        RM.bus.queue(pid, "race.state", w)
+      end
+    end
+  end
 end
 
 function RM.race.count()

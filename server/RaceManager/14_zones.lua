@@ -12,6 +12,32 @@ RM.zones = {}
 -- charge only lands if you stay over, so one bump over a crest is free. Once
 -- it has charged you it will not charge again until you drop back under.
 
+function RM.zones.szGate(trackId, index)
+  local track = RM.tracks.get(trackId)
+  if not track or type(track.szGates) ~= "table" then return nil end
+  return track.szGates[math.floor(tonumber(index) or 0)]
+end
+
+function RM.zones.onSzHit(pid, index)
+  -- kept so an old client that still sends sz.hit does not error
+  local g = RM.zones.szGate((RM.race.get(pid) or {}).track, index)
+  if g then return RM.zones.onSzState(pid, true, g.mph) end
+  return nil
+end
+
+function RM.zones.onSzState(pid, inside, mph)
+  local r = RM.race.get(pid)
+  if not r or (r.state ~= "running" and r.state ~= "armed") then return nil end
+  if inside then
+    r.szInside = true
+    r.szMph = tonumber(mph) or r.szMph or RM.config.speedZoneMph or 37
+    return "on"
+  end
+  r.szInside, r.szMph = false, nil
+  r.overFor, r.overCharged = nil, nil
+  return "off"
+end
+
 -- which zone covers the stretch you are on. the stretch is named by the gate
 -- you are heading for, so a zone from 12 to 14 covers the drive to 13 and 14.
 function RM.zones.at(trackId, nextGate)
@@ -32,6 +58,9 @@ function RM.zones.sample(pid, mph)
   if not RM.util.isNum(mph) then return nil end
 
   local zone = RM.zones.at(r.track, r.nextGate)
+  if not zone and r.szInside and r.szMph then
+    zone = { mph = r.szMph, from = 0, to = 0, box = true }
+  end
   if not zone then
     r.overFor, r.overCharged = nil, nil
     return nil
@@ -62,6 +91,9 @@ function RM.zones.wire(pid)
   local r = RM.race.get(pid)
   if not r or r.state ~= "running" then return nil end
   local zone = RM.zones.at(r.track, r.nextGate)
+  if not zone and r.szInside and r.szMph then
+    return { mph = r.szMph, box = true, from = 0, to = 0 }
+  end
   if not zone then return nil end
   return { mph = zone.mph, from = zone.from, to = zone.to }
 end

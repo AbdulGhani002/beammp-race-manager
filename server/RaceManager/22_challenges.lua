@@ -32,10 +32,66 @@ local lastSeen = {}
 
 function RM.challenges.init()
   list = RM.store.load(STORE, {})
+  RM.challenges.dropOrphans()
+end
+
+function RM.challenges.dropForTrack(trackId)
+  trackId = tostring(trackId or "")
+  if trackId == "" then return 0 end
+  local n = 0
+  for id, c in pairs(list) do
+    if c and c.track == trackId then
+      list[id] = nil
+      lastSeen[id] = nil
+      n = n + 1
+    end
+  end
+  if n > 0 then
+    save()
+    RM.challenges.broadcastList()
+    if RM.live and RM.live.writeChallenges then RM.live.writeChallenges() end
+    RM.info(("dropped %d challenge(s) for deleted course %s"):format(n, trackId))
+  end
+  return n
+end
+
+function RM.challenges.dropOrphans()
+  if not RM.tracks or not RM.tracks.get then return 0 end
+  local n = 0
+  for id, c in pairs(list) do
+    if c and c.track and not RM.tracks.get(c.track) then
+      list[id] = nil
+      lastSeen[id] = nil
+      n = n + 1
+    end
+  end
+  if n > 0 then
+    save()
+    RM.info(("dropped %d challenge(s) for missing courses"):format(n))
+  end
+  return n
 end
 
 function RM.challenges.get(id) return list[tostring(id or "")] end
 function RM.challenges.all() return list end
+
+function RM.challenges.forDriver(key)
+  key = tostring(key or "")
+  local out = {}
+  for _, c in pairs(list) do
+    local r = c.results and c.results[key]
+    if type(r) == "table" then
+      out[#out + 1] = {
+        id = c.id, name = c.name, kind = c.kind,
+        trackName = c.trackName or c.name, best = r.best,
+        class = r.class, mode = r.mode, vehicle = r.vehicle,
+        tier = r.tier, xp = r.xp, at = r.at,
+      }
+    end
+  end
+  table.sort(out, function(a, b) return (a.best or 1e9) < (b.best or 1e9) end)
+  return out
+end
 
 local function stateOf(c, at)
   at = at or now()
@@ -226,7 +282,7 @@ local function readFields(d, into)
 end
 
 function RM.challenges.create(pid, d)
-  if not RM.roles.atLeast(pid, "admin") then return false, "not_allowed" end
+  if not RM.roles.atLeast(pid, "staff") then return false, "not_allowed" end
   if type(d) ~= "table" then return false, "bad_request" end
   local ok, f = readFields(d, nil)
   if not ok then return false, f end
@@ -252,7 +308,7 @@ function RM.challenges.create(pid, d)
 end
 
 function RM.challenges.update(pid, d)
-  if not RM.roles.atLeast(pid, "admin") then return false, "not_allowed" end
+  if not RM.roles.atLeast(pid, "staff") then return false, "not_allowed" end
   if type(d) ~= "table" then return false, "bad_request" end
   local c = RM.challenges.get(d.id)
   if not c then return false, "no_such_challenge" end
@@ -275,7 +331,7 @@ function RM.challenges.update(pid, d)
 end
 
 function RM.challenges.delete(pid, id)
-  if not RM.roles.atLeast(pid, "admin") then return false, "not_allowed" end
+  if not RM.roles.atLeast(pid, "staff") then return false, "not_allowed" end
   local c = RM.challenges.get(id)
   if not c then return false, "no_such_challenge" end
   list[c.id] = nil
@@ -286,7 +342,7 @@ function RM.challenges.delete(pid, id)
 end
 
 function RM.challenges.endNow(pid, id)
-  if not RM.roles.atLeast(pid, "admin") then return false, "not_allowed" end
+  if not RM.roles.atLeast(pid, "staff") then return false, "not_allowed" end
   local c = RM.challenges.get(id)
   if not c then return false, "no_such_challenge" end
   if stateOf(c) == "ended" then return false, "already_ended" end
@@ -350,7 +406,7 @@ function RM.challenges.onFinish(e)
     gained = due - paidBefore
     c.results[e.key] = {
       name = e.name, best = e.corrected, tier = tier, xp = due,
-      at = now(), vehicle = e.vehicle, class = e.class,
+      at = now(), vehicle = e.vehicle, class = e.class, mode = e.mode,
     }
     if gained > 0 and RM.xp then RM.xp.give(e.key, gained, "challenge") end
     save()
@@ -358,6 +414,13 @@ function RM.challenges.onFinish(e)
   end
 
   local mine = c.results[e.key]
+  if RM.players and RM.players.remember then
+    RM.players.remember(e.key, {
+      kind = "challenge", name = c.name, trackName = c.trackName or c.name,
+      track = c.track, corrected = e.corrected, class = e.class, mode = e.mode,
+      vehicle = e.vehicle, at = now(), tier = tier, xp = gained, improved = improved,
+    })
+  end
   RM.info(("%s on challenge %s: %.3f, %s, %d xp%s"):format(
     tostring(e.name), c.id, e.corrected,
     tier and ("tier " .. tier) or "outside the ladder", gained,
