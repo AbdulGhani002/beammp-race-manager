@@ -2,7 +2,7 @@
 -- UI is driven primarily by uiPoll() so LED / zone / keys do not depend on
 -- guihooks reaching a nested Angular directive (that path was unreliable).
 local M = {}
-M.VERSION = "0.7.17"
+M.VERSION = "0.7.18"
 
 local cfg = {
   tick = 0.05,

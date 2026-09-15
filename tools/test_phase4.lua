@@ -297,6 +297,32 @@ M.clearOutbox(0)
 tick(10)
 eq(M.lastMessage(0, "zone.warn"), nil, "eleven mph is nothing to say")
 
+section("a box the car cannot read the limit off is still judged, from the server's own copy")
+-- his courses carry the limit on the box. One that does not would have gone
+-- unjudged: the client sends in with no limit and the server had nothing.
+RM.tracks.setZonesDirect("loop", {})
+do
+  local t = RM.tracks.get("loop")
+  t.szGates = { { i = 1, mph = 20, pos = { x = 250, y = 0, z = 0 }, yaw = 0,
+                  size = { w = 20, h = 8, d = 40 } } }
+end
+M.setVelocity(0, 1, 5, 0, 0)
+tick(10)
+M.clearOutbox(0)
+M.clientSend(0, "sz.state", { inside = true, i = 1 })
+tick(1)
+local blind = M.lastMessage(0, "zone.warn")
+ok(blind ~= nil and blind.event == "on", "the zone is on")
+eq(blind and blind.zone and blind.zone.mph, 20, "at the limit the server holds for box one")
+M.clearOutbox(0)
+M.clientSend(0, "sz.state", { inside = false })
+tick(1)
+ok(M.lastMessage(0, "zone.warn") ~= nil, "and it comes off again")
+do
+  local t = RM.tracks.get("loop")
+  t.szGates = {}
+end
+
 section("a box zone: the car's own measure says in, the server judges it, and says out")
 -- the client's poll says in, once, and the server takes its word: it knows
 -- nothing of where a box is, only that the car is in one at this limit. No

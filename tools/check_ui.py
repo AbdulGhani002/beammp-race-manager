@@ -369,6 +369,13 @@ def main():
           "the bridge judges a box by where the car's nose points again")
     check("boxId ~= leftBoxId" in bridge and 'lastZoneKey:match("^box:(.+)$")' in bridge,
           "the box just driven through no longer stays quiet until the car is clear of it")
+    # a box whose limit cannot be read is still a box; showing nothing at all
+    # is a zone the driver cannot see
+    check("local function boxLimit(b)" in bridge and "DEFAULT_BOX_MPH" in bridge
+          and "tonumber(b.mph) or tonumber(b.limitMph)" in bridge,
+          "a box whose limit is spelled another way shows nothing again")
+    check("this race: box seen" in bridge and "tally.boxWarned" in bridge,
+          "the live report no longer counts what the whole race did")
     check("function M.szState()" in read(os.path.join(LUA, "triggers.lua"))
           and 'if name:match("^" .. SZ_PREFIX .. "(%d+)$") then return end' in read(os.path.join(LUA, "triggers.lua")),
           "a box is measured by two voices again, the poll and the volume")

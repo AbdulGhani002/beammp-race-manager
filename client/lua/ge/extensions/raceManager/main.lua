@@ -1,6 +1,6 @@
 local M = {}
 
-M.VERSION = "0.7.17-boxes-by-distance"
+M.VERSION = "0.7.18-box-limit-and-tally"
 
 -- ui goes last: it reads from every other module the moment it comes up
 local SUBS = {

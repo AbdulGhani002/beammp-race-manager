@@ -483,6 +483,13 @@ local function wireChannels()
     if watching(pid) then return end
     local inside = type(d) == "table" and d.inside == true
     local mph = type(d) == "table" and tonumber(d.mph) or nil
+    -- a car whose copy of the box carries no limit still gets judged: the
+    -- server holds the same box and can look it up by its number
+    if inside and not mph then
+      local i = type(d) == "table" and tonumber(d.i) or nil
+      local g = i and RM.zones.szGate((RM.race.get(pid) or {}).track, i) or nil
+      mph = g and tonumber(g.mph) or nil
+    end
     local what = RM.zones.onSzState(pid, inside, mph)
     if what then
       RM.bus.queue(pid, "zone.warn", { charged = false, event = what, zone = RM.zones.wire(pid) })

@@ -1,6 +1,6 @@
 RM = RM or {}
 
-RM.VERSION = "0.7.17-boxes-by-distance"
+RM.VERSION = "0.7.18-box-limit-and-tally"
 
 RM.config = {
   nameMinLen  = 3,

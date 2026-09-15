@@ -86,6 +86,11 @@ end
 local function mph(v) return v / 2.23694 end
 local BOX = { i = 1, mph = 20, pos = { x = 500, y = 0, z = 0 } }
 local BOX2 = { i = 2, mph = 30, pos = { x = 900, y = 0, z = 0 } }
+-- courses captured by an older build, or edited by hand, spell the limit
+-- other ways or leave it off altogether
+local BOX3 = { i = 3, limitMph = 45, pos = { x = 1300, y = 0, z = 0 } }
+local BOX4 = { i = 4, limitKmh = 40.2336, pos = { x = 1700, y = 0, z = 0 } }
+local BOX5 = { i = 5, pos = { x = 2000, y = 0, z = 0 } }
 local function box(inside, dist, which)
   which = which or BOX
   szNow = { box = which, inside = inside, dist = inside and 0 or dist,
@@ -296,6 +301,36 @@ eq(led().pattern, "lines", "blue lines")
 S.onRaceManagerPassStatus({ state = "cancelled" })
 drive(540, mph(15), 5.3)
 eq(led().color, "off", "cancelled, dots out")
+
+section("a box that spells its limit another way, or carries none, is still a box")
+status.state, status.next, status.done = "running", 2, 1
+track.zones = {}
+szNow = nil
+drive(1200, mph(30), 5.3)
+sounds()
+
+box(false, 150, BOX3)
+drive(1150, mph(30), 0.3)
+eq(snap().speedZoneWarning, true, "limitMph is read")
+eq(snap().speedZoneLimitMph, 45, "at its own limit")
+eq(led().pattern, "limit:45", "and the dots spell it")
+
+box(false, 150, BOX4)
+drive(1550, mph(30), 0.3)
+eq(snap().speedZoneWarning, true, "a limit in km/h is read")
+eq(snap().speedZoneLimitMph, 25, "turned into mph")
+eq(led().pattern, "limit:25", "and spelled")
+
+box(true, 0, BOX5)
+drive(2000, mph(15), 0.3)
+eq(snap().speedZoneActive, true, "a box with no limit at all is still a zone the car is in")
+eq(led().color, "red", "red")
+eq(snap().speedZoneLimitMph, 37, "at the same default the server gives a new box")
+eq(led().pattern, "limit:37", "and the dots say so rather than going dark")
+box(false, 1, BOX5)
+drive(2030, mph(15), 0.3)
+szNow = nil
+drive(2100, mph(15), 5.3)
 
 print("")
 print(("%d passed, %d failed"):format(pass, fail))
