@@ -62,7 +62,21 @@ S.onExtensionLoaded()
 -- the snapshot the screen would, and the sounds it would play.
 local function snap() return S.getSnapshot() end
 local function led() local s = snap() return { color = s.ledColor, flash = s.ledFlash, pattern = s.ledPattern } end
-local function sounds() return S.drainSounds() end
+-- the sounds go out with the hook, every other tick, and are read off the
+-- hooks caught above; whatever is still waiting in the unit counts too
+local seenEvents = 0
+local function sounds()
+  local out = {}
+  for i = seenEvents + 1, #events do
+    local e = events[i]
+    if e.name == "RMSI_Update" and type(e.data) == "table" then
+      for _, s in ipairs(e.data.sounds or {}) do out[#out + 1] = s end
+    end
+  end
+  seenEvents = #events
+  for _, s in ipairs(S.drainSounds()) do out[#out + 1] = s end
+  return out
+end
 local function has(list, name) for _, n in ipairs(list) do if n == name then return true end end return false end
 local function tick() S.onUpdate(0.2) end
 local function drive(x, mps)

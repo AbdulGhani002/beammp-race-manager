@@ -203,6 +203,21 @@ poll({ testStep: 0 });
 poll({ testStep: 1, ledColor: "yellow", ledFlash: true, ledPattern: "triangle" });
 eq(lua.filter(c => /screenSaw/.test(c)).length, 3, "a new run answers step one again");
 
+section("the unit's word by hook takes the same road in as the poll's answer");
+lua.length = 0;
+plays.length = 0;
+fire("RMSI_Update", snapshot({ ledColor: "green", ledPattern: "all", sounds: ["vcp"], testStep: 5 }));
+ok(/l-green/.test($scope.ledCls), "the light");
+eq(plays.length, 1, "the sound, once");
+eq(lua.filter(c => /screenSaw/.test(c)).length, 1, "and the test step answered");
+fire("RMSI_Update", snapshot({ keys: ["toggle"] }));
+eq($scope.powered, false, "a key by hook does what the button does");
+fire("RMSI_Update", snapshot({ keys: ["toggle"] }));
+eq($scope.powered, true, "and back");
+fire("RMSI_Update", snapshot({ heading: 355, raceActive: true, vcpIndex: 3, vcpName: "VCP3" }));
+eq($scope.hdg, "355", "the heading");
+eq($scope.wpLabel, "03-VCP3", "and the gate");
+
 section("the speed on the idle screen is mph, like the tachometer");
 fire("streamsUpdate", { electrics: { airspeed: 20 } });
 eq($scope.spd, "45", "twenty metres a second is forty five");

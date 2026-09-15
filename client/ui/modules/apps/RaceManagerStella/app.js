@@ -695,44 +695,14 @@ angular.module('beamng.apps').directive('rmStellaInstrument', function () {
       }
 
       // ---- Main data update (10 fps from Lua) ----
+      // The unit's word, by hook, ten times a second: the readings, the
+      // light, the sounds and the keys. The same code takes it in as takes
+      // the poll's answer, so the two roads cannot disagree.
       $scope.$on('RMSI_Update', function (_ev, d) {
-        $scope.$applyAsync(function () {
-          if (!d) return;
-          $scope.hdg        = pad(d.heading || 0, 3);
-          if ($scope._airKmh == null) $scope.spd = String(d.speed || 0);
-          $scope.dVCP       = fmtKm(d.distToVCPkm || 0);
-          $scope.dMeters    = String(d.distToVCPm || 0);
-          $scope.wpName     = d.vcpName || 'VCP';
-          $scope.wpLabel    = pad(d.vcpIndex || 0, 2) + '-' + (d.vcpName || 'WP');
-          $scope.wpKm       = d.distToVCPkm != null ? d.distToVCPkm.toFixed(2) : '0.00';
-          $scope.tDist      = fmtKm(d.totalDistKm || 0);
-          $scope.raceActive = !!(d.raceActive);
-          $scope.approaching = !!(d.isApproaching);
-          $scope.isStopped  = !!(d.isStopped);
-          $scope.cautionAhead = !!(d.cautionAhead || d.hazardAhead);
-          $scope.breakdownActive = !!(d.breakdownActive);
-          $scope.hazardAhead = !!(d.hazardAhead);
-          $scope.flagState  = d.blueFlagState || 'none';
-          $scope.flagPlayer = d.blueFlagPlayer || '';
-          var pid = (d.playerId != null) ? Number(d.playerId) : NaN;
-          $scope.raceNum    = isNaN(pid) ? pad(d.vcpIndex || 0, 4) : pad(Math.max(0, Math.floor(pid)), 4);
-          $scope.trackLabel = '';  // track name intentionally not shown on Stella
-
-          // Speed zone data from stella.lua
-          $scope.szActive    = !!(d.speedZoneActive);
-          $scope.szWarning   = !!(d.speedZoneWarning);
-          $scope.szExceeding = !!(d.speedExceeding);
-          $scope.szLimit     = d.speedZoneLimit || 0;
-          $scope.szLimitMph  = d.speedZoneLimitMph || Math.round($scope.szLimit * 0.621371);
-          $scope.szName      = d.speedZoneName || '';
-
-          setLedVisual(d.ledColor, d.ledFlash, d.ledPattern);
-
-          // Update compass SVG in approach mode
-          if (d.isApproaching && d.bearingToVCP != null) {
-            setTimeout(function () { updateCompass(d.heading || 0, d.bearingToVCP || 0); }, 0);
-          }
-        });
+        applySnapshot(d);
+        if (d && d.isApproaching && d.bearingToVCP != null) {
+          setTimeout(function () { updateCompass(d.heading || 0, d.bearingToVCP || 0); }, 0);
+        }
       });
 
       // ---- Show / Hide ----

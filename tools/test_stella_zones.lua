@@ -16,7 +16,12 @@ end
 local function section(t) print("") print("== " .. t) end
 
 math.atan2 = math.atan2 or function(y, x) return math.atan(y, x) end
-guihooks = { trigger = function() end }
+local hooked = {}
+guihooks = { trigger = function(name, d)
+  if name == "RMSI_Update" and type(d) == "table" then
+    for _, s in ipairs(d.sounds or {}) do hooked[#hooked + 1] = s end
+  end
+end }
 
 local car = { pos = { x = 0, y = 0, z = 0 }, vel = { x = 0, y = 0, z = 0 } }
 local function vec(t)
@@ -63,7 +68,14 @@ extensions.raceManager_stella = B
 
 local function snap() return S.getSnapshot() end
 local function led() local s = snap() return { color = s.ledColor, flash = s.ledFlash, pattern = s.ledPattern } end
-local function sounds() return S.drainSounds() end
+-- the sounds go out with the hook, every other tick; whatever is still
+-- waiting in the unit counts too
+local function sounds()
+  local out = hooked
+  hooked = {}
+  for _, s in ipairs(S.drainSounds()) do out[#out + 1] = s end
+  return out
+end
 local function has(list, name) for _, n in ipairs(list) do if n == name then return true end end return false end
 local function drive(x, mps, seconds)
   car.pos = { x = x, y = 0, z = 0 }

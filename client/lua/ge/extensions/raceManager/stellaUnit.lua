@@ -2,7 +2,7 @@
 -- UI is driven primarily by uiPoll() so LED / zone / keys do not depend on
 -- guihooks reaching a nested Angular directive (that path was unreliable).
 local M = {}
-M.VERSION = "0.7.13"
+M.VERSION = "0.7.14"
 
 local cfg = {
   tick = 0.05,
@@ -26,10 +26,19 @@ local breakdown, hazardAhead = false, nil
 local lastExceeding, testOver = false, false
 local lastHdg, lastSpd, lastDist = 0, 0, 0
 local pendingSounds = {}  -- { "advance", "exceed", "vcp", "beep", ... }
-local ticks = 0           -- tenths of a second of work done, for the test from chat
+local ticks = 0           -- twentieths of a second of work done, for the test from chat
+local emitSince = 0       -- since the screen was last told
 local testStep = 0        -- the step of the test from chat that is showing, 0 for none
 
 local function num(v, d) return tonumber(v) or d or 0 end
+
+-- The screen hears the unit by hook. That is the road that has carried
+-- the unit's readings to the screen since the first day; the poll the
+-- screen also runs asks the game to hand a value back, and on his machine
+-- nothing ever came back, so the screen sat on READY while the unit ran.
+local function emit(name, data)
+  if guihooks and guihooks.trigger then guihooks.trigger(name, data or {}) end
+end
 local function point(cp)
   if not cp then return nil end
   local p = cp.pos or cp.position or cp
@@ -350,51 +359,22 @@ end
 
 function M.ticks() return ticks end
 
--- Called from the UI every ~100ms. Returns JSON so bngApi always gets a string.
+-- The poll's answer, for a screen whose poll does come back: the readings
+-- only. It drains nothing. It used to take the sounds and the keys with
+-- it, and where the answer never came back they were lost on the way.
 function M.uiPoll()
-  local keys = {}
-  pcall(function()
-    local k = extensions.raceManager_keys
-    if k and k.pull then
-      for _ = 1, 8 do
-        local a = k.pull()
-        if not a then break end
-        keys[#keys + 1] = a
-      end
-    end
-  end)
-  local sounds = M.drainSounds()
   local snap = M.getSnapshot()
-  snap.keys = keys
-  snap.sounds = sounds
-  -- Prefer jsonEncode when present (BeamNG)
+  snap.keys = {}
+  snap.sounds = {}
   local ok, encoded = pcall(function()
     if jsonEncode then return jsonEncode(snap) end
     if json and json.encode then return json.encode(snap) end
     return nil
   end)
   if ok and type(encoded) == "string" then return encoded end
-  -- minimal fallback
-  return string.format(
-    '{"ledColor":%q,"ledFlash":%s,"ledPattern":%q,"speedZoneActive":%s,"speedZoneWarning":%s,"speedExceeding":%s,"speedZoneLimitMph":%s,"heading":%d,"speed":%d,"raceActive":%s,"greenLeft":%.2f,"keys":[],"sounds":[]}',
-    tostring(snap.ledColor or "off"),
-    snap.ledFlash and "true" or "false",
-    tostring(snap.ledPattern or "none"),
-    snap.speedZoneActive and "true" or "false",
-    snap.speedZoneWarning and "true" or "false",
-    snap.speedExceeding and "true" or "false",
-    tostring(snap.speedZoneLimitMph or 0),
-    snap.heading or 0,
-    snap.speed or 0,
-    snap.raceActive and "true" or "false",
-    snap.greenLeft or 0
-  )
+  return "{}"
 end
 
--- a car right beside, or one coming up from behind faster than us. A car
--- behind that is not closing is the field, not a warning; every car within
--- a hundred and fifty metres behind used to light the triangle, and in a
--- race that was most of the time.
 local function detectProximity(v, pos, fwd, playerSpeed)
   if not be or not be.getObjectCount then return end
   local found
@@ -445,6 +425,7 @@ end
 local function tickUnit(dt)
   dt = num(dt, 0)
   clock = clock + dt
+  emitSince = emitSince + dt
 
   -- expire green every frame (not only on tick boundary)
   if greenUntil > 0 and clock >= greenUntil then
@@ -505,6 +486,26 @@ local function tickUnit(dt)
   lastExceeding = exceeding
 
   restoreLed()
+
+  -- ten times a second the screen is told everything: the readings, the
+  -- light, the sounds to play and the keys pressed
+  if emitSince >= 0.1 then
+    emitSince = 0
+    local snap = M.getSnapshot()
+    snap.sounds = M.drainSounds()
+    snap.keys = {}
+    pcall(function()
+      local k = extensions.raceManager_keys
+      if k and k.pull then
+        for _ = 1, 8 do
+          local a = k.pull()
+          if not a then break end
+          snap.keys[#snap.keys + 1] = a
+        end
+      end
+    end)
+    emit("RMSI_Update", snap)
+  end
 end
 
 -- one thing the unit can show, for the test from chat. The step number

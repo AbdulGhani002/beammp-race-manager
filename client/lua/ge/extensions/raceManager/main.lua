@@ -1,6 +1,6 @@
 local M = {}
 
-M.VERSION = "0.7.13-boxes-and-quiet"
+M.VERSION = "0.7.14-by-hook"
 
 -- ui goes last: it reads from every other module the moment it comes up
 local SUBS = {

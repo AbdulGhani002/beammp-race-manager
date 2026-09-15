@@ -16,7 +16,12 @@ end
 local function section(t) print("") print("== " .. t) end
 
 math.atan2 = math.atan2 or function(y, x) return math.atan(y, x) end
-guihooks = { trigger = function() end }
+local hooked = {}
+guihooks = { trigger = function(name, d)
+  if name == "RMSI_Update" and type(d) == "table" then
+    for _, s in ipairs(d.sounds or {}) do hooked[#hooked + 1] = s end
+  end
+end }
 
 local function vec(t)
   return { x = t.x, y = t.y, z = t.z,
@@ -90,7 +95,14 @@ extensions.raceManager_stella = B
 local function snap() return S.getSnapshot() end
 local function led() local s = snap() return { color = s.ledColor, flash = s.ledFlash, pattern = s.ledPattern } end
 local function flag() return snap().blueFlagState end
-local function sounds() return S.drainSounds() end
+-- the sounds go out with the hook, every other tick; whatever is still
+-- waiting in the unit counts too
+local function sounds()
+  local out = hooked
+  hooked = {}
+  for _, s in ipairs(S.drainSounds()) do out[#out + 1] = s end
+  return out
+end
 local function has(list, name) for _, n in ipairs(list) do if n == name then return true end end return false end
 -- both run: the bridge at its own pace, the unit on the frame
 local function run(seconds)
@@ -107,6 +119,24 @@ run(1.0)
 eq(snap().raceActive, false, "idle")
 eq(led().color, "off", "nothing lit")
 eq(#sounds(), 0, "and nothing to play")
+
+section("the unit tells the screen everything by hook, ten times a second")
+local told = {}
+local before = guihooks.trigger
+guihooks.trigger = function(name, d) before(name, d) if name == "RMSI_Update" then told[#told + 1] = d end end
+extensions.raceManager_keys = { pull = (function()
+  local q = { "toggle", "flag" }
+  return function() return table.remove(q, 1) end
+end)() }
+run(1.0)
+ok(#told >= 9 and #told <= 11, ("ten a second (%d)"):format(#told))
+eq(told[1].heading, 90, "with the heading")
+eq(told[1].ledColor, "off", "and the light")
+local keys = {}
+for _, d in ipairs(told) do for _, k in ipairs(d.keys or {}) do keys[#keys + 1] = k end end
+eq(table.concat(keys, ","), "toggle,flag", "and the keys pressed, each once")
+extensions.raceManager_keys = nil
+guihooks.trigger = before
 
 section("a race is armed, then starts, and the Stella leaves idle")
 status.state, status.next, status.done = "armed", 1, 0
@@ -234,7 +264,7 @@ eq(led().color, "off", "nothing lit")
 section("!stella runs the unit through everything it can show, two seconds a step, and ends with a verdict")
 extensions.raceManager_race.isActive = function() return false end
 ok(B.selfTest(), "starts when there is no race on")
-ok(notices[#notices]:find("unit 0.7.13", 1, true) ~= nil, "the unit's version is said first")
+ok(notices[#notices]:find("unit 0.7.14", 1, true) ~= nil, "the unit's version is said first")
 run(0.2)
 eq(led().color, "yellow", "one: yellow, straight away") eq(led().pattern, "triangle", "triangle")
 eq(snap().testStep, 1, "and the snapshot carries the step, for the screen to answer")

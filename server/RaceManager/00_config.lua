@@ -1,6 +1,6 @@
 RM = RM or {}
 
-RM.VERSION = "0.7.13-boxes-and-quiet"
+RM.VERSION = "0.7.14-by-hook"
 
 RM.config = {
   nameMinLen  = 3,

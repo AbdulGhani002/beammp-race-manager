@@ -370,9 +370,9 @@ local function testTick(dt)
       if rate == 0 then
         extensions.raceManager_state.notice(head .. " The unit is not running. Rejoin the server and send Marx the console log.")
       elseif seen == 0 then
-        extensions.raceManager_state.notice(head .. " The unit works, the screen is not polling it. Type !resetui, or rejoin.")
+        extensions.raceManager_state.notice(head .. " The unit works, the screen is not receiving. Rejoin the server; if it says this again, send Marx the console log.")
       elseif seen < #TEST then
-        extensions.raceManager_state.notice(head .. " Some steps did not reach the screen. Type !resetui.")
+        extensions.raceManager_state.notice(head .. " Some steps did not reach the screen. Rejoin the server.")
       else
         extensions.raceManager_state.notice(head .. " Everything reached the screen. If you saw nothing, the unit is hidden: Options, Dash, Stella on.")
       end

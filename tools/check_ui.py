@@ -355,6 +355,14 @@ def main():
           "the Stella dots no longer spell the limit")
     check('ng-if="szActive || szWarning"' in stella_ui,
           "the Stella screen no longer shows the limit for a zone ahead")
+    # The screen hears the unit by hook; the poll's answer never came back
+    # on his machine, and the poll drains nothing so nothing is lost.
+    check('emit("RMSI_Update", snap)' in bs and "snap.sounds = M.drainSounds()" in bs,
+          "the unit no longer tells the screen by hook, with the sounds riding along")
+    check("applySnapshot(d);" in stella_ui.split("$scope.$on('RMSI_Update'")[1].split("});")[0],
+          "the screen no longer takes the unit's hook in through applySnapshot")
+    check("snap.sounds = {}" in bs.split("function M.uiPoll()")[1].split("\nend")[0],
+          "the poll drains the sounds again, and loses them where its answer never comes back")
     # and the race panel says what zones a course has, so nobody drives one
     # expecting a penalty it cannot give
     check("rm-track-zones" in html and "No speed zones on this course" in html,

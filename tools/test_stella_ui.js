@@ -60,7 +60,7 @@ ok(/\.lcd-sz-limit\.sz-in[^{]*\{color:#8b1a12;animation:none;\}/.test(src),
    "inside is red and steady");
 ok(/\.lcd-sz-limit\.sz-red,\.lcd-sz-unit\.sz-red\{animation:szPulse/.test(src),
    "over the limit flashes red");
-ok(/d\.speedZoneLimitMph \|\| Math\.round/.test(src),
+ok(/szLimitMph\s*=\s*d\.speedZoneLimitMph/.test(src),
    "the number shown is the mph he set, not a rounding of km/h");
 
 console.log("");
