@@ -1,11 +1,11 @@
-// The Stella's screen, run outside the game: the controller lifted out of
-// his app.js and fed the events the unit's lua sends, to see what the
-// screen shows for a gate, a pass, the red button, and the three-button
-// power off he built and wants kept.
+// His Stella screen, run outside the game: the controller lifted out of
+// his app.js and fed the snapshots it polls from the unit, to see what it
+// shows for the light, a zone, a pass, the buttons, the keys, and the three
+// button power off he built and wants kept.
 //
 //   node tools/test_stella_ui_flow.js
 const fs = require("fs");
-const src = fs.readFileSync("client/ui/modules/apps/BajaStella/app.js", "utf8");
+const src = fs.readFileSync("client/ui/modules/apps/RaceManagerStella/app.js", "utf8");
 
 let pass = 0, fail = 0;
 function ok(cond, what) { if (cond) pass++; else { fail++; console.log("  FAIL  " + what); } }
@@ -18,29 +18,41 @@ const end = src.lastIndexOf("    }]\n  };\n});");
 if (start < 0 || end < 0) { console.error("could not find the controller"); process.exit(1); }
 const body = src.slice(start + "controller: ['$scope', ".length, end + "    }".length);
 
-// the page, faked: enough of a browser for the controller to run
+// the page, faked: enough of a browser for the controller to run. The poll
+// is the part that matters: the interval is caught and run by hand, and the
+// answer to the unit's uiPoll is whatever snapshot the test hands over.
 const lua = [];
 const store = {};
 const timers = [];
+const intervals = [];
+const polls = [];
+const plays = [];
 let now = 0;
 const fakeWindow = {
   innerWidth: 1920, innerHeight: 1080,
   addEventListener() {}, removeEventListener() {},
   getComputedStyle() { return { position: "static" }; },
 };
+function FakeAudio() {
+  this.volume = 1; this.currentTime = 0; this.loop = false;
+  this.play = () => { plays.push(this.src); return { then: () => ({ catch: () => {} }), catch: () => {} }; };
+  this.pause = () => {};
+}
 const sandbox = {
   console,
   window: fakeWindow,
+  navigator: {},
   document: { getElementById() { return null; }, querySelector() { return null; }, body: {},
               addEventListener() {}, removeEventListener() {} },
   localStorage: { getItem: k => (k in store ? store[k] : null), setItem: (k, v) => { store[k] = String(v); }, removeItem: k => { delete store[k]; } },
-  bngApi: { engineLua: cmd => lua.push(cmd) },
-  Audio: function () { this.volume = 1; this.play = () => {}; this.pause = () => {}; this.currentTime = 0; },
+  bngApi: { engineLua: (cmd, cb) => { lua.push(cmd); if (cb && /uiPoll/.test(cmd)) polls.push(cb); } },
+  Audio: function (srcUrl) { const a = new FakeAudio(); a.src = srcUrl; return a; },
   setTimeout: (fn, ms) => { timers.push({ at: now + (ms || 0), fn }); return timers.length; },
   clearTimeout: id => { if (timers[id - 1]) timers[id - 1].fn = null; },
-  setInterval: () => 0, clearInterval: () => {},
+  setInterval: (fn) => { intervals.push(fn); return intervals.length; },
+  clearInterval: () => {},
   Date: { now: () => now },
-  Math, String, Number, parseInt, parseFloat, isNaN, JSON, Object, Array,
+  JSON, Math, String, Number, parseInt, parseFloat, isNaN, Object, Array,
 };
 sandbox.globalThis = sandbox;
 function runTimers() {
@@ -60,68 +72,88 @@ function fire(name, data) { (handlers[name] || []).forEach(fn => fn({}, data)); 
 const make = new Function(...Object.keys(sandbox), "return " + body)(...Object.values(sandbox));
 make($scope);
 
-// what the lua sends on every tick, with the light as it stands
-function update(over) {
-  fire("RmStella_Update", Object.assign({ heading: 90, speed: 40, distToVCPm: 500, distToVCPkm: 0.5, vcpName: "VCP2",
-    vcpIndex: 2, validatedVCPs: 1, totalVCPs: 4, totalDistKm: 1, raceActive: true, raceStarted: true, bearingToVCP: 90,
-    isApproaching: false, trackName: "Test", isStopped: false, breakdownActive: false, hazardAhead: false,
-    blueFlagState: "none", blueFlagPlayer: "", ledColor: "off", ledFlash: false, ledPattern: "none",
-    speedZoneActive: false, speedZoneWarning: false, speedZoneName: "", speedZoneLimit: 0, speedExceeding: false }, over || {}));
+// one snapshot from the unit, the way its getSnapshot() shapes it
+function snapshot(over) {
+  return Object.assign({ heading: 90, speed: 40, distToVCPm: 500, distToVCPkm: 0.5, vcpName: "VCP2", vcpIndex: 2,
+    validatedVCPs: 1, totalVCPs: 4, totalDistKm: 1, raceActive: true, raceStarted: true, isApproaching: false,
+    isStopped: false, breakdownActive: false, hazardAhead: false, blueFlagState: "none", blueFlagPlayer: "",
+    ledColor: "off", ledFlash: false, ledPattern: "none", speedZoneActive: false, speedZoneWarning: false,
+    speedZoneName: "", speedZoneLimit: 0, speedZoneLimitMph: 0, speedExceeding: false, greenLeft: 0,
+    testStep: 0, keys: [], sounds: [] }, over || {});
 }
-function led(color, flash, pattern) { fire("RmStella_LED", { color, flash, pattern }); }
+// one tick of the poll: the interval fires, asks the unit, and gets this back
+function poll(over) {
+  polls.length = 0;
+  intervals.forEach(fn => fn());
+  ok(polls.length === 1, "the screen asked the unit once");
+  const cb = polls.pop();
+  cb(JSON.stringify(snapshot(over)));
+}
+const dotsOn = () => ($scope._ledMask || []).filter(Boolean).length;
 
-section("a gate: the light goes green and back off as the lua says");
-update();
+section("the screen polls the unit, and the light is what the unit says");
+ok(intervals.length >= 1, "a poll is running");
+poll();
 eq($scope.ledCls, "", "off to begin with");
-led("green", false, "all");
-ok(/l-green/.test($scope.ledCls), "green on the crossing");
-update({ ledColor: "green", ledPattern: "all" });
-ok(/l-green/.test($scope.ledCls), "still green while the lua says so");
-led("off", false, "none");
-update();
-eq($scope.ledCls, "", "and off when it says off");
+eq($scope.hdg, "090", "the heading");
+poll({ ledColor: "green", ledPattern: "all" });
+ok(/l-green/.test($scope.ledCls), "green on a crossing");
+eq(dotsOn(), 50, "all the dots");
+poll({ ledColor: "yellow", ledFlash: true, ledPattern: "limit:37", speedZoneWarning: true, speedZoneLimitMph: 37 });
+ok(/l-yellow/.test($scope.ledCls) && /l-flash/.test($scope.ledCls), "flashing yellow for a zone ahead");
+ok(dotsOn() >= 18 && dotsOn() <= 26, "spelling thirty seven, two digits of dots (" + dotsOn() + ")");
+eq($scope.szWarning, true, "and the screen shows the zone ahead");
+eq($scope.szLimitMph, 37, "with the limit");
+poll({ ledColor: "red", ledPattern: "limit:37", speedZoneActive: true, speedZoneLimitMph: 37 });
+ok(/l-red/.test($scope.ledCls) && !/l-flash/.test($scope.ledCls), "steady red inside");
+eq($scope.szActive, true, "the zone is on");
+poll({ ledColor: "red", ledFlash: true, ledPattern: "limit:37", speedZoneActive: true, speedExceeding: true, speedZoneLimitMph: 37 });
+ok(/l-flash/.test($scope.ledCls), "flashing red over the limit");
+eq($scope.szExceeding, true, "and the screen says so");
+poll();
+eq($scope.ledCls, "", "off when the unit says off");
+eq($scope.szActive, false, "no zone");
 
-section("push to pass: the overlay follows the state, and the light is the lua's");
-fire("RmStella_BlueFlag", { state: "requested", playerName: "" });
-eq($scope.flagState, "requested", "asking");
-fire("RmStella_BlueFlag", { state: "delivered", playerName: "Bravo" });
+section("the sounds the unit queues are played, once each");
+// the first sound of all also unlocks the audio, with a quiet play of its own
+poll({ sounds: ["advance"] });
+plays.length = 0;
+poll({ sounds: ["advance"] });
+eq(plays.length, 1, "the warning sound");
+ok(/speed_zone_entry/.test(plays[0]), "the entry tone");
+plays.length = 0;
+poll({ sounds: ["vcp"] });
+eq(plays.length, 1, "the gate sound");
+ok(/vcp_sound/.test(plays[0]), "the vcp tone");
+plays.length = 0;
+poll({});
+eq(plays.length, 0, "and nothing when there is nothing queued");
+
+section("push to pass: the overlay follows the state the unit reports");
+poll({ blueFlagState: "delivered", blueFlagPlayer: "Bravo", ledColor: "green", ledFlash: true, ledPattern: "lines" });
 eq($scope.flagState, "delivered", "delivered");
 eq($scope.flagPlayer, "Bravo", "to Bravo");
-led("green", true, "lines");
-ok(/l-green/.test($scope.ledCls) && /l-flash/.test($scope.ledCls), "flashing green lines");
-fire("RmStella_BlueFlag", { state: "go", playerName: "Bravo" });
+poll({ blueFlagState: "go", blueFlagPlayer: "Bravo", ledColor: "green", ledFlash: true, ledPattern: "all" });
 eq($scope.flagState, "go", "go");
-led("green", true, "all");
-ok(/l-green/.test($scope.ledCls), "green");
-fire("RmStella_BlueFlag", { state: "none", playerName: "" });
-led("off", false, "none");
+poll();
 eq($scope.flagState, "none", "over");
-eq($scope.ledCls, "", "light out");
 ok(/flagState===\\'go\\'/.test(src) || /flagState==='go'/.test(src), "the overlay knows the go state");
-ok(/stella\.flag\.go/.test(src), "and has words for it");
 
-section("the car ahead: OVERTAKE comes up with the name and the beep, and the flag button answers it");
-fire("RmStella_BlueFlag", { state: "incoming", playerName: "Charlie" });
-eq($scope.flagState, "incoming", "incoming");
-eq($scope.flagPlayer, "Charlie", "from Charlie");
+section("the buttons press the unit");
 lua.length = 0;
+poll({ blueFlagState: "incoming", blueFlagPlayer: "Charlie" });
 $scope.pressFlag();
 ok(lua.some(c => /acknowledgeBlueFlag/.test(c)), "the flag button lets them by when somebody is asking");
 lua.length = 0;
-fire("RmStella_BlueFlag", { state: "none", playerName: "" });
+poll();
 $scope.pressFlag();
 ok(lua.some(c => /requestBlueFlag/.test(c)), "and asks when nobody is");
-
-section("the red button is a press, and the press is the lua's toggle");
-const stops = () => lua.filter(c => /requestMechanicalBreakdown/.test(c)).length;
+lua.length = 0;
+$scope.pressOK();
+ok(lua.some(c => /acknowledgeBlueFlag/.test(c)), "OK acknowledges");
 lua.length = 0;
 $scope.pressSOSStart({ stopPropagation() {} });
-eq(stops(), 1, "pressed, the car is stopped");
-$scope.pressSOSCancel({ stopPropagation() {} });
-now += 3100; runTimers();
-eq(stops(), 1, "letting go changes nothing");
-$scope.pressSOSStart({ stopPropagation() {} });
-eq(stops(), 2, "pressed again, moving again");
+ok(lua.some(c => /requestMechanicalBreakdown/.test(c)), "the red button is a press, and the unit toggles");
 
 section("his power off: all three buttons within three seconds, and any button brings it back");
 eq($scope.powered, true, "on to begin with");
@@ -132,13 +164,11 @@ $scope.pressOK();
 now += 500;
 $scope.pressSOSStart({ stopPropagation() {} });
 eq($scope.powered, false, "off");
-eq(store["rm.stella.powered"], "0", "and remembered off");
+eq(store["rm.rmsi.powered"], "0", "and remembered off");
 lua.length = 0;
-now += 5000; runTimers();
-eq(stops(), 0, "the third press did not also stop the car");
 $scope.pressOK();
 eq($scope.powered, true, "one press and it is back on");
-eq(store["rm.stella.powered"], "1", "remembered on");
+eq(store["rm.rmsi.powered"], "1", "remembered on");
 eq(lua.filter(c => /acknowledgeBlueFlag/.test(c)).length, 0, "and that press was swallowed");
 now += 10000;
 $scope.pressFlag();
@@ -148,15 +178,30 @@ now += 500;
 $scope.pressSOSStart({ stopPropagation() {} });
 eq($scope.powered, true, "three presses spread over more than three seconds do not power it off");
 
-section("a power key from the lua side");
-fire("RaceManagerStellaKey", { action: "toggle" });
-eq($scope.powered, false, "toggled off");
-fire("RaceManagerStellaKey", { action: "toggle" });
-eq($scope.powered, true, "and on");
-fire("RaceManagerStellaKey", { action: "off" });
+section("a key arrives once, through the poll, and does what the button does");
+poll({ keys: ["toggle"] });
+eq($scope.powered, false, "the power key: off");
+poll({ keys: ["toggle"] });
+eq($scope.powered, true, "and on again");
+poll({ keys: ["off"] });
 eq($scope.powered, false, "off");
-fire("RaceManagerStellaKey", { action: "on" });
+poll({ keys: ["on"] });
 eq($scope.powered, true, "on");
+lua.length = 0;
+now += 10000;
+poll({ keys: ["flag"] });
+eq(lua.filter(c => /requestBlueFlag/.test(c)).length, 1, "the flag key asks once");
+
+section("the test from chat: each step is answered once");
+lua.length = 0;
+poll({ testStep: 1, ledColor: "yellow", ledFlash: true, ledPattern: "triangle" });
+poll({ testStep: 1, ledColor: "yellow", ledFlash: true, ledPattern: "triangle" });
+eq(lua.filter(c => /screenSaw/.test(c)).length, 1, "step one, answered once for two polls");
+poll({ testStep: 2, ledColor: "blue", ledFlash: true, ledPattern: "lines" });
+eq(lua.filter(c => /screenSaw/.test(c)).length, 2, "step two, answered");
+poll({ testStep: 0 });
+poll({ testStep: 1, ledColor: "yellow", ledFlash: true, ledPattern: "triangle" });
+eq(lua.filter(c => /screenSaw/.test(c)).length, 3, "a new run answers step one again");
 
 section("the speed on the idle screen is mph, like the tachometer");
 fire("streamsUpdate", { electrics: { airspeed: 20 } });

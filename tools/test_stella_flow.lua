@@ -1,37 +1,22 @@
 -- The Stella and its bridge run together outside the game, through what a
 -- race does to them: a gate crossed, a pass asked for and given, a car
--- stopped, and a copilot working the unit for the driver they are sitting
--- with. These are the things he said were broken.
+-- stopped, and the test from chat. His unit says nothing on its own, the
+-- screen polls it, so the tests read the snapshot the screen would and
+-- the sounds it would play.
 --
 --   lua tools/test_stella_flow.lua
 
 local pass, fail = 0, 0
-
 local function ok(cond, what)
-  if cond then pass = pass + 1
-  else fail = fail + 1 print("  FAIL  " .. what) end
+  if cond then pass = pass + 1 else fail = fail + 1 print("  FAIL  " .. what) end
 end
-
 local function eq(got, want, what)
   ok(got == want, ("%s (got %s, wanted %s)"):format(what, tostring(got), tostring(want)))
 end
-
 local function section(t) print("") print("== " .. t) end
 
--- the game, faked: two cars, the ui hook, the network, the race, the copilot
 math.atan2 = math.atan2 or function(y, x) return math.atan(y, x) end
-
-local events = {}
-guihooks = { trigger = function(name, data) events[#events + 1] = { name = name, data = data } end }
-local function lastEvent(name)
-  for i = #events, 1, -1 do if events[i].name == name then return events[i].data end end
-  return nil
-end
-local function countEvents(name)
-  local n = 0
-  for i = 1, #events do if events[i].name == name then n = n + 1 end end
-  return n
-end
+guihooks = { trigger = function() end }
 
 local function vec(t)
   return { x = t.x, y = t.y, z = t.z,
@@ -52,7 +37,6 @@ local function car(id, x, mps)
   return c.obj
 end
 car(1, 0, 0)
-car(7, 5000, 30)
 be = {
   getPlayerVehicle = function() return cars[1].obj end,
   getObjectCount = function() return 0 end,
@@ -83,7 +67,6 @@ local course = {
   { i = 4, pos = { x = 900,  y = 0, z = 0 } },
 }
 local track = { id = "t", name = "Test", checkpoints = course, zones = {} }
-local watching = nil
 extensions = {
   raceManager_net = {
     on = function(ch, fn) handlers[ch] = fn end,
@@ -94,8 +77,7 @@ extensions = {
     get = function() return { track = track } end,
   },
   raceManager_race = { status = function() return status end },
-  raceManager_copilot = { status = function() return { watching = watching, gameId = watching and watching.gameId or nil } end },
-  raceManager_triggers = { nearestSz = function() return nil end },
+  raceManager_triggers = { szState = function() return nil end },
 }
 
 local S = dofile("client/lua/ge/extensions/raceManager/stellaUnit.lua")
@@ -105,10 +87,12 @@ local B = dofile("client/lua/ge/extensions/raceManager/stella.lua")
 B.onExtensionLoaded()
 extensions.raceManager_stella = B
 
-local function led() return lastEvent("RmStella_LED") or {} end
-local function shown() return lastEvent("RmStella_Update") or {} end
-local function flag() return (lastEvent("RmStella_BlueFlag") or {}).state end
--- both units run: the bridge at its own pace, the Stella on the frame
+local function snap() return S.getSnapshot() end
+local function led() local s = snap() return { color = s.ledColor, flash = s.ledFlash, pattern = s.ledPattern } end
+local function flag() return snap().blueFlagState end
+local function sounds() return S.drainSounds() end
+local function has(list, name) for _, n in ipairs(list) do if n == name then return true end end return false end
+-- both run: the bridge at its own pace, the unit on the frame
 local function run(seconds)
   local t = 0
   while t < seconds - 1e-9 do
@@ -118,51 +102,57 @@ local function run(seconds)
   end
 end
 
-section("idle, the unit is told once and left alone")
+section("idle, the unit shows an idle car and nothing lit")
 run(1.0)
-eq(shown().raceActive, false, "idle")
-local ledEvents = countEvents("RmStella_LED")
-run(2.0)
-eq(countEvents("RmStella_LED"), ledEvents, "no light is set and cleared while nothing happens")
+eq(snap().raceActive, false, "idle")
+eq(led().color, "off", "nothing lit")
+eq(#sounds(), 0, "and nothing to play")
 
 section("a race is armed, then starts, and the Stella leaves idle")
 status.state, status.next, status.done = "armed", 1, 0
 run(0.3)
-eq(shown().raceActive, true, "the unit shows the race once armed")
-eq(shown().vcpIndex, 1, "heading for the start line")
+eq(snap().raceActive, true, "the unit shows the race once armed")
+eq(snap().vcpIndex, 1, "heading for the start line")
 status.state, status.next, status.done = "running", 2, 1
 run(0.2)
-eq(shown().vcpIndex, 2, "and then the gate to head for")
+eq(snap().vcpIndex, 2, "and then the gate to head for")
 eq(led().color, "green", "the start line crossed lights green")
-run(2.5)
-eq(led().color, "off", "and two seconds later the light is out")
+ok(has(sounds(), "vcp"), "with the gate sound")
+run(3.2)
+eq(led().color, "off", "and three seconds later the light is out")
 
-section("a gate crossed: green for two seconds, then out again")
+section("a gate crossed: green for three seconds, then out again")
 status.next, status.done = 3, 2
 run(0.2)
 eq(led().color, "green", "green on the crossing")
-eq(shown().validatedVCPs, 2, "two gates done")
+eq(snap().validatedVCPs, 2, "two gates done")
 run(1.0)
 eq(led().color, "green", "still green a second later")
-run(1.5)
-eq(led().color, "off", "out after two")
-eq(shown().ledColor, "off", "and the unit says so on every update")
+run(2.5)
+eq(led().color, "off", "out after three")
+
+section("the lap line, where the count drops back to one, is a crossing too")
+status.next, status.done = 2, 1
+run(0.2)
+eq(led().color, "green", "green on the line")
+run(3.2)
+eq(led().color, "off", "and out")
 
 section("push to pass: asked, delivered, given, and over")
 S.requestBlueFlag()
 eq(countSent("stella.pass.request"), 1, "the request goes to the server")
-eq(flag(), "requested", "the unit shows it asking")
-eq(led().color, "blue", "in blue")
 fromServer("stella.pass.status", { state = "delivered", requestId = 5, aheadName = "Bravo" })
 eq(flag(), "delivered", "delivered to the car ahead")
-eq(lastEvent("RmStella_BlueFlag").playerName, "Bravo", "with their name")
-ok(led().color == "green" or led().color == "blue", "and the light says it is out there")
+eq(snap().blueFlagPlayer, "Bravo", "with their name")
+eq(led().color, "green", "green lines: it is out there")
+eq(led().pattern, "lines", "lines")
 run(5)
-ok(flag() == "delivered" or flag() == "none", "waiting on the answer")
+eq(flag(), "delivered", "waiting on the answer, nothing on the unit times out")
 fromServer("stella.pass.go", { requestId = 5, aheadName = "Bravo" })
 eq(flag(), "go", "Bravo lets us by")
 eq(led().color, "green", "green")
-eq((lastEvent("RmStella_AlertSound") or {}).kind, "passGo", "with the beep")
+eq(led().pattern, "all", "all the dots")
+ok(has(sounds(), "beep"), "with the beep")
 run(3)
 eq(led().color, "green", "still green three seconds in, the pass is on")
 fromServer("stella.pass.status", { state = "complete", requestId = 5, aheadName = "Bravo" })
@@ -175,12 +165,13 @@ S.requestBlueFlag()
 fromServer("stella.pass.status", { state = "delivered", requestId = 6, aheadName = "Bravo" })
 fromServer("stella.pass.go", { requestId = 6, aheadName = "Bravo" })
 run(0.2)
-status.next, status.done = 4, 3
+status.next, status.done = 3, 2
 run(0.2)
 eq(led().color, "green", "green on the crossing")
-run(2.5)
+eq(led().pattern, "all", "the gate's all dots")
+run(3.3)
 eq(flag(), "go", "the pass is still on")
-eq(led().color, "green", "so the light is the pass's green, not off")
+eq(led().color, "green", "so the light is the pass's green")
 fromServer("stella.pass.status", { state = "complete", requestId = 6, aheadName = "Bravo" })
 run(0.2)
 eq(led().color, "off", "out once the pass is over")
@@ -194,10 +185,12 @@ eq(led().color, "off", "nothing lit")
 ok(#notices > 0 and notices[#notices]:find("No pass", 1, true) ~= nil, "and the driver is told why")
 
 section("the car ahead: asked, answers with OK, and the answer carries the request")
+sounds()
 fromServer("stella.pass.alert", { requestId = 9, requesterId = 3, requesterName = "Charlie", distanceM = 120 })
 eq(flag(), "incoming", "Charlie is asking")
+eq(snap().blueFlagPlayer, "Charlie", "by name")
 eq(led().color, "blue", "blue flag")
-eq((lastEvent("RmStella_AlertSound") or {}).kind, "blueFlag", "with the beep")
+ok(has(sounds(), "beep"), "with the beep")
 S.acknowledgeBlueFlag()
 eq(flag(), "accepted", "OK accepts")
 eq((lastSent("stella.pass.accept") or {}).requestId, 9, "and the server is told which request")
@@ -207,22 +200,27 @@ fromServer("stella.pass.status", { state = "complete", requestId = 9, aheadName 
 eq(flag(), "none", "and over")
 run(0.2)
 eq(led().color, "off", "light out")
+S.acknowledgeBlueFlag()
+eq(countSent("stella.pass.accept"), 1, "OK with nobody asking sends nothing")
 
-section("the red button: stopped, then moving again")
-S.toggleMechanicalBreakdown()
+section("the red button: stopped, then moving again, and a car stopped ahead")
+S.requestMechanicalBreakdown()
 eq((lastSent("stella.breakdown.set") or {}).active, true, "the server hears the car is stopped")
 fromServer("stella.breakdown.state", { active = true, playerName = "Alfa" })
 eq(led().color, "yellow", "yellow triangle")
 eq(led().pattern, "triangle", "triangle")
 run(0.2)
-eq(shown().breakdownActive, true, "shown as stopped")
-S.toggleMechanicalBreakdown()
-eq((lastSent("stella.breakdown.set") or {}).active, false, "moving again")
+eq(snap().breakdownActive, true, "shown as stopped")
+S.requestMechanicalBreakdown()
+eq((lastSent("stella.breakdown.set") or {}).active, false, "pressed again, moving again")
 fromServer("stella.breakdown.state", { active = false, playerName = "Alfa" })
 run(0.2)
 eq(led().color, "off", "light out")
 fromServer("stella.breakdown.alert", { active = true, playerName = "Delta", distanceM = 90 })
-eq(led().color, "red", "somebody stopped ahead warns in red, as the unit always did")
+eq(led().color, "red", "somebody stopped ahead warns in red")
+eq(led().pattern, "triangle", "with the triangle")
+run(0.2)
+eq(snap().hazardAhead, true, "and the screen says caution")
 fromServer("stella.breakdown.alert", { active = false, playerName = "Delta" })
 run(0.2)
 eq(led().color, "off", "and clears when they move")
@@ -230,41 +228,39 @@ eq(led().color, "off", "and clears when they move")
 section("the race ends and the unit goes idle with nothing left lit")
 status.state, status.next, status.done = "idle", 1, 0
 run(0.3)
-eq(shown().raceActive, false, "idle")
+eq(snap().raceActive, false, "idle")
 eq(led().color, "off", "nothing lit")
 
-section("!stella runs the unit through everything it can show, two seconds a step, and ends clean")
-watching = nil
-status.state = "idle"
-run(0.3)
+section("!stella runs the unit through everything it can show, two seconds a step, and ends with a verdict")
 extensions.raceManager_race.isActive = function() return false end
 ok(B.selfTest(), "starts when there is no race on")
+ok(notices[#notices]:find("unit 0.7.13", 1, true) ~= nil, "the unit's version is said first")
 run(0.2)
 eq(led().color, "yellow", "one: yellow, straight away") eq(led().pattern, "triangle", "triangle")
-eq(led().test, true, "marked as the test's, so the screen answers it")
-ok(notices[#notices - 1]:find("unit 0.7.12", 1, true) ~= nil, "the unit's version was said first")
+eq(snap().testStep, 1, "and the snapshot carries the step, for the screen to answer")
 B.screenSaw()
 ok(notices[#notices]:find("1 of 6", 1, true) ~= nil, "and says so")
 run(2.0)
 eq(led().color, "blue", "two: blue") eq(led().pattern, "lines", "lines")
+eq(snap().testStep, 2, "step two")
 run(2.0)
 eq(led().color, "green", "three: green") eq(led().pattern, "all", "all the dots")
 run(2.0)
-eq(shown().speedZoneWarning, true, "four: a zone ahead on the screen")
+eq(snap().speedZoneWarning, true, "four: a zone ahead on the screen")
 eq(led().color, "yellow", "yellow") eq(led().pattern, "limit:37", "spelling 37")
 run(2.0)
-eq(shown().speedZoneActive, true, "five: in the zone on the screen")
+eq(snap().speedZoneActive, true, "five: in the zone on the screen")
 eq(led().color, "red", "red") eq(led().flash, false, "steady")
 run(2.0)
-eq(shown().speedExceeding, true, "six: over the limit on the screen")
+eq(snap().speedExceeding, true, "six: over the limit on the screen")
 eq(led().flash, true, "red flashing")
 run(2.0)
-eq(shown().speedZoneActive, false, "over: no zone")
+eq(snap().speedZoneActive, false, "over: no zone")
 eq(led().color, "off", "dots out")
-eq(led().test, nil, "and the mark is off the light again")
-ok(notices[#notices]:find("over", 1, true) ~= nil, "and it says it is over")
-ok(notices[#notices]:find("answered 1 of 6", 1, true) ~= nil, "with how often the screen answered")
-ok(notices[#notices]:find("ticking 10 a second", 1, true) ~= nil, "and how fast the unit was ticking")
+eq(snap().testStep, 0, "and no step in the snapshot")
+ok(notices[#notices]:find("Stella test over", 1, true) ~= nil, "and it says it is over")
+ok(notices[#notices]:find("ticking 10 a second", 1, true) ~= nil, "with how fast the unit ticked")
+ok(notices[#notices]:find("answered 1 of 6", 1, true) ~= nil, "and how often the screen answered")
 ok(notices[#notices]:find("did not reach the screen", 1, true) ~= nil, "and what that means")
 extensions.raceManager_race.isActive = function() return true end
 eq(B.selfTest(), false, "not during a race")

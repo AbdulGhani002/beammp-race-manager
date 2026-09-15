@@ -24,6 +24,15 @@ while read -r call; do
 done < <(grep -oE 'extensions\.[a-zA-Z_]+\.[a-zA-Z]+\(\)' "$actions" | sort -u)
 
 n=$(grep -cE '"onDown"' "$actions")
+
+# An action without "ctx": "tlua" runs in the car's lua, where Race Manager
+# does not exist, and the key does nothing. The game defaults to the car.
+n_ctx=$(grep -cE '"ctx": *"tlua"' "$actions")
+if [ "$n_ctx" -ne "$n" ]; then
+  echo "MISSING CTX     $((n - n_ctx)) action(s) without \"ctx\": \"tlua\""
+  fail=1
+fi
+
 if [ "$fail" -eq 0 ]; then
   echo "all $n key bindings point at a function that exists"
 else

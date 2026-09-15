@@ -3,9 +3,12 @@
 -- the server. Nothing about a pass, a breakdown or a penalty is worked out
 -- here: the server judges, the unit shows what it is told.
 --
--- A copilot's unit was made to mirror the driver's for a while, and that
--- is where the unit stopped working for him. It is out again: the unit is
--- always about your own car and your own race.
+-- Zones, the way he set them out: a zone of either kind, gate to gate or a
+-- box, warns two hundred metres out, is on while the car is in it, and once
+-- the car leaves it nothing warns for five seconds, then any zone near by
+-- can warn again. A box is measured on this side, by the same poll that
+-- tells the server the car is in it, so the unit and the server never
+-- disagree about a box: the server's own word on a box is not shown.
 local M = {}
 
 local lastTrackId
@@ -20,8 +23,10 @@ local lastZoneUpcoming
 local lastTrackPayload
 local netWired = false
 
--- the server's word on a box zone, kept until the server takes it back
-local serverBox = nil
+local WARN_M = 200
+local QUIET_SECS = 5
+local quietUntil = 0
+local clock = 0
 
 local function stella()
   local ok, s = pcall(function() return extensions.raceManager_stellaUnit end)
@@ -83,23 +88,26 @@ local function zoneKey(z, i)
   return tostring(i) .. ":" .. tostring(z.from) .. ":" .. tostring(z.to)
 end
 
+-- Take the zone off the unit. Leaving a zone the car was in starts the
+-- quiet time; a warning that stops because the car drove away does not.
 local function clearZone()
-  if lastZoneKey then call("setSpeedZone", nil) end
+  if lastZoneKey then
+    if lastZoneUpcoming == false then quietUntil = clock + QUIET_SECS end
+    call("setSpeedZone", nil)
+  end
   lastZoneKey, lastZoneKph, lastZoneFrom, lastZoneTo, lastZoneUpcoming = nil, nil, nil, nil, nil
 end
 
--- A zone is current while its gates hold the gate you are heading for, and
--- ahead while its first gate is still to come. The unit is told once per
--- zone and once more when ahead becomes in. Returns true when a zone is up.
-local function updateGateZones(track, nextCp)
+-- the gate zone the car is in, and the next one ahead of it. A zone is
+-- current while its gates hold the gate the car is heading for.
+local function gateZonesAt(track, nextCp)
   local zones = type(track) == "table" and track.zones
-  if type(zones) ~= "table" or #zones == 0 then return false end
-
+  if type(zones) ~= "table" or #zones == 0 then return nil, nil end
   local current, upcoming, upcomingFrom = nil, nil, nil
   for i, z in ipairs(zones) do
     if type(z) == "table" then
       local from, to = tonumber(z.from), tonumber(z.to)
-      if from and to then
+      if from and to and tonumber(z.mph) then
         if nextCp > from and nextCp <= to then
           current = { z = z, i = i }
         elseif from >= nextCp and (not upcomingFrom or from < upcomingFrom) then
@@ -108,21 +116,21 @@ local function updateGateZones(track, nextCp)
       end
     end
   end
-  local chosen = current or upcoming
-  if not chosen then return false end
+  return current, upcoming
+end
 
+-- a gate zone on the unit, told once, and once more when ahead becomes in.
+-- The unit is given the entry gate and where it stands, and warns when the
+-- car is within the warning distance of it.
+local function showGate(track, chosen, isUpcoming)
   local z = chosen.z
   local mph = tonumber(z.mph)
-  if not mph then return false end
   local key = zoneKey(z, chosen.i)
   local kph = mph * 1.609344
-  local isUpcoming = chosen ~= current
   if key == lastZoneKey and math.abs(kph - (lastZoneKph or 0)) < 0.001
       and isUpcoming == lastZoneUpcoming then
-    return true
+    return
   end
-
-  -- the unit owns the warning distance: proximity-based yellow before entry
   local entry = checkpoint(track, z.from)
   local sent = call("setSpeedZone", {
     name = z.name or ("Zone " .. tostring(chosen.i)),
@@ -131,37 +139,33 @@ local function updateGateZones(track, nextCp)
     upcoming = isUpcoming,
     entryCheckpoint = tonumber(z.from),
     entryPosition = position(entry),
-    warnDistance = 200,
+    warnDistance = WARN_M,
   })
   if sent then
     lastZoneKey, lastZoneKph = key, kph
     lastZoneFrom, lastZoneTo = tonumber(z.from), tonumber(z.to)
     lastZoneUpcoming = isUpcoming
   end
-  return true
 end
 
--- a box zone on the unit, told once: again only when it is another box or
--- another limit
--- Green SZ boxes: limit is active only INSIDE the box volume.
--- Yellow proximity warning within BOX_WARN_M metres of any face outside.
-local BOX_WARN_M = 200
-
+-- a box on the unit: in, or ahead with the distance to its nearest face.
+-- Ahead is told again every tick, so the distance the unit holds is the
+-- one measured now.
 local function showBox(key, mph, upcoming, entryPos, faceDist)
   local kph = mph * 1.609344
   upcoming = upcoming and true or false
-  -- same state: still refresh face distance so the unit keeps proximity accurate
   if key == lastZoneKey and math.abs(kph - (lastZoneKph or 0)) < 0.001
       and upcoming == lastZoneUpcoming then
     if upcoming and type(faceDist) == "number" then
       call("setSpeedZone", {
+        id = key,
         name = "Speed zone",
         limitKmh = kph,
         limitMph = mph,
         upcoming = true,
         entryPosition = entryPos,
         faceDist = faceDist,
-        warnDistance = BOX_WARN_M,
+        warnDistance = WARN_M,
         box = true,
       })
     end
@@ -177,50 +181,49 @@ local function showBox(key, mph, upcoming, entryPos, faceDist)
     upcoming = upcoming,
     entryPosition = entryPos,
     faceDist = faceDist,
-    warnDistance = BOX_WARN_M,
+    warnDistance = WARN_M,
     box = true,
   })
 end
 
--- The server's word first: it judges the speed and hands out the penalty,
--- so while it says the car is in a box the unit says so too. Then the gate
--- to gate zone from the course. Nothing is measured on this side any more;
--- measuring here took the server's zone down a tick after it was shown.
+-- In this order: a box the car is in, then a gate zone it is in. Nothing
+-- it is in and something was shown as in: that is leaving, and the quiet
+-- time starts. Then, outside the quiet time, a box within the warning
+-- distance, then the next gate zone ahead.
 local function updateZones(track, nextCp)
-  if serverBox then
-    -- server confirmed inside a box: active limit, not proximity
-    showBox(serverBox.key, serverBox.mph, false, nil, 0)
+  local trig = extensions.raceManager_triggers
+  local sz = trig and type(trig.szState) == "function" and trig.szState() or nil
+  local boxMph = sz and type(sz.box) == "table" and tonumber(sz.box.mph) or nil
+  local boxId = boxMph and tostring(sz.box.i or sz.box.id or boxMph) or nil
+
+  if boxMph and sz.inside then
+    showBox("box:" .. boxId, boxMph, false, nil, 0)
     return
   end
-  -- Green SZ boxes: active = exactly inside the volume; warn = within
-  -- BOX_WARN_M of any face (boxOffset dist is to nearest face, not centre).
-  local triggers = extensions.raceManager_triggers
-  if triggers and type(triggers.nearestSz) == "function" then
-    local pos
-    pcall(function()
-      local v = be and be:getPlayerVehicle(0)
-      if v then pos = v:getPosition() end
-    end)
-    if pos then
-      local box, inside, dist, face = triggers.nearestSz(pos)
-      if box then
-        local mph = tonumber(box.mph) or 37
-        local id = tostring(box.i or box.id or mph)
-        if inside then
-          -- speed limit applies only inside the green box
-          showBox("box:" .. id, mph, false, nil, 0)
-          return
-        end
-        if type(dist) == "number" and dist <= BOX_WARN_M then
-          -- proximity warning outside every face within 200 m
-          local entry = face or box.pos
-          showBox("box-approach:" .. id, mph, true, entry, dist)
-          return
-        end
-      end
-    end
+  local current, upcoming = gateZonesAt(track, nextCp)
+  if current then
+    showGate(track, current, false)
+    return
   end
-  if not updateGateZones(track, nextCp) then clearZone() end
+
+  if lastZoneKey and lastZoneUpcoming == false then
+    clearZone()
+    return
+  end
+  if clock < quietUntil then
+    clearZone()
+    return
+  end
+
+  if boxMph and (tonumber(sz.dist) or math.huge) <= WARN_M then
+    showBox("box-approach:" .. boxId, boxMph, true, sz.face or sz.box.pos, sz.dist)
+    return
+  end
+  if upcoming then
+    showGate(track, upcoming, true)
+    return
+  end
+  clearZone()
 end
 
 local function sync()
@@ -252,8 +255,7 @@ local function sync()
   end
 
   -- told when it changes, and the first time, which is enough: the unit
-  -- keeps what it was told. Told every tick it cleared itself ten times a
-  -- second while idle.
+  -- keeps what it was told
   local stateKey = status .. "|" .. tostring(trackId)
   if stateKey ~= lastState then
     lastState = stateKey
@@ -273,9 +275,11 @@ local function sync()
     lastNext = nextCp
     call("setNextCheckpoint", nextCp)
   end
-  -- done is the server's count and climbs across laps, unlike next, so it
-  -- is what says a gate was crossed. The gate named is the one behind next.
-  if lastDone ~= nil and done > lastDone then
+  -- done is the server's count of gates done this lap. It climbs at every
+  -- gate and drops back to one at the lap line, so any change while the
+  -- race is on is a crossing, and the gate named is the one behind next.
+  -- The drop to nothing when the race ends is not.
+  if active and lastDone ~= nil and done ~= lastDone and done > 0 then
     local crossed = nextCp - 1
     local count = type(track) == "table" and type(track.checkpoints) == "table" and #track.checkpoints or 0
     if crossed < 1 and count > 0 then crossed = count end
@@ -283,10 +287,10 @@ local function sync()
   end
   lastDone = done
 
-  -- a race that is over takes its zones with it
+  -- a race that is over takes its zones with it, and its quiet time
   if not active then
     clearZone()
-    serverBox = nil
+    quietUntil = 0
     return
   end
   if type(track) ~= "table" then return end
@@ -358,7 +362,7 @@ local function testTick(dt)
   local step = TEST[testStep]
   if not step then
     testStep = nil
-    call("testShow", "off")
+    call("testShow", "off", 0)
     local seen = screenAnswers
     local rate = testElapsed > 0 and math.floor((unitTicks() - ticksAt) / testElapsed + 0.5) or 0
     pcall(function()
@@ -366,16 +370,16 @@ local function testTick(dt)
       if rate == 0 then
         extensions.raceManager_state.notice(head .. " The unit is not running. Rejoin the server and send Marx the console log.")
       elseif seen == 0 then
-        extensions.raceManager_state.notice(head .. " The unit works, the screen is not receiving. Type !resetui, or rejoin.")
+        extensions.raceManager_state.notice(head .. " The unit works, the screen is not polling it. Type !resetui, or rejoin.")
       elseif seen < #TEST then
-        extensions.raceManager_state.notice(head .. " Some lights did not reach the screen. Type !resetui.")
+        extensions.raceManager_state.notice(head .. " Some steps did not reach the screen. Type !resetui.")
       else
         extensions.raceManager_state.notice(head .. " Everything reached the screen. If you saw nothing, the unit is hidden: Options, Dash, Stella on.")
       end
     end)
     return
   end
-  call("testShow", step[1])
+  call("testShow", step[1], testStep)
   pcall(function() extensions.raceManager_state.notice(step[2]) end)
 end
 
@@ -384,6 +388,7 @@ local since = 0
 
 function M.onUpdate(dt)
   dt = tonumber(dt) or 0
+  clock = clock + dt
   testTick(dt)
   since = since + dt
   if since < EVERY then return end
@@ -393,18 +398,11 @@ function M.onUpdate(dt)
   sync()
 end
 
--- The server's word on a box zone, from zone.warn: on with the limit, or
--- off. Shown straight away and kept until off.
-function M.setPairZone(z)
-  local mph = type(z) == "table" and tonumber(z.mph) or nil
-  if mph then
-    serverBox = { mph = mph, key = "server:" .. tostring(z.pair or z.i or mph) }
-    showBox(serverBox.key, mph, false, nil, 0)
-    return
-  end
-  serverBox = nil
-  clearZone()
-end
+-- The server's word on a box zone, from zone.warn. Kept for the code that
+-- calls it; it shows nothing any more. The server learns the car is in a
+-- box from the same poll that shows it here, so the two already agree,
+-- and showing the word as well had the unit flicker at every box edge.
+function M.setPairZone(z) end
 
 function M.sendBreakdown(active)
   local net = extensions.raceManager_net

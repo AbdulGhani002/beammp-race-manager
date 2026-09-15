@@ -2,7 +2,7 @@
 -- UI is driven primarily by uiPoll() so LED / zone / keys do not depend on
 -- guihooks reaching a nested Angular directive (that path was unreliable).
 local M = {}
-M.VERSION = "2.1-rmsi"
+M.VERSION = "0.7.13"
 
 local cfg = {
   tick = 0.05,
@@ -12,6 +12,7 @@ local cfg = {
   rearApproachRange = 150,
   proximityClear = 175,
   proximityCooldown = 5,
+  closingSpeed = 3,
 }
 
 local race, course = {}, {}
@@ -25,6 +26,8 @@ local breakdown, hazardAhead = false, nil
 local lastExceeding, testOver = false, false
 local lastHdg, lastSpd, lastDist = 0, 0, 0
 local pendingSounds = {}  -- { "advance", "exceed", "vcp", "beep", ... }
+local ticks = 0           -- tenths of a second of work done, for the test from chat
+local testStep = 0        -- the step of the test from chat that is showing, 0 for none
 
 local function num(v, d) return tonumber(v) or d or 0 end
 local function point(cp)
@@ -34,26 +37,11 @@ local function point(cp)
   return { x = num(p.x or p[1]), y = num(p.y or p[2]), z = num(p.z or p[3]) }
 end
 
+-- the screen plays them, from the list it polls. They were played from
+-- here through the engine as well, and a sound that plays twice stutters.
 local function queueSound(name)
   pendingSounds[#pendingSounds + 1] = name
   if #pendingSounds > 12 then table.remove(pendingSounds, 1) end
-  -- Engine-side play so the browser autoplay policy cannot block it
-  pcall(function()
-    local path = "/ui/modules/apps/RaceManagerStella/sounds/"
-    local file
-    if name == "advance" or name == "enter" then
-      file = path .. "speed_zone_entry.mp3"
-    elseif name == "exceed" then
-      file = path .. "speed_zone_exceed.mp3"
-    elseif name == "beep" then
-      file = path .. "beep_corto.mp3"
-    elseif name == "vcp" then
-      file = "/ui/modules/apps/RaceManagerStella/vcp_sound.mp3"
-    end
-    if file and Engine and Engine.Audio and Engine.Audio.playOnce then
-      Engine.Audio.playOnce("AudioGui", file)
-    end
-  end)
 end
 
 function M.drainSounds()
@@ -85,7 +73,11 @@ local function setLed(color, flash, pattern)
   led = { color = color or "off", flash = not not flash, pattern = pattern or "none" }
 end
 
+-- a light the test from chat set by hand, held until the next step; the
+-- tick works the light out from the state every frame and would put it out
+local testLed = nil
 local function restoreLed()
+  if testLed then setLed(testLed.color, testLed.flash, testLed.pattern) return end
   if greenUntil > 0 and clock < greenUntil then
     setLed("green", false, "all")
     return
@@ -104,7 +96,7 @@ local function restoreLed()
     setLed("green", true, "all")
   elseif proximity then
     setLed("yellow", true, "triangle")
-  elseif zone and zone.upcoming then
+  elseif zone and zone.upcoming and zone.advanceWarned then
     setLed("yellow", true, limitPattern(zone))
   elseif zone and not zone.upcoming then
     setLed("red", lastExceeding, limitPattern(zone))
@@ -251,14 +243,15 @@ function M.toggleMechanicalBreakdown()
   restoreLed()
 end
 
+-- the red button: stopped, and pressed again, moving again
 function M.requestMechanicalBreakdown()
-  if not breakdown then M.toggleMechanicalBreakdown() end
+  M.toggleMechanicalBreakdown()
 end
 
 function M.acknowledgeBlueFlag()
-  if blueFlag.state == "incoming" or blueFlag.state == "delivered" then
+  if blueFlag.state == "incoming" then
     blueFlag.state = "accepted"
-    bridgeCall("acceptPass")
+    bridgeCall("acceptPass", blueFlag.requestId)
     restoreLed()
   end
 end
@@ -267,24 +260,37 @@ function M.requestBlueFlag()
   bridgeCall("requestPass")
 end
 
+-- what the server sends: the requester's name and the request's number
+-- on an alert, the car ahead's name on a status
 function M.onRaceManagerPassAlert(d)
+  d = type(d) == "table" and d or {}
   blueFlag = {
     state = "incoming",
-    playerName = type(d) == "table" and (d.fromName or d.name or "") or "",
+    playerName = tostring(d.requesterName or d.fromName or d.name or ""),
+    requestId = d.requestId,
   }
   queueSound("beep")
   restoreLed()
 end
 
+-- The server owns how long a pass lasts and says complete, cancelled or
+-- expired when it is over; each of those is no pass on the unit.
 function M.onRaceManagerPassStatus(d)
   if type(d) ~= "table" then return end
-  blueFlag.state = tostring(d.state or blueFlag.state)
-  if d.name or d.fromName then blueFlag.playerName = d.name or d.fromName end
+  local state = tostring(d.state or "")
+  if state == "cancelled" or state == "expired" or state == "complete" then
+    blueFlag = { state = "none", playerName = "" }
+  elseif state ~= "" then
+    blueFlag.state = state
+    blueFlag.playerName = tostring(d.aheadName or d.name or d.fromName or blueFlag.playerName or "")
+    if d.requestId then blueFlag.requestId = d.requestId end
+  end
   restoreLed()
 end
 
 function M.onRaceManagerPassGo(d)
   blueFlag.state = "go"
+  if type(d) == "table" and d.aheadName then blueFlag.playerName = tostring(d.aheadName) end
   queueSound("beep")
   restoreLed()
 end
@@ -308,7 +314,7 @@ function M.blueFlagState() return blueFlag.state end
 
 function M.getSnapshot()
   local zoneActive = zone ~= nil and not zone.upcoming
-  local zoneWarn = zone ~= nil and zone.upcoming == true
+  local zoneWarn = zone ~= nil and zone.upcoming == true and zone.advanceWarned == true
   local limit = zone and num(zone.limitKmh or zone.speedLimitKmh) or 0
   return {
     heading = lastHdg,
@@ -332,14 +338,17 @@ function M.getSnapshot()
     ledFlash = led.flash,
     ledPattern = led.pattern,
     speedZoneActive = zoneActive,
-    speedZoneWarning = zoneWarn or (zoneActive and not lastExceeding),
+    speedZoneWarning = zoneWarn,
     speedZoneName = zone and zone.name or "",
     speedZoneLimit = limit,
     speedZoneLimitMph = zone and zoneMph(zone) or 0,
     speedExceeding = lastExceeding,
     greenLeft = math.max(0, greenUntil - clock),
+    testStep = testStep,
   }
 end
+
+function M.ticks() return ticks end
 
 -- Called from the UI every ~100ms. Returns JSON so bngApi always gets a string.
 function M.uiPoll()
@@ -382,13 +391,18 @@ function M.uiPoll()
   )
 end
 
+-- a car right beside, or one coming up from behind faster than us. A car
+-- behind that is not closing is the field, not a warning; every car within
+-- a hundred and fifty metres behind used to light the triangle, and in a
+-- race that was most of the time.
 local function detectProximity(v, pos, fwd, playerSpeed)
   if not be or not be.getObjectCount then return end
   local found
   local n = be:getObjectCount()
+  local pv = v:getVelocity()
   for i = 0, n - 1 do
     local ov = be:getObject(i)
-    if ov and ov.getID and ov:getID() ~= v:getID() then
+    if ov and ov.getID and ov:getID() ~= v:getID() and not (ov.isHidden and ov:isHidden()) then
       local op = ov:getPosition()
       if op then
         local dx, dy = op.x - pos.x, op.y - pos.y
@@ -396,8 +410,14 @@ local function detectProximity(v, pos, fwd, playerSpeed)
         if d < cfg.immediateRange then
           found = { kind = "nearby", vehicleId = ov:getID(), distance = d }
           break
-        elseif d < cfg.rearApproachRange and playerSpeed > 5 then
-          if (fwd.x * dx + fwd.y * dy) < 0 then
+        elseif d < cfg.rearApproachRange and d > 0.001 then
+          local behind = (fwd.x * dx + fwd.y * dy) < 0
+          local ovel = ov.getVelocity and ov:getVelocity() or nil
+          local closing = 0
+          if pv and ovel then
+            closing = ((pv.x - ovel.x) * dx + (pv.y - ovel.y) * dy) / d
+          end
+          if behind and closing >= cfg.closingSpeed then
             found = { kind = "rearApproach", vehicleId = ov:getID(), distance = d }
           end
         end
@@ -435,6 +455,7 @@ local function tickUnit(dt)
   acc = acc + dt
   if acc < cfg.tick then return end
   acc = 0
+  ticks = ticks + 1
 
   local v = vehicle()
   if not v then return end
@@ -486,15 +507,31 @@ local function tickUnit(dt)
   restoreLed()
 end
 
-function M.testShow(what)
+-- one thing the unit can show, for the test from chat. The step number
+-- rides in the snapshot, so the screen can say it saw each one.
+-- one thing the unit can show, for the test from chat. The step number
+-- rides in the snapshot, so the screen can say it saw each one.
+function M.testShow(what, step)
+  testStep = tonumber(step) or 0
+  -- the green of the step before does not run into this one
+  greenUntil = 0
+  testLed = nil
   local limit = { name = "Test zone", limitKmh = 37 * 1.609344, limitMph = 37, warnDistance = 1e9 }
-  if what == "yellow" then setLed("yellow", true, "triangle")
+  if what == "yellow" then
+    testLed = { color = "yellow", flash = true, pattern = "triangle" }
+    restoreLed()
+  elseif what == "blue" then
+    testLed = { color = "blue", flash = true, pattern = "lines" }
+    restoreLed()
   elseif what == "green" then
+    M.setSpeedZone(nil)
     greenUntil = clock + cfg.greenSecs
     setLed("green", false, "all")
   elseif what == "ahead" then
     limit.upcoming = true
     M.setSpeedZone(limit)
+    zone.advanceWarned = true
+    restoreLed()
   elseif what == "in" then
     testOver = false
     limit.upcoming = false
@@ -502,9 +539,9 @@ function M.testShow(what)
   elseif what == "over" then
     testOver = true
   else
+    testStep = 0
     testOver = false
     M.setSpeedZone(nil)
-    greenUntil = 0
     restoreLed()
   end
 end

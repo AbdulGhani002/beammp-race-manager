@@ -944,6 +944,7 @@ angular.module('beamng.apps').directive('rmStellaInstrument', function () {
       // PRIMARY update path: poll Lua snapshot every 100ms.
       // guihooks to nested directives are unreliable; this always applies LED,
       // zone, keys and sounds with an Angular digest.
+      var lastTestSeen = 0;
       function applySnapshot(d) {
         if (!d || typeof d !== "object") return;
         $scope.$applyAsync(function () {
@@ -975,6 +976,13 @@ angular.module('beamng.apps').directive('rmStellaInstrument', function () {
           $scope.szName = d.speedZoneName || "";
           // LED — always apply from Lua so green cannot stick in the UI
           setLedVisual(d.ledColor || "off", !!d.ledFlash, d.ledPattern || "none");
+          // the test from chat: each step it shows is answered once, so the
+          // unit can say how many of them reached the screen
+          if (d.testStep && d.testStep !== lastTestSeen) {
+            lastTestSeen = d.testStep;
+            lua('if extensions.raceManager_stella then extensions.raceManager_stella.screenSaw() end');
+          }
+          if (!d.testStep) lastTestSeen = 0;
           // Extra safety: if Lua says green is done, force off
           if ((d.greenLeft || 0) <= 0 && $scope.ledCls && $scope.ledCls.indexOf("l-green") >= 0
               && d.ledColor !== "green") {

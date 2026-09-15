@@ -1,6 +1,6 @@
 local M = {}
 
-M.VERSION = "0.7.12-stella-as-it-was"
+M.VERSION = "0.7.13-boxes-and-quiet"
 
 -- ui goes last: it reads from every other module the moment it comes up
 local SUBS = {

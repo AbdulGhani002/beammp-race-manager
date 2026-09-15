@@ -476,9 +476,7 @@ local function wireChannels()
     if not i then return end
     local what = RM.zones.onSzHit(pid, i)
     if what then
-      local zw = { charged = false, event = what, zone = RM.zones.wire(pid) }
-      RM.bus.queue(pid, "race.state", RM.race.wire(pid))
-      RM.bus.queue(pid, "zone.warn", zw)
+      RM.bus.queue(pid, "zone.warn", { charged = false, event = what, zone = RM.zones.wire(pid) })
     end
   end)
   RM.bus.on("sz.state", function(pid, d)
@@ -487,9 +485,7 @@ local function wireChannels()
     local mph = type(d) == "table" and tonumber(d.mph) or nil
     local what = RM.zones.onSzState(pid, inside, mph)
     if what then
-      local zw = { charged = false, event = what, zone = RM.zones.wire(pid) }
-      RM.bus.queue(pid, "race.state", RM.race.wire(pid))
-      RM.bus.queue(pid, "zone.warn", zw)
+      RM.bus.queue(pid, "zone.warn", { charged = false, event = what, zone = RM.zones.wire(pid) })
     end
   end)
 

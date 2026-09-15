@@ -1,6 +1,6 @@
 RM = RM or {}
 
-RM.VERSION = "0.7.12-stella-as-it-was"
+RM.VERSION = "0.7.13-boxes-and-quiet"
 
 RM.config = {
   nameMinLen  = 3,

@@ -639,14 +639,11 @@ local function onBeamNGTrigger(data)
     return
   end
 
-  local sz = name:match("^" .. SZ_PREFIX .. "(%d+)$")
-  if sz then
-    local now, mph = M.szCrossed(sz, data.event)
-    if now ~= nil then
-      extensions.raceManager_net.send("sz.state", { inside = now, mph = mph, i = tonumber(sz) })
-    end
-    return
-  end
+  -- a speed zone box: nothing is sent from here. The poll below measures
+  -- the car against the box every frame and says in or out once, with a
+  -- little slack at the edge. A second voice from the volume, which fires
+  -- on the car's corners, had the two disagreeing at every edge.
+  if name:match("^" .. SZ_PREFIX .. "(%d+)$") then return end
 
   if data.event ~= "enter" then return end
   local index = name:match("^" .. PREFIX .. "(%d+)$")
@@ -844,10 +841,18 @@ end
 
 local lastGeomInside = nil
 local lastGeomMph = nil
+local szNow = nil
 
+-- The one measure of the car against the boxes. It tells the server in or
+-- out once per change, and the Stella bridge reads the same answer, so the
+-- unit and the server never disagree about a box. A car that is in stays
+-- in until it is two metres clear, so a car sat on the edge of a box does
+-- not flicker in and out.
+local SZ_SLACK_M = 2
 local function pollSzGeometry()
   if not racing or not course or type(course.szGates) ~= "table" or #course.szGates == 0 then
     lastGeomInside, lastGeomMph = nil, nil
+    szNow = nil
     return
   end
   local pos
@@ -857,8 +862,10 @@ local function pollSzGeometry()
     if ok2 then pos = p end
   end
   if not pos then return end
-  local box, inside, dist = M.nearestSz(pos)
+  local box, inside, dist, face = M.nearestSz(pos)
   local now = inside and true or false
+  if not now and lastGeomInside and box and (tonumber(dist) or math.huge) <= SZ_SLACK_M then now = true end
+  szNow = { box = box, inside = now, dist = now and 0 or dist, face = face }
   local mph = now and box and tonumber(box.mph) or nil
   if now == lastGeomInside and mph == lastGeomMph then return end
   lastGeomInside, lastGeomMph = now, mph
@@ -866,6 +873,10 @@ local function pollSzGeometry()
     inside = now, mph = mph, i = box and box.i or nil,
   })
 end
+
+-- the poll's latest answer: the nearest box, whether the car is in it, and
+-- how far it is from its nearest face. nil when there is nothing to measure.
+function M.szState() return szNow end
 
 local function onUpdate()
   pollSzGeometry()

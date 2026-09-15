@@ -81,7 +81,7 @@
   },
   "rm_stella_toggle": {
     "ctx": "tlua",
-    "onDown": "pcall(function() local k=extensions.raceManager_keys; if k then k.stellaToggle() end end)",
+    "onDown": "extensions.raceManager_keys.stellaToggle()",
     "title": "Race Manager: Stella power on/off",
     "desc": "Toggle the Stella unit power (screen on or off)",
     "cat": "gameplay",
@@ -89,7 +89,7 @@
   },
   "rm_stella_on": {
     "ctx": "tlua",
-    "onDown": "pcall(function() local k=extensions.raceManager_keys; if k then k.stellaOn() end end)",
+    "onDown": "extensions.raceManager_keys.stellaOn()",
     "title": "Race Manager: Stella power on",
     "desc": "Turn the Stella unit on",
     "cat": "gameplay",
@@ -97,7 +97,7 @@
   },
   "rm_stella_off": {
     "ctx": "tlua",
-    "onDown": "pcall(function() local k=extensions.raceManager_keys; if k then k.stellaOff() end end)",
+    "onDown": "extensions.raceManager_keys.stellaOff()",
     "title": "Race Manager: Stella power off",
     "desc": "Turn the Stella unit off",
     "cat": "gameplay",
@@ -105,7 +105,7 @@
   },
   "rm_stella_pass": {
     "ctx": "tlua",
-    "onDown": "pcall(function() local k=extensions.raceManager_keys; if k then k.stellaPass() end end)",
+    "onDown": "extensions.raceManager_keys.stellaPass()",
     "title": "Race Manager: Stella push to pass",
     "desc": "Ask the car ahead to let you by. With a car asking you, it lets them by",
     "cat": "gameplay",
@@ -113,7 +113,7 @@
   },
   "rm_stella_ok": {
     "ctx": "tlua",
-    "onDown": "pcall(function() local k=extensions.raceManager_keys; if k then k.stellaOk() end end)",
+    "onDown": "extensions.raceManager_keys.stellaOk()",
     "title": "Race Manager: Stella OK",
     "desc": "Let the car asking to pass by",
     "cat": "gameplay",
@@ -121,7 +121,7 @@
   },
   "rm_stella_sos": {
     "ctx": "tlua",
-    "onDown": "pcall(function() local k=extensions.raceManager_keys; if k then k.stellaSos() end end)",
+    "onDown": "extensions.raceManager_keys.stellaSos()",
     "title": "Race Manager: Stella red button",
     "desc": "Tell the cars around you that you are stopped. Press again when you are moving",
     "cat": "gameplay",

@@ -292,7 +292,7 @@ def main():
     # fraction of itself in the corner. That is exactly what a 1280x720 box
     # around a 362x240 device looked like on his screen.
     import json as _json
-    stella_json = _json.loads(read("client/ui/modules/apps/BajaStella/app.json"))
+    stella_json = _json.loads(read("client/ui/modules/apps/RaceManagerStella/app.json"))
     want_w = stella_json.get("css", {}).get("width", "")
     want_h = stella_json.get("css", {}).get("height", "")
     scale = re.search(r"\.rm-stella-scale \{(.*?)\}", css, re.S)
@@ -339,13 +339,18 @@ def main():
     # and gone after. His extension had yellow inside and never spelt the number.
     bs = read("client/lua/ge/extensions/raceManager/stellaUnit.lua")
     bridge = read("client/lua/ge/extensions/raceManager/stella.lua")
-    stella_ui = read("client/ui/modules/apps/BajaStella/app.js")
+    stella_ui = read("client/ui/modules/apps/RaceManagerStella/app.js")
     check('setLed("yellow", true, limitPattern(zone))' in bs,
           "a zone ahead no longer flashes the limit in yellow on the Stella")
-    check('setLed("red", lastExceeding and true or false, limitPattern(zone))' in bs,
+    check('setLed("red", lastExceeding, limitPattern(zone))' in bs,
           "inside a zone the Stella no longer sits red with the limit, flashing when over")
-    check("warnDistance = 100," in bridge and "limitMph = mph," in bridge,
-          "the bridge no longer warns at a hundred metres with the limit in mph")
+    check("local WARN_M = 200" in bridge and "warnDistance = WARN_M," in bridge and "limitMph = mph," in bridge,
+          "the bridge no longer warns at two hundred metres with the limit in mph")
+    check("local QUIET_SECS = 5" in bridge and "quietUntil = clock + QUIET_SECS" in bridge,
+          "leaving a zone no longer starts the five quiet seconds he asked for")
+    check("function M.szState()" in read(os.path.join(LUA, "triggers.lua"))
+          and 'if name:match("^" .. SZ_PREFIX .. "(%d+)$") then return end' in read(os.path.join(LUA, "triggers.lua")),
+          "a box is measured by two voices again, the poll and the volume")
     check("p.indexOf('limit:') === 0" in stella_ui and "function digitRows" in stella_ui,
           "the Stella dots no longer spell the limit")
     check('ng-if="szActive || szWarning"' in stella_ui,
@@ -442,7 +447,7 @@ def main():
     # The Stella is in English. His own strings were Spanish and his i18n
     # only covers the labels, not the messages the car sends up.
     for path in ("client/lua/ge/extensions/raceManager/stellaUnit.lua",
-                 "client/ui/modules/apps/BajaStella/app.js"):
+                 "client/ui/modules/apps/RaceManagerStella/app.js"):
         body = read(path)
         check(re.search(r"[\u00e1\u00e9\u00ed\u00f3\u00fa\u00f1\u00c1\u00c9\u00cd\u00d3\u00da\u00d1]", body) is None
               and not re.search(r"Veh[ií]culo|Adelantar|ADELANTAR|Confirmar|Asistencia", body),

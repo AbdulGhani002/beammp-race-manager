@@ -13,9 +13,9 @@ local sent = {}   -- told the client to do it, waiting to hear how it went
 
 local ACTIONS = {
   reposition = { hold = "reposition", penalty = "recovery" },
-  spare      = { hold = "spareTire",  penalty = "flatTire", needsFlat = true,
+  spare      = { hold = "spareTire",  penalty = nil, needsFlat = true,
                  takesSpare = true },
-  repair     = { hold = "repair",     penalty = "repair" },
+  repair     = { hold = "repair",     penalty = nil },
   fuel       = { hold = "fuel",       penalty = nil, pitOnly = true },
   -- filling the rack again is a pit job. it costs the wait and nothing else,
   -- which is the point of driving in rather than fixing it where you stopped.
@@ -97,16 +97,16 @@ function RM.service.use(pid, d)
   local hold, cost = 0, nil
   if racing then
     hold = tonumber(RM.config.holds[action.hold]) or 0
-    -- Time penalties for spare/repair/fuel are disabled: the hold itself is
-    -- the penalty while the button is used. Keep the block below so it can
-    -- be re-enabled later without rewriting the logic.
-    -- if action.penalty and not inPit then
-    --   local seconds = tonumber(RM.config.penalties[action.penalty])
-    --   if seconds and seconds > 0 then
-    --     RM.race.penalty(pid, seconds, action.penalty)
-    --     cost = seconds
-    --   end
-    -- end
+    -- a repair, a spare or fuel costs no time on top of the hold, his rule:
+    -- the hold is the penalty, so none of those names one. A reposition
+    -- still costs its recovery time, as its key says it does.
+    if action.penalty and not inPit then
+      local seconds = tonumber(RM.config.penalties[action.penalty])
+      if seconds and seconds > 0 then
+        RM.race.penalty(pid, seconds, action.penalty)
+        cost = seconds
+      end
+    end
   end
 
   jobs[pid] = {

@@ -4,7 +4,7 @@
 //
 //   node tools/test_stella_ui.js
 const fs = require("fs");
-const src = fs.readFileSync("client/ui/modules/apps/BajaStella/app.js", "utf8");
+const src = fs.readFileSync("client/ui/modules/apps/RaceManagerStella/app.js", "utf8");
 
 let pass = 0, fail = 0;
 function ok(cond, what) {
