@@ -85,8 +85,11 @@ local function drive(x, mps, seconds)
 end
 local function mph(v) return v / 2.23694 end
 local BOX = { i = 1, mph = 20, pos = { x = 500, y = 0, z = 0 } }
-local function box(inside, dist)
-  szNow = { box = BOX, inside = inside, dist = inside and 0 or dist, face = { x = 500 - 25, y = 0, z = 0 } }
+local BOX2 = { i = 2, mph = 30, pos = { x = 900, y = 0, z = 0 } }
+local function box(inside, dist, which)
+  which = which or BOX
+  szNow = { box = which, inside = inside, dist = inside and 0 or dist,
+            face = { x = which.pos.x - 25, y = 0, z = 0 } }
 end
 
 section("a gate to gate zone: warned two hundred metres before its first gate")
@@ -197,25 +200,28 @@ drive(555, mph(15), 2.0)
 eq(snap().speedZoneWarning, false, "thirty metres from the face, two seconds later, no warning")
 eq(#sounds(), 0, "and no sound")
 drive(560, mph(15), 3.1)
-eq(snap().speedZoneWarning, false, "five seconds after leaving, the box behind the car does not warn again")
+eq(snap().speedZoneWarning, false, "five seconds on, the box just driven through does not call itself upcoming")
 eq(led().color, "off", "dots out")
 eq(#sounds(), 0, "and no sound")
-car.dir = { x = -1, y = 0, z = 0 }
-drive(560, mph(15), 0.3)
-eq(snap().speedZoneWarning, true, "turned round to face it, it warns straight away")
+
+-- and it is the box just driven through that is quiet, not every box: a
+-- different one near by warns as soon as the five seconds are up
+box(false, 150, BOX2)
+drive(750, mph(30), 0.3)
+eq(snap().speedZoneWarning, true, "a different box within two hundred warns")
 eq(led().color, "yellow", "yellow")
-ok(has(sounds(), "advance"), "with the sound")
-car.dir = { x = 1, y = 0, z = 0 }
+eq(led().pattern, "limit:30", "with its own limit")
+ok(has(sounds(), "advance"), "and the sound")
+
 box(false, 250)
 drive(780, mph(30), 0.3)
 eq(snap().speedZoneWarning, false, "driven away, the warning goes")
 eq(led().color, "off", "dots out")
 eq(#sounds(), 0, "and driving away from a warning is not leaving a zone: no beep")
-car.dir = { x = -1, y = 0, z = 0 }
 box(false, 150)
 drive(680, mph(30), 0.3)
-eq(snap().speedZoneWarning, true, "and coming back within two hundred it warns straight away")
-car.dir = { x = 1, y = 0, z = 0 }
+eq(snap().speedZoneWarning, true, "clear of the first box, back within two hundred, it warns again")
+eq(led().pattern, "limit:20", "with its limit")
 
 section("a box takes the unit over a gate zone the car is also in")
 track.zones = { { from = 2, to = 4, mph = 37 } }

@@ -27,6 +27,7 @@ local WARN_M = 200
 local QUIET_SECS = 5
 local quietUntil = 0
 local clock = 0
+local leftBoxId = nil   -- the box just driven through, quiet until clear of it
 
 local function stella()
   local ok, s = pcall(function() return extensions.raceManager_stellaUnit end)
@@ -199,30 +200,28 @@ local function showBox(key, mph, upcoming, entryPos, faceDist)
   })
 end
 
--- a box counts as ahead when its nearest face is in front of the car's
--- nose. The one just left is behind, and used to warn again once the
--- quiet time ran out, while the car drove away from it.
-local function boxAhead(sz)
-  local face = sz.face or (type(sz.box) == "table" and sz.box.pos) or nil
-  if type(face) ~= "table" then return true end
-  local pos, fwd
-  pcall(function()
-    local v = be:getPlayerVehicle(0)
-    if v then pos, fwd = v:getPosition(), v:getDirectionVector() end
-  end)
-  if not pos or not fwd then return true end
-  return ((face.x or 0) - pos.x) * fwd.x + ((face.y or 0) - pos.y) * fwd.y > 0
-end
-
 -- In this order: a box the car is in, then a gate zone it is in. Nothing
 -- it is in and something was shown as in: that is leaving, and the quiet
--- time starts. Then, outside the quiet time, a box ahead within the
--- warning distance, then the next gate zone ahead.
+-- time starts. Then, outside the quiet time, a box within the warning
+-- distance, then the next gate zone ahead.
+--
+-- The one box that does not warn is the one just driven through, until the
+-- car is a warning distance clear of it; then it is armed again like any
+-- other. This was a test of the car's heading for a while, and on this
+-- ground a car yaws, slides and crests, so the nose points off the line
+-- often enough that the warning came and went while driving straight at a
+-- box.
 local function updateZones(track, nextCp)
   local trig = extensions.raceManager_triggers
   local sz = trig and type(trig.szState) == "function" and trig.szState() or nil
   local boxMph = sz and type(sz.box) == "table" and tonumber(sz.box.mph) or nil
   local boxId = boxMph and tostring(sz.box.i or sz.box.id or boxMph) or nil
+  local boxDist = tonumber(sz and sz.dist) or math.huge
+
+  -- clear of the one just driven through, or near a different one: armed
+  if leftBoxId and (not boxId or boxId ~= leftBoxId or boxDist > WARN_M) then
+    leftBoxId = nil
+  end
 
   if boxMph and sz.inside then
     showBox("box:" .. boxId, boxMph, false, nil, 0)
@@ -235,6 +234,9 @@ local function updateZones(track, nextCp)
   end
 
   if lastZoneKey and lastZoneUpcoming == false then
+    -- a box driven through is remembered, so it does not call itself
+    -- upcoming to a car that is on its way out of it
+    leftBoxId = lastZoneKey:match("^box:(.+)$") or leftBoxId
     clearZone()
     return
   end
@@ -243,7 +245,7 @@ local function updateZones(track, nextCp)
     return
   end
 
-  if boxMph and (tonumber(sz.dist) or math.huge) <= WARN_M and boxAhead(sz) then
+  if boxMph and boxDist <= WARN_M and boxId ~= leftBoxId then
     showBox("box-approach:" .. boxId, boxMph, true, sz.face or sz.box.pos, sz.dist)
     return
   end
@@ -319,6 +321,7 @@ local function sync()
   if not active then
     clearZone()
     quietUntil = 0
+    leftBoxId = nil
     return
   end
   if type(track) ~= "table" then return end
@@ -368,8 +371,11 @@ function M.liveReport()
   pcall(function() sz = extensions.raceManager_triggers.szState() end)
   local poll = "no box"
   if type(sz) == "table" then
-    poll = ("box %s %s"):format(tostring(sz.box and sz.box.i or "?"),
-      sz.inside and "in" or ("out, " .. math.floor(tonumber(sz.dist) or 0) .. " m"))
+    local b = type(sz.box) == "table" and sz.box or {}
+    local id = tostring(b.i or b.id or "?")
+    poll = ("box %s at %s mph, %s%s"):format(id, tostring(b.mph or "no limit"),
+      sz.inside and "in" or ("out, " .. math.floor(tonumber(sz.dist) or 0) .. " m"),
+      (leftBoxId and id == leftBoxId) and ", just driven through" or "")
   end
   local quiet = math.max(0, quietUntil - clock)
   local unit = "no unit"

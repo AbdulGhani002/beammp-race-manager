@@ -1,6 +1,6 @@
 RM = RM or {}
 
-RM.VERSION = "0.7.16-zones-first"
+RM.VERSION = "0.7.17-boxes-by-distance"
 
 RM.config = {
   nameMinLen  = 3,

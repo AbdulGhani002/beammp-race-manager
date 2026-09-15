@@ -287,7 +287,7 @@ section("!stella in the box: a live report on screen and in the server's log")
 eq(B.selfTest(), true, "answered")
 local live = notices[#notices] or ""
 ok(live:find("Stella: race running", 1, true) ~= nil, "the race")
-ok(live:find("poll box 1 in", 1, true) ~= nil, "the box poll")
+ok(live:find("poll box 1 at 37 mph, in", 1, true) ~= nil, "the box poll, with its limit")
 ok(live:find("unit led red limit:37", 1, true) ~= nil, "the unit's light")
 ok(live:find("zone in 37 mph", 1, true) ~= nil, "and its zone")
 hold(0.2, 30 * MPH)

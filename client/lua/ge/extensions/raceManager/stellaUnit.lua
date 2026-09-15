@@ -2,7 +2,7 @@
 -- UI is driven primarily by uiPoll() so LED / zone / keys do not depend on
 -- guihooks reaching a nested Angular directive (that path was unreliable).
 local M = {}
-M.VERSION = "0.7.16"
+M.VERSION = "0.7.17"
 
 local cfg = {
   tick = 0.05,
@@ -382,8 +382,9 @@ function M.report()
       zone.upcoming and (zone.advanceWarned and ", warned" or ", not yet") or (lastExceeding and ", over" or ""),
       (zone.upcoming and lastZoneDist) and (", " .. math.floor(lastZoneDist) .. " m") or "")
   end
-  return ("led %s %s%s | zone %s | pass %s | near %s | hazard %s | sos %s | green %.1f s | ticks %d, told %d"):format(
-    led.color, led.pattern, led.flash and " flashing" or "", z, tostring(blueFlag.state),
+  return ("led %s %s%s | %d mph | zone %s | pass %s | near %s | hazard %s | sos %s | green %.1f s | ticks %d, told %d"):format(
+    led.color, led.pattern, led.flash and " flashing" or "",
+    math.floor(lastSpd * 0.621371 + 0.5), z, tostring(blueFlag.state),
     proximity and tostring(proximity.kind or "yes") or "none", hazardAhead and "yes" or "no",
     breakdown and "yes" or "no", math.max(0, greenUntil - clock), ticks, emits)
 end

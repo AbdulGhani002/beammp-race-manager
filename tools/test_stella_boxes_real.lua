@@ -174,12 +174,13 @@ eq(led().color, "off", "dots dark")
 drive(560, 0, 20, 2.0)
 eq(snap().speedZoneWarning, false, "forty metres from the far face, two seconds on, no warning: quiet time")
 drive(600, 0, 20, 3.2)
-eq(snap().speedZoneWarning, false, "past the five seconds, eighty metres from the far face, the box behind does not warn")
-car.dir = { x = -1, y = 0, z = 0 }
-drive(600, 0, -5, 0.3)
-eq(snap().speedZoneWarning, true, "turned round to face it, it warns straight away")
+eq(snap().speedZoneWarning, false, "past the five seconds, eighty metres out, the box just driven through is quiet")
+drive(760, 0, 20, 0.3)
+eq(snap().speedZoneWarning, false, "and well clear of it, nothing")
+drive(700, 0, -20, 0.3)
+eq(snap().speedZoneWarning, true, "clear of it and back within two hundred, it warns again")
 eq(led().color, "yellow", "yellow")
-car.dir = { x = 1, y = 0, z = 0 }
+eq(led().pattern, "limit:20", "spelling twenty")
 eq(#sentOf("sz.state"), 2, "and nothing more went to the server")
 
 section("the volume's own voice is ignored: only the poll speaks for a box")

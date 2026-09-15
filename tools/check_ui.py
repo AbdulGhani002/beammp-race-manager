@@ -363,6 +363,12 @@ def main():
           "the bridge no longer warns at two hundred metres with the limit in mph")
     check("local QUIET_SECS = 5" in bridge and "quietUntil = clock + QUIET_SECS" in bridge,
           "leaving a zone no longer starts the five quiet seconds he asked for")
+    # a box warns on distance alone. Judging it by the car's heading made the
+    # warning come and go on ground where the car yaws and slides.
+    check("boxAhead" not in bridge and "getDirectionVector" not in bridge,
+          "the bridge judges a box by where the car's nose points again")
+    check("boxId ~= leftBoxId" in bridge and 'lastZoneKey:match("^box:(.+)$")' in bridge,
+          "the box just driven through no longer stays quiet until the car is clear of it")
     check("function M.szState()" in read(os.path.join(LUA, "triggers.lua"))
           and 'if name:match("^" .. SZ_PREFIX .. "(%d+)$") then return end' in read(os.path.join(LUA, "triggers.lua")),
           "a box is measured by two voices again, the poll and the volume")
