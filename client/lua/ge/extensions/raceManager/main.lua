@@ -6,6 +6,7 @@ M.VERSION = "0.7.12-stella-as-it-was"
 local SUBS = {
   "raceManager_state",
   "raceManager_editorlock",
+  "raceManager_boostlock",
   "raceManager_net",
   "raceManager_clock",
   "raceManager_triggers",
@@ -79,12 +80,22 @@ function M.sayHello()
 end
 
 local function onExtensionLoaded()
+  -- Isolate Stella: unload any standalone Baja Stella so it cannot steal
+  -- hooks, LEDs, or sounds from Race Manager's own instrument.
+  for _, rival in ipairs({ "bajaStella", "BajaStella", "baja_stella" }) do
+    pcall(function()
+      if extensions[rival] then
+        extensions.unload(rival)
+        log("I", "raceManager", "unloaded competing Stella extension: " .. rival)
+      end
+    end)
+  end
   for _, name in ipairs(SUBS) do
     extensions.load(name)
     setExtensionUnloadMode(name, "manual")
   end
   setExtensionUnloadMode("raceManager_main", "manual")
-  log("I", "raceManager", "Race Manager client " .. M.VERSION .. " loaded")
+  log("I", "raceManager", "Race Manager client " .. M.VERSION .. " loaded (RMSI Stella isolated)")
   trySayHello()
 end
 

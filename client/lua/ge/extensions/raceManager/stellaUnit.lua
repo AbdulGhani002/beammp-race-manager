@@ -1,70 +1,97 @@
--- The Stella III EVO unit, Race Manager's own copy. It lives under Race
--- Manager's name and talks to the screen under its own hook names, so a
--- Stella mod somebody has in their mods folder can neither take its place
--- nor talk over it: two units on one screen was a display that did not
--- move and dots that never lit.
--- It owns its state; it does not use Baja gameCommands, speedGovernor,
--- uiLayout, or BajaConfigs.
+-- Race Manager Stella Instrument (isolated) v2.1
+-- UI is driven primarily by uiPoll() so LED / zone / keys do not depend on
+-- guihooks reaching a nested Angular directive (that path was unreliable).
 local M = {}
-M.VERSION = "0.7.12"
+M.VERSION = "2.1-rmsi"
 
 local cfg = {
-  tick = 0.1, immediateRange = 8, rearApproachRange = 150,
-  proximityClear = 175, proximityCooldown = 5, closingSpeed = 3
+  tick = 0.05,
+  zoneWarnDistance = 250,
+  greenSecs = 3.0,
+  immediateRange = 8,
+  rearApproachRange = 150,
+  proximityClear = 175,
+  proximityCooldown = 5,
 }
-local race = {}
-local course = {}
-local nextCheckpoint = 1
-local validatedCheckpoints = 0
-local zone = nil
-local speedWarning = nil
-local proximity = nil
-local proximityLast = {}
-local odo, lastPos, timer = 0, nil, 0
-local clock = 0
-local led = {color="off", flash=false, pattern="none"}
-local ledUntil = 0
-local blueFlag = {state="none", playerName=""}
-local breakdown = false
-local hazardAhead = nil
-local lastExceeding = false
-local testOver = false
+
+local race, course = {}, {}
+local nextCheckpoint, validatedCheckpoints = 1, 0
+local zone, proximity, proximityLast = nil, nil, {}
+local odo, lastPos, acc, clock = 0, nil, 0, 0
+local led = { color = "off", flash = false, pattern = "none" }
+local greenUntil = 0
+local blueFlag = { state = "none", playerName = "" }
+local breakdown, hazardAhead = false, nil
+local lastExceeding, testOver = false, false
+local lastHdg, lastSpd, lastDist = 0, 0, 0
+local pendingSounds = {}  -- { "advance", "exceed", "vcp", "beep", ... }
 
 local function num(v, d) return tonumber(v) or d or 0 end
 local function point(cp)
   if not cp then return nil end
   local p = cp.pos or cp.position or cp
   if type(p) ~= "table" then return nil end
-  return {x=num(p.x or p[1]), y=num(p.y or p[2]), z=num(p.z or p[3])}
+  return { x = num(p.x or p[1]), y = num(p.y or p[2]), z = num(p.z or p[3]) }
 end
-local function emit(name, data) if guihooks then guihooks.trigger(name, data or {}) end end
-local testing = false
-local function setLed(color, flash, pattern)
-  led = {color=color or "off", flash=flash or false, pattern=pattern or "none"}
-  if testing then
-    emit("RmStella_LED", {color=led.color, flash=led.flash, pattern=led.pattern, test=true})
-  else
-    emit("RmStella_LED", led)
-  end
+
+local function queueSound(name)
+  pendingSounds[#pendingSounds + 1] = name
+  if #pendingSounds > 12 then table.remove(pendingSounds, 1) end
+  -- Engine-side play so the browser autoplay policy cannot block it
+  pcall(function()
+    local path = "/ui/modules/apps/RaceManagerStella/sounds/"
+    local file
+    if name == "advance" or name == "enter" then
+      file = path .. "speed_zone_entry.mp3"
+    elseif name == "exceed" then
+      file = path .. "speed_zone_exceed.mp3"
+    elseif name == "beep" then
+      file = path .. "beep_corto.mp3"
+    elseif name == "vcp" then
+      file = "/ui/modules/apps/RaceManagerStella/vcp_sound.mp3"
+    end
+    if file and Engine and Engine.Audio and Engine.Audio.playOnce then
+      Engine.Audio.playOnce("AudioGui", file)
+    end
+  end)
 end
--- the limit the way he reads it, in mph, for the dots to spell out
+
+function M.drainSounds()
+  local out = pendingSounds
+  pendingSounds = {}
+  return out
+end
+
 local function zoneMph(z)
   if type(z) ~= "table" then return 0 end
   local mph = tonumber(z.limitMph)
   if not mph then mph = num(z.limitKmh or z.speedLimitKmh) * 0.621371 end
   return math.floor(mph + 0.5)
 end
+
 local function limitPattern(z) return "limit:" .. tostring(zoneMph(z)) end
+
 local function zoneIdentity(z)
   if type(z) ~= "table" then return "" end
   return table.concat({
     tostring(z.id or z.name or ""),
     tostring(z.from or z.entryCheckpoint or ""),
     tostring(z.to or ""),
-    tostring(z.limitKmh or z.speedLimitKmh or "")
+    tostring(z.limitKmh or z.speedLimitKmh or ""),
   }, ":")
 end
+
+local function setLed(color, flash, pattern)
+  led = { color = color or "off", flash = not not flash, pattern = pattern or "none" }
+end
+
 local function restoreLed()
+  if greenUntil > 0 and clock < greenUntil then
+    setLed("green", false, "all")
+    return
+  end
+  if greenUntil > 0 then greenUntil = 0 end
+
   if hazardAhead then
     setLed("red", true, "triangle")
   elseif breakdown then
@@ -77,33 +104,26 @@ local function restoreLed()
     setLed("green", true, "all")
   elseif proximity then
     setLed("yellow", true, "triangle")
-  elseif zone and zone.upcoming and zone.advanceWarned then
+  elseif zone and zone.upcoming then
     setLed("yellow", true, limitPattern(zone))
   elseif zone and not zone.upcoming then
-    setLed("red", lastExceeding and true or false, limitPattern(zone))
+    setLed("red", lastExceeding, limitPattern(zone))
   else
     setLed("off", false, "none")
   end
 end
+
 local function bridgeCall(name, ...)
   local ok, bridge = pcall(function() return extensions.raceManager_stella end)
   if not ok or type(bridge) ~= "table" or type(bridge[name]) ~= "function" then return false end
   local called, result = pcall(bridge[name], ...)
   return called and result ~= false
 end
-local function publishAlert()
-  emit("RmStella_Alert", {
-    breakdown=breakdown, hazardAhead=hazardAhead ~= nil, blueFlagState=blueFlag.state,
-    blueFlagPlayer=blueFlag.playerName, ledColor=led.color,
-    ledFlash=led.flash, ledPattern=led.pattern
-  })
-end
--- your own car, always. It was the driver's car while copiloting for a
--- while, and that is where the unit stopped working for him.
+
 local function vehicle()
   return be and be:getPlayerVehicle(0) or nil
 end
--- Airspeed: world velocity length in km/h. Same quantity as electrics.airspeed.
+
 local function speedAndHeading(v)
   local vel, fwd = v:getVelocity(), v:getDirectionVector()
   local speed = vel and vel:length() * 3.6 or 0
@@ -111,290 +131,369 @@ local function speedAndHeading(v)
   if heading < 0 then heading = heading + 360 end
   return speed, heading, fwd
 end
+
 local function checkpointData(pos)
   local cp = course[nextCheckpoint]
   if not cp then return 0, 0, "", 0, false end
   local p = point(cp)
   if not p then return 0, 0, cp.name or "", #course, false end
-  local dx, dy = p.x-pos.x, p.y-pos.y
-  local dist = math.sqrt(dx*dx + dy*dy)
-  local bearing = math.deg(math.atan2(dx, dy)); if bearing < 0 then bearing=bearing+360 end
-  return dist, bearing, cp.name or ("VCP"..nextCheckpoint), #course, dist < 500
+  local dx, dy = p.x - pos.x, p.y - pos.y
+  local dist = math.sqrt(dx * dx + dy * dy)
+  local bearing = math.deg(math.atan2(dx, dy))
+  if bearing < 0 then bearing = bearing + 360 end
+  return dist, bearing, cp.name or ("VCP" .. nextCheckpoint), #course, dist < 500
 end
 
--- Public bridge API ---------------------------------------------------------
+------------------------------------------------------------------ public
+
 function M.setRaceState(data)
-  local prevActive = not not race.active
+  local prev = not not race.active
   race = type(data) == "table" and data or {}
   if race.active == nil then race.active = race.raceActive end
   if race.started == nil then race.started = race.raceStarted end
   race.trackName = race.trackName or race.currentTrack or ""
-  if race.checkpoints and #course == 0 then course=race.checkpoints end
-  if race.currentCheckpoint then nextCheckpoint=num(race.currentCheckpoint, nextCheckpoint) end
-  local active = not not race.active
-  if not active then odo=0; lastPos=nil end
-  -- the race ending takes the pass and the zone with it, once, on the way
-  -- out. Done on every call it lit and cleared the unit ten times a second
-  -- while idle.
-  if prevActive and not active then
-    blueFlag = {state="none", playerName=""}
+  if race.checkpoints and #course == 0 then course = race.checkpoints end
+  if not race.active then odo = 0; lastPos = nil end
+  if prev and not race.active then
+    blueFlag = { state = "none", playerName = "" }
     zone = nil
-    speedWarning = nil
     lastExceeding = false
-    ledUntil = 0
-    emit("RmStella_BlueFlag", blueFlag)
+    greenUntil = 0
     restoreLed()
-    publishAlert()
   end
 end
+
 function M.setCourse(track, checkpoints)
-  if type(track) == "table" and checkpoints == nil then checkpoints=track.checkpoints; track=track.name end
-  race.trackName = track or race.trackName or ""; course=type(checkpoints)=="table" and checkpoints or {}
+  if type(track) == "table" and checkpoints == nil then
+    checkpoints = track.checkpoints
+    track = track.name
+  end
+  race.trackName = track or race.trackName or ""
+  course = type(checkpoints) == "table" and checkpoints or {}
 end
-function M.setNextCheckpoint(index) nextCheckpoint=math.max(1, num(index, 1)) end
+
+function M.setTrack(track)
+  if type(track) == "table" then
+    race.trackName = track.name or track.id or race.trackName
+    if type(track.checkpoints) == "table" then course = track.checkpoints end
+  end
+end
+
+function M.setNextCheckpoint(index)
+  nextCheckpoint = math.max(1, num(index, 1))
+end
+
 function M.setProgress(index, done)
-  nextCheckpoint=math.max(1, num(index, nextCheckpoint))
-  validatedCheckpoints=math.max(0, num(done, validatedCheckpoints))
+  nextCheckpoint = math.max(1, num(index, nextCheckpoint))
+  validatedCheckpoints = math.max(0, num(done, validatedCheckpoints))
 end
+
 function M.onVCPCrossed(index)
+  greenUntil = clock + cfg.greenSecs
   setLed("green", false, "all")
-  ledUntil = clock + 2
-  emit("RmStella_VCPCrossed", {index=index})
-  emit("RmStella_VCPSound", {index=index})
+  queueSound("vcp")
 end
+
 function M.setSpeedZone(z)
   if z == nil then
-    if zone and not zone.upcoming then emit("RmStella_SpeedZone", {event="exit"}) end
-    zone=nil
-    lastExceeding=false
-    testOver=false
-    if ledUntil == 0 then restoreLed() end
+    if zone and not zone.upcoming then queueSound("vcp") end
+    zone = nil
+    lastExceeding = false
+    testOver = false
+    restoreLed()
     return
   end
   local wasActive = zone ~= nil and not zone.upcoming
   local oldKey = zoneIdentity(zone)
-  zone=z
-  zone.advanceWarned = zone.advanceWarned or false
+  local prevWarned = zone and zone.advanceWarned
+  local prevUpcoming = zone and zone.upcoming
+  local prevActive = zone and not zone.upcoming
+  -- keep faceDist / entryPosition from the new payload
+  zone = z
   local isActive = not z.upcoming
   local newKey = zoneIdentity(z)
+  if prevWarned and prevUpcoming and z.upcoming and oldKey == newKey then
+    zone.advanceWarned = true
+  elseif z.upcoming and not prevUpcoming then
+    -- just entered the 200 m shell around a green box: warn once
+    zone.advanceWarned = false
+  elseif isActive and not prevActive then
+    zone.advanceWarned = true
+  else
+    zone.advanceWarned = zone.advanceWarned or false
+  end
+  -- entering the box volume: entry tone
+  if isActive and not prevActive then
+    queueSound("enter")
+    zone.advanceWarned = true
+  end
   if wasActive and isActive and oldKey ~= newKey then
-    emit("RmStella_SpeedZone", {event="exit"})
-    lastExceeding=false
+    lastExceeding = false
   end
-  if isActive and (not wasActive or oldKey ~= newKey) then
-    emit("RmStella_SpeedZone", {event="enter", zoneName=z.name or "", limitKmh=num(z.limitKmh or z.speedLimitKmh)})
-  end
-  -- the green for a gate just crossed keeps its two seconds; the zone's
-  -- colour comes up when they are over
-  if ledUntil == 0 then restoreLed() end
+  restoreLed()
 end
-function M.onSpeedWarning(data)
-  speedWarning=data
-  emit("RmStella_SpeedZone", {event="exceeded", limitKmh=data and data.limitKmh, currentKmh=data and data.currentKmh})
-end
+
 function M.onProximityAlert(data)
-  proximity=data or {}
-  emit("RmStella_Proximity", proximity)
-  emit("Message", {msg=(proximity.kind=="rearApproach" and "⚠ Vehicle closing from behind" or "⚠ Vehicle nearby"), category="warning"})
+  proximity = data or {}
   setLed("yellow", true, "triangle")
 end
-function M.clearProximityAlert() proximity=nil; emit("RmStella_Proximity", {clear=true}); restoreLed() end
-function M.requestState() emit("RmStella_Show"); timer=cfg.tick end
 
--- The red UI control is a held mechanical/stopped warning, not SOS.
+function M.clearProximityAlert()
+  proximity = nil
+  restoreLed()
+end
+
+function M.requestState() end
+
 function M.toggleMechanicalBreakdown()
   breakdown = not breakdown
-  emit("RmStella_Breakdown", {active=breakdown})
   bridgeCall("sendBreakdown", breakdown)
   restoreLed()
-  publishAlert()
 end
-function M.requestMechanicalBreakdown() M.toggleMechanicalBreakdown() end
--- Compatibility for older UI bindings: retain the name, but never emit SOS.
-M.requestSOS = M.requestMechanicalBreakdown
+
+function M.requestMechanicalBreakdown()
+  if not breakdown then M.toggleMechanicalBreakdown() end
+end
+
 function M.acknowledgeBlueFlag()
-  if blueFlag.state == "incoming" then
-    blueFlag.state="accepted"
-    emit("RmStella_BlueFlag", blueFlag)
-    bridgeCall("acceptPass", blueFlag.requestId)
-    restoreLed(); publishAlert()
+  if blueFlag.state == "incoming" or blueFlag.state == "delivered" then
+    blueFlag.state = "accepted"
+    bridgeCall("acceptPass")
+    restoreLed()
   end
 end
+
 function M.requestBlueFlag()
-  blueFlag={state="requested", playerName=""}
-  emit("RmStella_BlueFlag", blueFlag)
   bridgeCall("requestPass")
-  restoreLed(); publishAlert()
 end
-M.stellaSOS = M.requestSOS
-M.stellaOK = M.acknowledgeBlueFlag
-M.stellaFlag = M.requestBlueFlag
--- what the flag stands at, for a key that has to know whether to ask or answer
+
+function M.onRaceManagerPassAlert(d)
+  blueFlag = {
+    state = "incoming",
+    playerName = type(d) == "table" and (d.fromName or d.name or "") or "",
+  }
+  queueSound("beep")
+  restoreLed()
+end
+
+function M.onRaceManagerPassStatus(d)
+  if type(d) ~= "table" then return end
+  blueFlag.state = tostring(d.state or blueFlag.state)
+  if d.name or d.fromName then blueFlag.playerName = d.name or d.fromName end
+  restoreLed()
+end
+
+function M.onRaceManagerPassGo(d)
+  blueFlag.state = "go"
+  queueSound("beep")
+  restoreLed()
+end
+
+function M.onRaceManagerBreakdownState(d)
+  breakdown = type(d) == "table" and d.active and true or false
+  restoreLed()
+end
+
+function M.onRaceManagerBreakdownAlert(d)
+  if type(d) == "table" and d.active == false then
+    hazardAhead = nil
+  else
+    hazardAhead = d or {}
+    queueSound("beep")
+  end
+  restoreLed()
+end
+
 function M.blueFlagState() return blueFlag.state end
 
-function M.onRaceManagerPassAlert(data)
-  if type(data) ~= "table" then return end
-  blueFlag={state="incoming", playerName=tostring(data.requesterName or data.playerName or ""),
-    requestId=data.requestId, requesterId=data.requesterId, distanceM=data.distanceM}
-  emit("RmStella_BlueFlag", blueFlag)
-  emit("RmStella_AlertSound", {kind="blueFlag", loud=false, beep=true})
-  emit("Message", {msg="BLUE FLAG: vehicle asking to pass", category="warning"})
-  restoreLed(); publishAlert()
+function M.getSnapshot()
+  local zoneActive = zone ~= nil and not zone.upcoming
+  local zoneWarn = zone ~= nil and zone.upcoming == true
+  local limit = zone and num(zone.limitKmh or zone.speedLimitKmh) or 0
+  return {
+    heading = lastHdg,
+    speed = lastSpd,
+    distToVCPm = math.floor(lastDist),
+    distToVCPkm = lastDist / 1000,
+    vcpName = course[nextCheckpoint] and (course[nextCheckpoint].name or ("VCP" .. nextCheckpoint)) or "",
+    vcpIndex = nextCheckpoint,
+    validatedVCPs = validatedCheckpoints,
+    totalVCPs = #course,
+    totalDistKm = odo / 1000,
+    raceActive = not not race.active,
+    raceStarted = not not race.started,
+    isApproaching = lastDist < 500 and lastDist > 0,
+    isStopped = lastSpd < 1.5,
+    breakdownActive = breakdown,
+    hazardAhead = hazardAhead ~= nil,
+    blueFlagState = blueFlag.state,
+    blueFlagPlayer = blueFlag.playerName,
+    ledColor = led.color,
+    ledFlash = led.flash,
+    ledPattern = led.pattern,
+    speedZoneActive = zoneActive,
+    speedZoneWarning = zoneWarn or (zoneActive and not lastExceeding),
+    speedZoneName = zone and zone.name or "",
+    speedZoneLimit = limit,
+    speedZoneLimitMph = zone and zoneMph(zone) or 0,
+    speedExceeding = lastExceeding,
+    greenLeft = math.max(0, greenUntil - clock),
+  }
 end
-function M.onRaceManagerPassStatus(data)
-  if type(data) ~= "table" then return end
-  local state=tostring(data.state or "")
-  if state=="delivered" or state=="requested" or state=="accepted" or state=="cancelled" or state=="expired" or state=="complete" then
-    -- The server owns how long a pass lasts: thirty seconds for an answer,
-    -- twenty for the pass itself, then it says complete. A timer here as
-    -- well cleared the pass on its own, and a gate crossed during it took
-    -- the pass off the screen two seconds later.
-    if state=="cancelled" or state=="expired" or state=="complete" then
-      blueFlag = {state="none", playerName=""}
-    else
-      blueFlag.state = state
-      blueFlag.playerName=tostring(data.aheadName or data.playerName or "")
-      blueFlag.requestId=data.requestId
+
+-- Called from the UI every ~100ms. Returns JSON so bngApi always gets a string.
+function M.uiPoll()
+  local keys = {}
+  pcall(function()
+    local k = extensions.raceManager_keys
+    if k and k.pull then
+      for _ = 1, 8 do
+        local a = k.pull()
+        if not a then break end
+        keys[#keys + 1] = a
+      end
     end
-    emit("RmStella_BlueFlag", blueFlag)
-    restoreLed(); publishAlert()
-  end
-end
-function M.onRaceManagerPassGo(data)
-  blueFlag={state="go", playerName=tostring(type(data)=="table" and (data.aheadName or data.playerName) or "")}
-  emit("RmStella_BlueFlag", blueFlag)
-  emit("RmStella_AlertSound", {kind="passGo", loud=false, beep=true})
-  restoreLed(); publishAlert()
-end
-function M.onRaceManagerBreakdownState(data)
-  if type(data) ~= "table" or data.active == nil then return end
-  breakdown=data.active and true or false
-  emit("RmStella_Breakdown", {active=breakdown, remote=true})
-  restoreLed(); publishAlert()
-end
-function M.onRaceManagerBreakdownAlert(data)
-  if type(data) ~= "table" or data.active == false then
-    hazardAhead=nil
-    emit("RmStella_HazardAhead", {active=false})
-  else
-    hazardAhead=data
-    emit("RmStella_HazardAhead", data)
-    emit("RmStella_AlertSound", {kind="stoppedVehicle", loud=true, beep=true})
-    emit("Message", {msg="⚠ VEHICLE STOPPED AHEAD", category="warning"})
-  end
-  restoreLed(); publishAlert()
+  end)
+  local sounds = M.drainSounds()
+  local snap = M.getSnapshot()
+  snap.keys = keys
+  snap.sounds = sounds
+  -- Prefer jsonEncode when present (BeamNG)
+  local ok, encoded = pcall(function()
+    if jsonEncode then return jsonEncode(snap) end
+    if json and json.encode then return json.encode(snap) end
+    return nil
+  end)
+  if ok and type(encoded) == "string" then return encoded end
+  -- minimal fallback
+  return string.format(
+    '{"ledColor":%q,"ledFlash":%s,"ledPattern":%q,"speedZoneActive":%s,"speedZoneWarning":%s,"speedExceeding":%s,"speedZoneLimitMph":%s,"heading":%d,"speed":%d,"raceActive":%s,"greenLeft":%.2f,"keys":[],"sounds":[]}',
+    tostring(snap.ledColor or "off"),
+    snap.ledFlash and "true" or "false",
+    tostring(snap.ledPattern or "none"),
+    snap.speedZoneActive and "true" or "false",
+    snap.speedZoneWarning and "true" or "false",
+    snap.speedExceeding and "true" or "false",
+    tostring(snap.speedZoneLimitMph or 0),
+    snap.heading or 0,
+    snap.speed or 0,
+    snap.raceActive and "true" or "false",
+    snap.greenLeft or 0
+  )
 end
 
 local function detectProximity(v, pos, fwd, playerSpeed)
   if not be or not be.getObjectCount then return end
-  local pid=v:getID()
-  local found=nil
-  for i=0,be:getObjectCount()-1 do
-    local other=be:getObject(i)
-    if other and other:getID() ~= pid and not (other.isHidden and other:isHidden()) then
-      local op=other:getPosition()
+  local found
+  local n = be:getObjectCount()
+  for i = 0, n - 1 do
+    local ov = be:getObject(i)
+    if ov and ov.getID and ov:getID() ~= v:getID() then
+      local op = ov:getPosition()
       if op then
-        local dx,dy,dz=op.x-pos.x,op.y-pos.y,op.z-pos.z
-        local dist=math.sqrt(dx*dx+dy*dy+dz*dz)
-        if dist <= cfg.rearApproachRange then
-          local front=(dx*fwd.x+dy*fwd.y+dz*fwd.z) >= 0
-          local ov=other:getVelocity()
-          local pv=v:getVelocity()
-          local invDist=dist > 0.001 and (1/dist) or 0
-          local closing=((pv and pv.x or 0)-(ov and ov.x or 0))*dx*invDist
-            + ((pv and pv.y or 0)-(ov and ov.y or 0))*dy*invDist
-            + ((pv and pv.z or 0)-(ov and ov.z or 0))*dz*invDist
-          local kind
-          if dist <= cfg.immediateRange then kind="nearby"
-          elseif not front and closing >= cfg.closingSpeed then kind="rearApproach" end
-          if kind then
-            found={vehicleId=other:getID(), distance=math.floor(dist), kind=kind, closingSpeed=closing*3.6}
-            break
+        local dx, dy = op.x - pos.x, op.y - pos.y
+        local d = math.sqrt(dx * dx + dy * dy)
+        if d < cfg.immediateRange then
+          found = { kind = "nearby", vehicleId = ov:getID(), distance = d }
+          break
+        elseif d < cfg.rearApproachRange and playerSpeed > 5 then
+          if (fwd.x * dx + fwd.y * dy) < 0 then
+            found = { kind = "rearApproach", vehicleId = ov:getID(), distance = d }
           end
         end
       end
     end
   end
   if found then
-    local now=clock
-    if not proximity or proximity.vehicleId~=found.vehicleId or proximity.kind~=found.kind or now-(proximityLast[found.vehicleId] or -math.huge)>=cfg.proximityCooldown then
-      proximityLast[found.vehicleId]=now; M.onProximityAlert(found)
+    if not proximity or proximity.vehicleId ~= found.vehicleId
+        or clock - (proximityLast[found.vehicleId] or -1e9) >= cfg.proximityCooldown then
+      proximityLast[found.vehicleId] = clock
+      M.onProximityAlert(found)
     end
   elseif proximity then
-    local p=vehicle(); local pp=p and p:getPosition()
-    if not pp or not proximity.vehicleId then M.clearProximityAlert() else
-      local ov=be:getObjectByID(proximity.vehicleId); local op=ov and ov:getPosition()
-      if not op or math.sqrt((op.x-pp.x)^2+(op.y-pp.y)^2+(op.z-pp.z)^2)>cfg.proximityClear then M.clearProximityAlert() end
+    local ov = proximity.vehicleId and be:getObjectByID(proximity.vehicleId)
+    local op = ov and ov:getPosition()
+    if not op then
+      M.clearProximityAlert()
+    else
+      local d = math.sqrt((op.x - pos.x)^2 + (op.y - pos.y)^2)
+      if d > cfg.proximityClear then M.clearProximityAlert() end
     end
   end
 end
-
-local said = {}
-local function sayOnce(err)
-  local key = tostring(err)
-  if said[key] then return end
-  said[key] = true
-  if type(log) == "function" then log("E", "raceManager", "Stella unit: " .. key) end
-  pcall(function()
-    extensions.raceManager_state.notice("Stella unit fault: " .. key:sub(1, 120))
-  end)
-end
-
--- how many times the unit has done its tenth of a second of work, for
--- the test from chat to say whether it is running at all
-local ticks = 0
-function M.ticks() return ticks end
 
 local function tickUnit(dt)
-  dt=dt or 0
-  clock=clock+dt
-  timer=timer+dt; if timer<cfg.tick then return end; timer=0
-  ticks=ticks+1
-  local v=vehicle(); if not v then return end
-  local pos=v:getPosition(); if not pos then return end
-  local speed,heading,fwd=speedAndHeading(v)
-  fwd=fwd or {x=0,y=1,z=0}
-  -- the two seconds of green for a gate are over: back to whatever else is
-  -- on, a pass included
-  if ledUntil > 0 and clock >= ledUntil then ledUntil=0; restoreLed() end
-  if lastPos and race.active and race.started then
-    local dx,dy,dz=pos.x-lastPos.x,pos.y-lastPos.y,pos.z-lastPos.z
-    local d=math.sqrt(dx*dx+dy*dy+dz*dz); if d<50 then odo=odo+d end
+  dt = num(dt, 0)
+  clock = clock + dt
+
+  -- expire green every frame (not only on tick boundary)
+  if greenUntil > 0 and clock >= greenUntil then
+    greenUntil = 0
+    restoreLed()
   end
-  lastPos={x=pos.x,y=pos.y,z=pos.z}
-  local dist,bearing,name,total,approach=checkpointData(pos)
-  local okp, perr = pcall(detectProximity, v, pos, fwd, speed)
-  if not okp then sayOnce("proximity: " .. tostring(perr)) end
-  if zone and zone.upcoming and not zone.advanceWarned then
-    local ep=point(zone.entryPosition) or point(course[num(zone.entryCheckpoint, nextCheckpoint)])
-    local ed=ep and math.sqrt((ep.x-pos.x)^2+(ep.y-pos.y)^2) or dist
-    if ed <= num(zone.warnDistance, 90) then
-      emit("RmStella_SpeedZone",{event="advance",zoneName=zone.name or "",limitKmh=num(zone.limitKmh or zone.speedLimitKmh),distance=ed})
-      zone.advanceWarned=true
-      restoreLed()
+
+  acc = acc + dt
+  if acc < cfg.tick then return end
+  acc = 0
+
+  local v = vehicle()
+  if not v then return end
+  local pos = v:getPosition()
+  if not pos then return end
+  local speed, heading, fwd = speedAndHeading(v)
+  fwd = fwd or { x = 0, y = 1, z = 0 }
+  lastSpd, lastHdg = math.floor(speed), math.floor(heading)
+
+  if lastPos and race.active and race.started then
+    local dx, dy, dz = pos.x - lastPos.x, pos.y - lastPos.y, pos.z - lastPos.z
+    local d = math.sqrt(dx * dx + dy * dy + dz * dz)
+    if d < 50 then odo = odo + d end
+  end
+  lastPos = { x = pos.x, y = pos.y, z = pos.z }
+
+  local dist, bearing = checkpointData(pos)
+  lastDist = dist
+  pcall(detectProximity, v, pos, fwd, speed)
+
+  -- Zone / green-box proximity warning sound (once per approach)
+  -- For SZ boxes, faceDist is metres to the nearest face (outside the volume).
+  -- Active limit is only when zone.upcoming == false (exactly inside the box).
+  if zone and zone.upcoming then
+    local warnDist = num(zone.warnDistance, cfg.zoneWarnDistance)
+    local ed = tonumber(zone.faceDist)
+    if ed == nil then
+      local ep = point(zone.entryPosition)
+      if not ep and zone.entryCheckpoint then
+        ep = point(course[num(zone.entryCheckpoint)])
+      end
+      ed = ep and math.sqrt((ep.x - pos.x)^2 + (ep.y - pos.y)^2) or 0
+      if not ep then ed = 0 end
+    end
+    if ed <= warnDist and not zone.advanceWarned then
+      zone.advanceWarned = true
+      queueSound("advance")
     end
   end
-  local zoneActive=zone~=nil and not zone.upcoming
-  local exceeding=zoneActive and (testOver or (num(zone.limitKmh or zone.speedLimitKmh)>0 and speed>num(zone.limitKmh or zone.speedLimitKmh))) or false
-  if exceeding ~= lastExceeding then
-    lastExceeding=exceeding
-    emit("RmStella_SpeedZone", exceeding and
-      {event="exceeded",limitKmh=num(zone.limitKmh or zone.speedLimitKmh),currentKmh=speed} or
-      {event="normalized"})
-    if ledUntil == 0 then restoreLed() end
+
+  local zoneActive = zone ~= nil and not zone.upcoming
+  local limit = zone and num(zone.limitKmh or zone.speedLimitKmh) or 0
+  local exceeding = zoneActive and (testOver or (limit > 0 and speed > limit)) or false
+  if exceeding and not lastExceeding then
+    queueSound("exceed")
   end
-  emit("RmStella_Update",{heading=math.floor(heading),speed=math.floor(speed),distToVCPm=math.floor(dist),distToVCPkm=dist/1000,vcpName=name,vcpIndex=nextCheckpoint,validatedVCPs=validatedCheckpoints,totalVCPs=total,totalDistKm=odo/1000,raceActive=not not race.active,raceStarted=not not race.started,bearingToVCP=math.floor(bearing),isApproaching=approach,trackName=race.trackName or "",isStopped=speed<1.5,breakdownActive=breakdown,hazardAhead=hazardAhead~=nil,blueFlagState=blueFlag.state,blueFlagPlayer=blueFlag.playerName,ledColor=led.color,ledFlash=led.flash,ledPattern=led.pattern,speedZoneActive=zoneActive,speedZoneWarning=zone~=nil and zone.upcoming and zone.advanceWarned,speedZoneName=zone and zone.name or "",speedZoneLimit=zone and num(zone.limitKmh or zone.speedLimitKmh) or 0,speedZoneLimitMph=zone and zoneMph(zone) or 0,speedExceeding=exceeding})
+  lastExceeding = exceeding
+
+  restoreLed()
 end
 
--- one thing the unit can show, for the test run from chat
 function M.testShow(what)
-  testing = what ~= "off"
-  local limit = { name="Test zone", limitKmh=37*1.609344, limitMph=37, warnDistance=1e9 }
+  local limit = { name = "Test zone", limitKmh = 37 * 1.609344, limitMph = 37, warnDistance = 1e9 }
   if what == "yellow" then setLed("yellow", true, "triangle")
-  elseif what == "blue" then setLed("blue", true, "lines")
-  elseif what == "green" then setLed("green", false, "all")
+  elseif what == "green" then
+    greenUntil = clock + cfg.greenSecs
+    setLed("green", false, "all")
   elseif what == "ahead" then
-    limit.upcoming, limit.advanceWarned = true, true
+    limit.upcoming = true
     M.setSpeedZone(limit)
   elseif what == "in" then
     testOver = false
@@ -405,14 +504,23 @@ function M.testShow(what)
   else
     testOver = false
     M.setSpeedZone(nil)
+    greenUntil = 0
     restoreLed()
   end
 end
 
 function M.onUpdate(dt)
-  local ok, err = pcall(tickUnit, dt)
-  if not ok then sayOnce(err) end
+  pcall(tickUnit, dt)
 end
 
-function M.onExtensionLoaded() setLed("off",false,"none") end
+function M.onExtensionLoaded()
+  greenUntil = 0
+  setLed("off", false, "none")
+  for _, rival in ipairs({ "bajaStella", "BajaStella", "baja_stella" }) do
+    pcall(function()
+      if extensions[rival] then extensions.unload(rival) end
+    end)
+  end
+end
+
 return M

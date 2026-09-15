@@ -97,13 +97,16 @@ function RM.service.use(pid, d)
   local hold, cost = 0, nil
   if racing then
     hold = tonumber(RM.config.holds[action.hold]) or 0
-    if action.penalty and not inPit then
-      local seconds = tonumber(RM.config.penalties[action.penalty])
-      if seconds and seconds > 0 then
-        RM.race.penalty(pid, seconds, action.penalty)
-        cost = seconds
-      end
-    end
+    -- Time penalties for spare/repair/fuel are disabled: the hold itself is
+    -- the penalty while the button is used. Keep the block below so it can
+    -- be re-enabled later without rewriting the logic.
+    -- if action.penalty and not inPit then
+    --   local seconds = tonumber(RM.config.penalties[action.penalty])
+    --   if seconds and seconds > 0 then
+    --     RM.race.penalty(pid, seconds, action.penalty)
+    --     cost = seconds
+    --   end
+    -- end
   end
 
   jobs[pid] = {

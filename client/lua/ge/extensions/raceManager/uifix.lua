@@ -90,13 +90,16 @@ local wasEditing = false
 
 function M.onUpdate(dt)
   local editing = isEditing()
-  if wasEditing and not editing then
-    -- Just left the HUD Apps editor — layout often saves a partial box and
-    -- bars/Stella vanish. Force full screen and restore defaults after a beat.
-    notice("Re-fitting Race Manager after UI edit")
+  if editing ~= wasEditing then
+    -- Entering or leaving the HUD Apps editor often corrupts the Stella /
+    -- bar layout. Re-host and re-fit after the game finishes writing layout.
+    if editing then
+      notice("Holding Race Manager layout during UI edit")
+    else
+      notice("Re-fitting Race Manager after UI edit")
+    end
     M.forceHost()
-    -- delayed so BeamNG finishes applying the layout file first
-    M._pendingFitIn = 0.35
+    M._pendingFitIn = editing and 0.15 or 0.35
   end
   wasEditing = editing
 

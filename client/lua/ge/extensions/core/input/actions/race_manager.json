@@ -1,5 +1,6 @@
 {
   "rm_mark_checkpoint": {
+    "ctx": "tlua",
     "onDown": "extensions.raceManager_capture.mark()",
     "title": "Race Manager: mark checkpoint",
     "desc": "Drop a checkpoint where the car is standing, facing the way it points",
@@ -7,6 +8,7 @@
     "order": 10
   },
   "rm_undo_checkpoint": {
+    "ctx": "tlua",
     "onDown": "extensions.raceManager_capture.undo()",
     "title": "Race Manager: undo last checkpoint",
     "desc": "Remove the checkpoint that was placed most recently",
@@ -14,6 +16,7 @@
     "order": 11
   },
   "rm_set_start": {
+    "ctx": "tlua",
     "onDown": "extensions.raceManager_capture.setStart()",
     "title": "Race Manager: set start line",
     "desc": "Put the grid where the car is standing",
@@ -21,6 +24,7 @@
     "order": 12
   },
   "rm_toggle_players": {
+    "ctx": "tlua",
     "onDown": "extensions.raceManager_ui.togglePlayers()",
     "title": "Race Manager: player list",
     "desc": "Show or hide the player list",
@@ -28,6 +32,7 @@
     "order": 13
   },
   "rm_end_race": {
+    "ctx": "tlua",
     "onDown": "extensions.raceManager_ui.endRace()",
     "title": "Race Manager: end race",
     "desc": "Stop the run and take the result as it stands. Does nothing when you are not racing",
@@ -35,6 +40,7 @@
     "order": 14
   },
   "rm_reposition": {
+    "ctx": "tlua",
     "onDown": "extensions.raceManager_bottombar.reposition()",
     "title": "Race Manager: reposition",
     "desc": "Flip the car upright in place. Car must be stopped. Logs a 1 minute recovery penalty during a race",
@@ -42,20 +48,23 @@
     "order": 20
   },
   "rm_spare_tire": {
+    "ctx": "tlua",
     "onDown": "extensions.raceManager_bottombar.spareTire()",
     "title": "Race Manager: spare tire",
-    "desc": "Change one flat tire. Car must be stopped. 30 second hold and a 30 second penalty during a race",
+    "desc": "Change one flat tire. Car must be stopped. 30 second hold (no time penalty)",
     "cat": "gameplay",
     "order": 21
   },
   "rm_repair": {
+    "ctx": "tlua",
     "onDown": "extensions.raceManager_bottombar.repair()",
     "title": "Race Manager: repair",
-    "desc": "Repair the car. Car must be stopped. 1 minute hold and a 30 second penalty during a race",
+    "desc": "Repair the car. Car must be stopped. 1 minute hold (no time penalty)",
     "cat": "gameplay",
     "order": 22
   },
   "rm_fuel": {
+    "ctx": "tlua",
     "onDown": "extensions.raceManager_bottombar.fuel()",
     "title": "Race Manager: fuel +25%",
     "desc": "Add fuel. Only works inside a pit box during a race. 20 second hold",
@@ -63,6 +72,7 @@
     "order": 23
   },
   "rm_lights": {
+    "ctx": "tlua",
     "onDown": "extensions.raceManager_bottombar.lights()",
     "title": "Race Manager: lights menu",
     "desc": "Open the lights submenu: headlights, lightbar, fog, siren, hazards, horn and flash",
@@ -70,28 +80,48 @@
     "order": 24
   },
   "rm_stella_toggle": {
-    "onDown": "extensions.raceManager_keys.stellaToggle()",
-    "title": "Race Manager: Stella on or off",
-    "desc": "Power the Stella unit off, or back on",
+    "ctx": "tlua",
+    "onDown": "pcall(function() local k=extensions.raceManager_keys; if k then k.stellaToggle() end end)",
+    "title": "Race Manager: Stella power on/off",
+    "desc": "Toggle the Stella unit power (screen on or off)",
     "cat": "gameplay",
     "order": 30
   },
+  "rm_stella_on": {
+    "ctx": "tlua",
+    "onDown": "pcall(function() local k=extensions.raceManager_keys; if k then k.stellaOn() end end)",
+    "title": "Race Manager: Stella power on",
+    "desc": "Turn the Stella unit on",
+    "cat": "gameplay",
+    "order": 30.1
+  },
+  "rm_stella_off": {
+    "ctx": "tlua",
+    "onDown": "pcall(function() local k=extensions.raceManager_keys; if k then k.stellaOff() end end)",
+    "title": "Race Manager: Stella power off",
+    "desc": "Turn the Stella unit off",
+    "cat": "gameplay",
+    "order": 30.2
+  },
   "rm_stella_pass": {
-    "onDown": "extensions.raceManager_keys.stellaPass()",
+    "ctx": "tlua",
+    "onDown": "pcall(function() local k=extensions.raceManager_keys; if k then k.stellaPass() end end)",
     "title": "Race Manager: Stella push to pass",
     "desc": "Ask the car ahead to let you by. With a car asking you, it lets them by",
     "cat": "gameplay",
     "order": 31
   },
   "rm_stella_ok": {
-    "onDown": "extensions.raceManager_keys.stellaOk()",
+    "ctx": "tlua",
+    "onDown": "pcall(function() local k=extensions.raceManager_keys; if k then k.stellaOk() end end)",
     "title": "Race Manager: Stella OK",
     "desc": "Let the car asking to pass by",
     "cat": "gameplay",
     "order": 32
   },
   "rm_stella_sos": {
-    "onDown": "extensions.raceManager_keys.stellaSos()",
+    "ctx": "tlua",
+    "onDown": "pcall(function() local k=extensions.raceManager_keys; if k then k.stellaSos() end end)",
     "title": "Race Manager: Stella red button",
     "desc": "Tell the cars around you that you are stopped. Press again when you are moving",
     "cat": "gameplay",

@@ -1,14 +1,14 @@
 'use strict';
 
 // =========================================================================
-// BajaStella — Stella III EVO Racing Instrument
+// Race Manager Stella III EVO (isolated) Racing Instrument
 // Faithful recreation of the Anube Sport Stella III EVO device
 // used in SCORE Baja 1000 / NORRA Mexican 1000 races.
 // =========================================================================
 
-angular.module('beamng.apps').directive('rmStellaUnit', function () {
+angular.module('beamng.apps').directive('rmStellaInstrument', function () {
 
-  var ASSETS = '/ui/modules/apps/BajaStella/assets/';
+  var ASSETS = '/ui/modules/apps/RaceManagerStella/assets/';
 
   // -----------------------------------------------------------------------
   // CSS — Device housing, LCD screen, LED matrix, buttons
@@ -16,8 +16,8 @@ angular.module('beamng.apps').directive('rmStellaUnit', function () {
   var CSS = '<style>' +
 
     /* === Reset & Frame (tuned + slightly larger) === */
-    '#stella-dev,#stella-dev *{box-sizing:border-box;margin:0;padding:0;}' +
-    '#stella-dev{' +
+    '#rmsi-dev,#rmsi-dev *{box-sizing:border-box;margin:0;padding:0;}' +
+    '#rmsi-dev{' +
       'width:362px;height:240px;max-width:100%;max-height:100%;position:relative;overflow:hidden;' +
       'pointer-events:auto;z-index:100;' +
       'display:flex;flex-direction:column;cursor:move;padding:3px 3px 4px;' +
@@ -27,15 +27,15 @@ angular.module('beamng.apps').directive('rmStellaUnit', function () {
       'user-select:none;-webkit-user-select:none;' +
       'box-shadow:inset 0 0 0 1px rgba(255,255,255,.14),inset 0 -3px 8px rgba(0,0,0,.72),0 10px 22px rgba(0,0,0,.58);' +
     '}' +
-    '#stella-dev::before{content:"";position:absolute;inset:5px;border-radius:8px;pointer-events:none;' +
+    '#rmsi-dev::before{content:"";position:absolute;inset:5px;border-radius:8px;pointer-events:none;' +
       'box-shadow:inset 0 0 0 1px rgba(255,255,255,.08);}' +
-    '#stella-dev.st-off{opacity:0;pointer-events:none;}' +
-    '#stella-dev.st-powered-off .st-lcd{background:#07080a!important;border-color:#1a1b20!important;}' +
-    '#stella-dev.st-powered-off .st-lcd>*{visibility:hidden!important;}' +
-    '#stella-dev.st-powered-off .st-lcd::before,#stella-dev.st-powered-off .st-lcd::after{opacity:0!important;}' +
-    '#stella-dev.st-powered-off .st-led-d{background:#14151a!important;box-shadow:none!important;animation:none!important;opacity:.35;}' +
-    '#stella-dev.st-powered-off .st-logo-img,#stella-dev.st-powered-off .st-rnum,#stella-dev.st-powered-off .st-led-num{opacity:.28;}' +
-    '#stella-dev.st-powered-off .st-btn-row{box-shadow:none;}' +
+    '#rmsi-dev.st-off{opacity:0;pointer-events:none;}' +
+    '#rmsi-dev.st-powered-off .st-lcd{background:#07080a!important;border-color:#1a1b20!important;}' +
+    '#rmsi-dev.st-powered-off .st-lcd>*{visibility:hidden!important;}' +
+    '#rmsi-dev.st-powered-off .st-lcd::before,#rmsi-dev.st-powered-off .st-lcd::after{opacity:0!important;}' +
+    '#rmsi-dev.st-powered-off .st-led-d{background:#14151a!important;box-shadow:none!important;animation:none!important;opacity:.35;}' +
+    '#rmsi-dev.st-powered-off .st-logo-img,#rmsi-dev.st-powered-off .st-rnum,#rmsi-dev.st-powered-off .st-led-num{opacity:.28;}' +
+    '#rmsi-dev.st-powered-off .st-btn-row{box-shadow:none;}' +
 
     /* === Header === */
     '.st-hdr{height:33px;flex-shrink:0;display:grid;grid-template-columns:58px 1fr 58px;align-items:center;padding:0 8px;' +
@@ -170,35 +170,35 @@ angular.module('beamng.apps').directive('rmStellaUnit', function () {
     '.st-btn[data-tip]:hover::before{opacity:1;}' +
 
       /* === the look of the real device, from his photograph === */
-    '#stella-dev{background:#0d0e11 repeating-linear-gradient(0deg,rgba(255,255,255,.018) 0 1px,transparent 1px 3px);' +
+    '#rmsi-dev{background:#0d0e11 repeating-linear-gradient(0deg,rgba(255,255,255,.018) 0 1px,transparent 1px 3px);' +
       'border:2px solid #4b4d56;border-radius:11px;' +
       'box-shadow:inset 0 0 0 1px rgba(255,255,255,.10),inset 0 -3px 8px rgba(0,0,0,.85),0 12px 24px rgba(0,0,0,.6);}' +
-    '#stella-dev::before{box-shadow:inset 0 0 0 1px rgba(255,255,255,.06);}' +
-    '#stella-dev .st-hdr{background:linear-gradient(180deg,#1a1b20,#0b0c0f);border-bottom:1px solid rgba(255,255,255,.07);}' +
-    '#stella-dev .st-rnum{color:#c9cbd4;}' +
+    '#rmsi-dev::before{box-shadow:inset 0 0 0 1px rgba(255,255,255,.06);}' +
+    '#rmsi-dev .st-hdr{background:linear-gradient(180deg,#1a1b20,#0b0c0f);border-bottom:1px solid rgba(255,255,255,.07);}' +
+    '#rmsi-dev .st-rnum{color:#c9cbd4;}' +
     /* the pale blue screen with the fine dot grid the photograph shows */
-    '#stella-dev .st-lcd{background:linear-gradient(180deg,#d3dfec 0%,#c4d2e2 100%);border:1px solid #8b98aa;border-radius:3px;}' +
-    '#stella-dev .st-lcd::before{background-image:radial-gradient(circle,rgba(28,46,105,.13) 0 .6px,transparent .75px);background-size:3px 3px;opacity:1;}' +
-    '#stella-dev .st-lcd::after{box-shadow:inset 0 0 22px rgba(39,70,145,.18);}' +
-    '#stella-dev .lcd-main,#stella-dev .lcd-apr,#stella-dev .lcd-idle{color:#1b2d6b;}' +
-    '#stella-dev .lcd-hdg,#stella-dev .lcd-dist-vcp,#stella-dev .lcd-total,#stella-dev .lcd-wp,#stella-dev .lcd-apr-dm,#stella-dev .lcd-apr-wp{color:#1b2d6b;font-weight:700;}' +
+    '#rmsi-dev .st-lcd{background:linear-gradient(180deg,#d3dfec 0%,#c4d2e2 100%);border:1px solid #8b98aa;border-radius:3px;}' +
+    '#rmsi-dev .st-lcd::before{background-image:radial-gradient(circle,rgba(28,46,105,.13) 0 .6px,transparent .75px);background-size:3px 3px;opacity:1;}' +
+    '#rmsi-dev .st-lcd::after{box-shadow:inset 0 0 22px rgba(39,70,145,.18);}' +
+    '#rmsi-dev .lcd-main,#rmsi-dev .lcd-apr,#rmsi-dev .lcd-idle{color:#1b2d6b;}' +
+    '#rmsi-dev .lcd-hdg,#rmsi-dev .lcd-dist-vcp,#rmsi-dev .lcd-total,#rmsi-dev .lcd-wp,#rmsi-dev .lcd-apr-dm,#rmsi-dev .lcd-apr-wp{color:#1b2d6b;font-weight:700;}' +
     /* the big numbers are made of dots on the real thing */
-    '#stella-dev .lcd-hdg,#stella-dev .lcd-dist-vcp,#stella-dev .lcd-total{' +
+    '#rmsi-dev .lcd-hdg,#rmsi-dev .lcd-dist-vcp,#rmsi-dev .lcd-total{' +
       '-webkit-mask-image:radial-gradient(circle,#000 58%,transparent 66%);-webkit-mask-size:3px 3px;-webkit-mask-repeat:repeat;}' +
-    '#stella-dev .lc-label{color:#3f4f86;}' +
+    '#rmsi-dev .lc-label{color:#3f4f86;}' +
     /* the led block sits on black, with the little serial turned on its side */
-    '#stella-dev .st-led-mx{background:#050507;padding:3px;border-radius:3px;box-sizing:border-box;}' +
-    '#stella-dev .st-led-num{display:block;writing-mode:vertical-rl;transform:rotate(180deg);font-size:9px;font-style:italic;font-weight:700;letter-spacing:1px;color:#9a9ca6;margin-right:3px;}' +
+    '#rmsi-dev .st-led-mx{background:#050507;padding:3px;border-radius:3px;box-sizing:border-box;}' +
+    '#rmsi-dev .st-led-num{display:block;writing-mode:vertical-rl;transform:rotate(180deg);font-size:9px;font-style:italic;font-weight:700;letter-spacing:1px;color:#9a9ca6;margin-right:3px;}' +
     /* the three buttons, vivid, with the soft glow they throw on the case */
-    '#stella-dev .st-btn-row{border:1px solid rgba(255,255,255,.12);border-radius:10px;' +
+    '#rmsi-dev .st-btn-row{border:1px solid rgba(255,255,255,.12);border-radius:10px;' +
       'box-shadow:0 0 18px rgba(0,174,255,.38),0 0 14px rgba(255,40,40,.30),0 0 10px rgba(40,220,90,.18);}' +
-    '#stella-dev .st-btn-row .st-btn-sos{background:linear-gradient(180deg,#f0322a,#c81a12);}' +
-    '#stella-dev .st-btn-row .st-btn-ok{background:linear-gradient(180deg,#2fc24a,#178a2c);color:#fff;font-weight:700;}' +
-    '#stella-dev .st-btn-row .st-btn-flag{background:linear-gradient(180deg,#3fb0f2,#1f86cc);}' +
-    '#stella-dev .st-btn:hover{filter:brightness(1.08);}' +
+    '#rmsi-dev .st-btn-row .st-btn-sos{background:linear-gradient(180deg,#f0322a,#c81a12);}' +
+    '#rmsi-dev .st-btn-row .st-btn-ok{background:linear-gradient(180deg,#2fc24a,#178a2c);color:#fff;font-weight:700;}' +
+    '#rmsi-dev .st-btn-row .st-btn-flag{background:linear-gradient(180deg,#3fb0f2,#1f86cc);}' +
+    '#rmsi-dev .st-btn:hover{filter:brightness(1.08);}' +
     /* the bracket under all three, labelled SOS */
-    '#stella-dev .st-sos-lbl{color:#e6e8ee;font-size:9px;letter-spacing:2px;}' +
-    '#stella-dev .st-sos-lbl::before{width:200px;height:1px;background:#8a2a2e;top:-6px;}' +
+    '#rmsi-dev .st-sos-lbl{color:#e6e8ee;font-size:9px;letter-spacing:2px;}' +
+    '#rmsi-dev .st-sos-lbl::before{width:200px;height:1px;background:#8a2a2e;top:-6px;}' +
     '</style>';
 
   // -----------------------------------------------------------------------
@@ -211,7 +211,7 @@ angular.module('beamng.apps').directive('rmStellaUnit', function () {
   // HTML Template
   // -----------------------------------------------------------------------
   var HTML =
-    '<div id="stella-dev" ng-class="{\'st-off\': !visible, \'st-powered-off\': !powered}" ng-mousedown="dragStart($event)" style="width:362px;height:240px">' +
+    '<div id="rmsi-dev" ng-class="{\'st-off\': !visible, \'st-powered-off\': !powered}" ng-mousedown="dragStart($event)" style="width:362px;height:240px">' +
 
       /* Header */
       '<div class="st-hdr">' +
@@ -328,7 +328,7 @@ angular.module('beamng.apps').directive('rmStellaUnit', function () {
       $scope.visible     = true;
       $scope.powered     = true;
       try {
-        var savedPower = localStorage.getItem("rm.stella.powered");
+        var savedPower = localStorage.getItem("rm.rmsi.powered");
         if (savedPower === "0") $scope.powered = false;
         if (savedPower === "1") $scope.powered = true;
       } catch (_) {}
@@ -432,6 +432,7 @@ angular.module('beamng.apps').directive('rmStellaUnit', function () {
         return mask;
       }
 
+      var _greenClearTimer = null;
       function setLedVisual(color, flash, pattern) {
         var cls = '';
         if (color && color !== 'off') cls = 'l-' + color;
@@ -442,6 +443,17 @@ angular.module('beamng.apps').directive('rmStellaUnit', function () {
         if (!color || color === 'off') p = 'none';
         $scope.ledPattern = p;
         $scope._ledMask = ledMask(p);
+
+        // UI-side safety: green never sticks longer than 3.2s even if Lua stalls
+        if (_greenClearTimer) { try { clearTimeout(_greenClearTimer); } catch (_) {} _greenClearTimer = null; }
+        if (color === 'green') {
+          _greenClearTimer = setTimeout(function () {
+            _greenClearTimer = null;
+            if ($scope.ledCls && $scope.ledCls.indexOf('l-green') >= 0) {
+              $scope.$applyAsync(function () { setLedVisual('off', false, 'none'); });
+            }
+          }, 3200);
+        }
       }
 
       $scope.ledDotClass = function (idx) {
@@ -456,7 +468,7 @@ angular.module('beamng.apps').directive('rmStellaUnit', function () {
       // (CSS had bottom:316px) and both Stella and nearby UI look "gone".
       $scope.dragStart = function (e) {
         if (e.button !== 0) return;
-        var el = document.getElementById('stella-dev');
+        var el = document.getElementById('rmsi-dev');
         if (!el) return;
         var wrap = el.closest ? el.closest('.rm-stella') : null;
         if (!wrap) {
@@ -518,7 +530,7 @@ angular.module('beamng.apps').directive('rmStellaUnit', function () {
 
       // ---- Init wrapper cleanup ----
       setTimeout(function() {
-        if (window.BajaUI) BajaUI.setup('stella-dev');
+        if (window.BajaUI) /* no BajaUI */;
         if (window.BajaI18n && window.BajaI18n.ensureNamespaces) {
           window.BajaI18n.ensureNamespaces(['stella']).then(function() {
             $scope.$applyAsync();
@@ -530,7 +542,7 @@ angular.module('beamng.apps').directive('rmStellaUnit', function () {
       // ~55% quieter than the stored / default VCP volume.
       var STELLA_VOLUME_SCALE = 0.45;
       var stellaBaseVolume = 0.5;
-      var vcpAudio = new Audio('/ui/modules/apps/BajaStella/vcp_sound.mp3');
+      var vcpAudio = new Audio('/ui/modules/apps/RaceManagerStella/vcp_sound.mp3');
       try {
         var sv = localStorage.getItem('bajaVcpVolume');
         if (sv !== null) stellaBaseVolume = parseInt(sv, 10) / 100;
@@ -559,8 +571,8 @@ angular.module('beamng.apps').directive('rmStellaUnit', function () {
       }
 
       // ---- Speed zone sounds ----
-      // Sound files — user will place them in BajaStella/sounds/
-      var SZ_SOUND_PATH = '/ui/modules/apps/BajaStella/sounds/';
+      // Sound files — user will place them in RaceManagerStella/sounds/
+      var SZ_SOUND_PATH = '/ui/modules/apps/RaceManagerStella/sounds/';
       var szEntryAudio   = null;  // beeps repetidos al entrar a speed zone
       var szExceedAudio  = null;  // beep continuo al exceder limite
       var szStopped      = null;  // alerta vehiculo detenido
@@ -589,8 +601,16 @@ angular.module('beamng.apps').directive('rmStellaUnit', function () {
 
       function playSZEntrySound() {
         if (!$scope.powered) return;
+        unlockAudio();
         var a = getSZEntryAudio();
-        if (a) { try { a.volume = stellaVolume(); a.currentTime = 0; a.play(); } catch (_) {} }
+        if (a) {
+          try {
+            a.volume = stellaVolume();
+            a.currentTime = 0;
+            var p = a.play();
+            if (p && p.catch) p.catch(function () {});
+          } catch (_) {}
+        }
       }
 
       function startSZExceedLoop() {
@@ -626,7 +646,7 @@ angular.module('beamng.apps').directive('rmStellaUnit', function () {
         next();
       }
 
-      $scope.$on('RmStella_VCPSound', playVCPSound);
+      $scope.$on('RMSI_VCPSound', playVCPSound);
       // Backward compat: old event from race.lua
       $scope.$on('BajaVCP_Sound', playVCPSound);
       // Volume change from BajaConfigs
@@ -675,7 +695,7 @@ angular.module('beamng.apps').directive('rmStellaUnit', function () {
       }
 
       // ---- Main data update (10 fps from Lua) ----
-      $scope.$on('RmStella_Update', function (_ev, d) {
+      $scope.$on('RMSI_Update', function (_ev, d) {
         $scope.$applyAsync(function () {
           if (!d) return;
           $scope.hdg        = pad(d.heading || 0, 3);
@@ -716,20 +736,20 @@ angular.module('beamng.apps').directive('rmStellaUnit', function () {
       });
 
       // ---- Show / Hide ----
-      $scope.$on('RmStella_Show', function () {
+      $scope.$on('RMSI_Show', function () {
         $scope.$applyAsync(function () {
           $scope.visible = true;
           // Use refresh (not setup) so the idempotent _done guard is cleared and
           // pointer-events:auto is explicitly set inline AFTER st-off is removed.
-          setTimeout(function() { if (window.BajaUI) BajaUI.refresh('stella-dev'); }, 0);
+          setTimeout(function() { if (window.BajaUI) BajaUI.refresh('rmsi-dev'); }, 0);
         });
       });
-      $scope.$on('RmStella_Hide', function () {
+      $scope.$on('RMSI_Hide', function () {
         $scope.$applyAsync(function () { $scope.visible = false; });
       });
 
       // ---- LED event ----
-      $scope.$on('RmStella_LED', function (_ev, d) {
+      $scope.$on('RMSI_LED', function (_ev, d) {
         $scope.$applyAsync(function () {
           setLedVisual(d && d.color, d && d.flash, d && d.pattern);
         });
@@ -737,7 +757,7 @@ angular.module('beamng.apps').directive('rmStellaUnit', function () {
       });
 
       // ---- Blue flag event ----
-      $scope.$on('RmStella_BlueFlag', function (_ev, d) {
+      $scope.$on('RMSI_BlueFlag', function (_ev, d) {
         $scope.$applyAsync(function () {
           var st = (d && d.state) || 'none';
           $scope.flagState  = (st === 'clear') ? 'none' : st;
@@ -746,19 +766,21 @@ angular.module('beamng.apps').directive('rmStellaUnit', function () {
         });
       });
 
-      // ---- VCP crossed (LED green driven by Lua via RmStella_LED + RmStella_Update) ----
-      $scope.$on('RmStella_VCPCrossed', function () { /* LED state managed by stella.lua */ });
+      // ---- VCP crossed (LED green driven by Lua via RMSI_LED + RMSI_Update) ----
+      $scope.$on('RMSI_VCPCrossed', function () { /* LED state managed by stella.lua */ });
 
       // ---- Speed zone events (sound triggers from stella.lua) ----
-      $scope.$on('RmStella_SpeedZone', function (_ev, d) {
+      $scope.$on('RMSI_SpeedZone', function (_ev, d) {
         if (!d) return;
-        if (d.event === 'enter' || d.event === 'advance') {
+        var ev = d.event || d.type || '';
+        if (ev === 'enter' || ev === 'advance') {
+          // approach / enter warning tone — play even if screen was mid-update
           playSZEntrySound();
-        } else if (d.event === 'exceeded') {
+        } else if (ev === 'exceeded') {
           startSZExceedLoop();
-        } else if (d.event === 'normalized') {
+        } else if (ev === 'normalized') {
           stopSZExceedLoop();
-        } else if (d.event === 'exit') {
+        } else if (ev === 'exit') {
           stopSZExceedLoop();
           playVCPSound();
         }
@@ -785,16 +807,16 @@ angular.module('beamng.apps').directive('rmStellaUnit', function () {
         $scope.$applyAsync(function () { $scope.spd = String(mph); });
       });
 
-      $scope.$on('RmStella_AlertSound', function (_ev, d) {
+      $scope.$on('RMSI_AlertSound', function (_ev, d) {
         playOvertakeBeep((d && d.loud) ? 5 : 3);
       });
-      $scope.$on('RmStella_Proximity', function (_ev, d) {
+      $scope.$on('RMSI_Proximity', function (_ev, d) {
         if (d && !d.clear) playOvertakeBeep(d.kind === 'rearApproach' ? 3 : 1);
       });
-      $scope.$on('RmStella_Breakdown', function (_ev, d) {
+      $scope.$on('RMSI_Breakdown', function (_ev, d) {
         $scope.$applyAsync(function () { $scope.breakdownActive = !!(d && d.active); });
       });
-      $scope.$on('RmStella_HazardAhead', function (_ev, d) {
+      $scope.$on('RMSI_HazardAhead', function (_ev, d) {
         $scope.$applyAsync(function () {
           $scope.hazardAhead = !!(d && d.active !== false);
           if (d && d.active === false) $scope.hazardAhead = false;
@@ -805,7 +827,7 @@ angular.module('beamng.apps').directive('rmStellaUnit', function () {
       var COMBO_MS = 3000;
 
       function persistPower() {
-        try { localStorage.setItem("rm.stella.powered", $scope.powered ? "1" : "0"); } catch (_) {}
+        try { localStorage.setItem("rm.rmsi.powered", $scope.powered ? "1" : "0"); } catch (_) {}
       }
 
       function powerOff() {
@@ -893,16 +915,112 @@ angular.module('beamng.apps').directive('rmStellaUnit', function () {
       }
       if (typeof window !== "undefined") {
         window.addEventListener("message", function (ev) {
-          if (ev && ev.data && ev.data.type === "RaceManagerStellaKey") onStellaKey(ev.data);
+          if (ev && ev.data && (ev.data.type === "RMSI_Key" || ev.data.type === "RaceManagerStellaKey")) {
+            onStellaKey(ev.data);
+          }
         });
       }
-      // BeamNG guihooks path
       try {
         if (typeof $scope.$on === "function") {
+          $scope.$on("RMSI_Key", function (_, data) { onStellaKey(data || {}); });
           $scope.$on("RaceManagerStellaKey", function (_, data) { onStellaKey(data || {}); });
         }
       } catch (_) {}
-      // Polling fallback via global set by Lua is unnecessary; guihooks is enough.
+      // Unlock HTML5 audio (autoplay policy) on first interaction with the unit
+      var _audioUnlocked = false;
+      function unlockAudio() {
+        if (_audioUnlocked) return;
+        _audioUnlocked = true;
+        try {
+          var a = getSZEntryAudio();
+          if (a) { var v = a.volume; a.volume = 0.01; a.play().then(function(){ a.pause(); a.currentTime=0; a.volume=v; }).catch(function(){}); }
+        } catch (_) {}
+      }
+      try {
+        document.addEventListener("pointerdown", unlockAudio, { once: true, capture: true });
+        document.addEventListener("keydown", unlockAudio, { once: true, capture: true });
+      } catch (_) {}
+
+      // PRIMARY update path: poll Lua snapshot every 100ms.
+      // guihooks to nested directives are unreliable; this always applies LED,
+      // zone, keys and sounds with an Angular digest.
+      function applySnapshot(d) {
+        if (!d || typeof d !== "object") return;
+        $scope.$applyAsync(function () {
+          if (d.heading != null) $scope.hdg = String(Math.floor(d.heading)).padStart ? String(Math.floor(d.heading)).padStart(3, "0") : ("000" + Math.floor(d.heading)).slice(-3);
+          if (d.speed != null) $scope.spd = String(Math.floor(d.speed));
+          if (d.distToVCPkm != null) {
+            var km = Number(d.distToVCPkm) || 0;
+            var w = Math.floor(km), f = Math.floor((km - w) * 100);
+            $scope.dVCP = (w < 10 ? "0" : "") + w + "." + (f < 10 ? "0" : "") + f;
+          }
+          if (d.totalDistKm != null) {
+            var tk = Number(d.totalDistKm) || 0;
+            var tw = Math.floor(tk), tf = Math.floor((tk - tw) * 100);
+            $scope.tDist = (tw < 10 ? "0" : "") + tw + "." + (tf < 10 ? "0" : "") + tf;
+          }
+          if (d.vcpName != null) $scope.wpName = d.vcpName || "VCP";
+          if (d.vcpIndex != null) $scope.wpLabel = (("0" + (d.vcpIndex || 0)).slice(-2)) + "-" + (d.vcpName || "WP");
+          if (d.raceActive != null) $scope.raceActive = !!d.raceActive;
+          if (d.isApproaching != null) $scope.approaching = !!d.isApproaching;
+          if (d.isStopped != null) $scope.isStopped = !!d.isStopped;
+          if (d.breakdownActive != null) $scope.breakdownActive = !!d.breakdownActive;
+          if (d.hazardAhead != null) { $scope.hazardAhead = !!d.hazardAhead; $scope.cautionAhead = !!d.hazardAhead; }
+          if (d.blueFlagState != null) $scope.flagState = d.blueFlagState || "none";
+          if (d.blueFlagPlayer != null) $scope.flagPlayer = d.blueFlagPlayer || "";
+          $scope.szActive = !!d.speedZoneActive;
+          $scope.szWarning = !!d.speedZoneWarning;
+          $scope.szExceeding = !!d.speedExceeding;
+          $scope.szLimitMph = d.speedZoneLimitMph || 0;
+          $scope.szName = d.speedZoneName || "";
+          // LED — always apply from Lua so green cannot stick in the UI
+          setLedVisual(d.ledColor || "off", !!d.ledFlash, d.ledPattern || "none");
+          // Extra safety: if Lua says green is done, force off
+          if ((d.greenLeft || 0) <= 0 && $scope.ledCls && $scope.ledCls.indexOf("l-green") >= 0
+              && d.ledColor !== "green") {
+            setLedVisual(d.ledColor || "off", !!d.ledFlash, d.ledPattern || "none");
+          }
+        });
+        // Keys from Lua queue
+        if (d.keys && d.keys.length) {
+          for (var i = 0; i < d.keys.length; i++) {
+            onStellaKey({ action: d.keys[i] });
+          }
+        }
+        // Sounds queued by Lua (also played via Engine.Audio; this is backup)
+        if (d.sounds && d.sounds.length && $scope.powered) {
+          for (var s = 0; s < d.sounds.length; s++) {
+            var name = d.sounds[s];
+            if (name === "advance" || name === "enter") playSZEntrySound();
+            else if (name === "exceed") startSZExceedLoop();
+            else if (name === "vcp") playVCPSound();
+            else if (name === "beep") playOvertakeBeep(3);
+          }
+        }
+        if (d.speedExceeding) startSZExceedLoop();
+        else if (d.speedZoneActive === false || d.speedExceeding === false) {
+          /* stop exceed only when not exceeding */
+          if (!d.speedExceeding) stopSZExceedLoop();
+        }
+      }
+
+      var _uiPoll = setInterval(function () {
+        try {
+          if (typeof bngApi === "undefined" || !bngApi.engineLua) return;
+          bngApi.engineLua(
+            "local u=extensions.raceManager_stellaUnit; if u and u.uiPoll then return u.uiPoll() else return '{}' end",
+            function (raw) {
+              if (!raw) return;
+              var d = raw;
+              if (typeof raw === "string") {
+                try { d = JSON.parse(raw); } catch (e) { return; }
+              }
+              applySnapshot(d);
+            }
+          );
+        } catch (_) {}
+      }, 100);
+      $scope.$on("$destroy", function () { try { clearInterval(_uiPoll); } catch (_) {} });
 
       // Restore visibility if UI reloaded during an active race
       setTimeout(function () {

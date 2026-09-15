@@ -122,8 +122,7 @@ local function updateGateZones(track, nextCp)
     return true
   end
 
-  -- the unit owns the warning distance: it is given the entry gate and
-  -- where it stands, and warns a hundred metres before it, as he asked
+  -- the unit owns the warning distance: proximity-based yellow before entry
   local entry = checkpoint(track, z.from)
   local sent = call("setSpeedZone", {
     name = z.name or ("Zone " .. tostring(chosen.i)),
@@ -132,7 +131,7 @@ local function updateGateZones(track, nextCp)
     upcoming = isUpcoming,
     entryCheckpoint = tonumber(z.from),
     entryPosition = position(entry),
-    warnDistance = 100,
+    warnDistance = 200,
   })
   if sent then
     lastZoneKey, lastZoneKph = key, kph
@@ -144,17 +143,42 @@ end
 
 -- a box zone on the unit, told once: again only when it is another box or
 -- another limit
-local function showBox(key, mph)
+-- Green SZ boxes: limit is active only INSIDE the box volume.
+-- Yellow proximity warning within BOX_WARN_M metres of any face outside.
+local BOX_WARN_M = 200
+
+local function showBox(key, mph, upcoming, entryPos, faceDist)
   local kph = mph * 1.609344
-  if lastZoneKey == key and math.abs(kph - (lastZoneKph or 0)) < 0.001 then return end
-  lastZoneKey, lastZoneKph, lastZoneUpcoming = key, kph, false
+  upcoming = upcoming and true or false
+  -- same state: still refresh face distance so the unit keeps proximity accurate
+  if key == lastZoneKey and math.abs(kph - (lastZoneKph or 0)) < 0.001
+      and upcoming == lastZoneUpcoming then
+    if upcoming and type(faceDist) == "number" then
+      call("setSpeedZone", {
+        name = "Speed zone",
+        limitKmh = kph,
+        limitMph = mph,
+        upcoming = true,
+        entryPosition = entryPos,
+        faceDist = faceDist,
+        warnDistance = BOX_WARN_M,
+        box = true,
+      })
+    end
+    return
+  end
+  lastZoneKey, lastZoneKph, lastZoneUpcoming = key, kph, upcoming
   lastZoneFrom, lastZoneTo = nil, nil
   call("setSpeedZone", {
+    id = key,
     name = "Speed zone",
     limitKmh = kph,
     limitMph = mph,
-    upcoming = false,
-    warnDistance = 100,
+    upcoming = upcoming,
+    entryPosition = entryPos,
+    faceDist = faceDist,
+    warnDistance = BOX_WARN_M,
+    box = true,
   })
 end
 
@@ -164,8 +188,37 @@ end
 -- measuring here took the server's zone down a tick after it was shown.
 local function updateZones(track, nextCp)
   if serverBox then
-    showBox(serverBox.key, serverBox.mph)
+    -- server confirmed inside a box: active limit, not proximity
+    showBox(serverBox.key, serverBox.mph, false, nil, 0)
     return
+  end
+  -- Green SZ boxes: active = exactly inside the volume; warn = within
+  -- BOX_WARN_M of any face (boxOffset dist is to nearest face, not centre).
+  local triggers = extensions.raceManager_triggers
+  if triggers and type(triggers.nearestSz) == "function" then
+    local pos
+    pcall(function()
+      local v = be and be:getPlayerVehicle(0)
+      if v then pos = v:getPosition() end
+    end)
+    if pos then
+      local box, inside, dist, face = triggers.nearestSz(pos)
+      if box then
+        local mph = tonumber(box.mph) or 37
+        local id = tostring(box.i or box.id or mph)
+        if inside then
+          -- speed limit applies only inside the green box
+          showBox("box:" .. id, mph, false, nil, 0)
+          return
+        end
+        if type(dist) == "number" and dist <= BOX_WARN_M then
+          -- proximity warning outside every face within 200 m
+          local entry = face or box.pos
+          showBox("box-approach:" .. id, mph, true, entry, dist)
+          return
+        end
+      end
+    end
   end
   if not updateGateZones(track, nextCp) then clearZone() end
 end
@@ -346,7 +399,7 @@ function M.setPairZone(z)
   local mph = type(z) == "table" and tonumber(z.mph) or nil
   if mph then
     serverBox = { mph = mph, key = "server:" .. tostring(z.pair or z.i or mph) }
-    showBox(serverBox.key, mph)
+    showBox(serverBox.key, mph, false, nil, 0)
     return
   end
   serverBox = nil

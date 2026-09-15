@@ -1,5 +1,5 @@
--- Level editor (F11 / rebound / console) is owner-only.
--- Non-owners are blocked from opening it and force-closed if it ever activates.
+-- Level / world editor (F11 / rebound / console) is staff/admin/owner only.
+-- Non-staff are blocked from opening it and force-closed if it ever activates.
 -- Only while on a server: driving alone, the editor is the player's own.
 local M = {}
 
@@ -17,11 +17,13 @@ local noticeCooldown = 0
 local closing = false
 local sinceLook = 0
 
-local function isOwner()
+local function isStaff()
   local st = extensions.raceManager_state
   if not (st and st.get) then return false end
   local me = st.get().me
-  return me and me.role == "owner"
+  if not me then return false end
+  local r = me.role
+  return r == "staff" or r == "admin" or r == "owner"
 end
 
 local function onAServer()
@@ -120,7 +122,7 @@ local function noticeBlocked()
 end
 
 local function locked()
-  return onAServer() and not isOwner()
+  return onAServer() and not isStaff()
 end
 
 function M.sync()

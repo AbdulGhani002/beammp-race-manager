@@ -40,7 +40,7 @@ M.onAServer = onAServer
 -- The Stella too: Race Manager carries its own, so a Stella app placed on
 -- its own from another mod is a second unit over the first.
 M.REPLACES = { tacho2 = true, forcedInduction = true, simplePowertrainControl = true,
-               bajastella = true, BajaStella = true }
+               bajastella = true, BajaStella = true, bajaStella = true }
 
 -- The whole screen, because the bars and windows are drawn inside it.
 --

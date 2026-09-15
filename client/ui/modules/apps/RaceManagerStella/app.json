@@ -1,0 +1,19 @@
+{
+  "interactive": "yes",
+  "domElement": "<rm-stella-instrument></rm-stella-instrument>",
+  "name": "RM Stella III EVO",
+  "types": ["ui.apps.categories.multiplayer"],
+  "css": {
+    "left": "10px",
+    "bottom": "370px",
+    "width": "362px",
+    "height": "240px"
+  },
+  "description": "Race Manager Stella III EVO - isolated instrument (not BajaStella)",
+  "preserveAspectRatio": false,
+  "resizable": false,
+  "sizeLocked": true,
+  "author": "RaceManager",
+  "version": "2.0",
+  "directive": "rmStellaInstrument"
+}

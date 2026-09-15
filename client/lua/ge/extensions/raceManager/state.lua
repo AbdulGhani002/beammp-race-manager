@@ -80,6 +80,7 @@ local function onWelcome(d)
   end)
   log("I", "raceManager", "welcome: " .. tostring(d.name or "unnamed") .. " / " .. tostring(d.role))
   pcall(function() extensions.raceManager_editorlock.sync() end)
+  pcall(function() extensions.raceManager_boostlock.sync() end)
   pcall(function()
     if extensions.raceManager_ui and extensions.raceManager_ui.getDrivers then
       extensions.raceManager_ui.getDrivers()
@@ -213,6 +214,7 @@ local function onMe(d)
   S.needsName = (S.me.name == nil or S.me.name == "")
   log("I", "raceManager", "you are now " .. tostring(S.me.role))
   pcall(function() extensions.raceManager_editorlock.sync() end)
+  pcall(function() extensions.raceManager_boostlock.sync() end)
   changed()
 end
 
