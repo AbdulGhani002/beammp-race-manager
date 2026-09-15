@@ -23,7 +23,7 @@ guihooks = { trigger = function(name, d)
   end
 end }
 
-local car = { pos = { x = 0, y = 0, z = 0 }, vel = { x = 0, y = 0, z = 0 } }
+local car = { pos = { x = 0, y = 0, z = 0 }, vel = { x = 0, y = 0, z = 0 }, dir = { x = 1, y = 0, z = 0 } }
 local function vec(t)
   return { x = t.x, y = t.y, z = t.z,
            length = function(self) return math.sqrt(self.x ^ 2 + self.y ^ 2 + self.z ^ 2) end }
@@ -31,7 +31,7 @@ end
 local vehicle = {
   getPosition = function() return vec(car.pos) end,
   getVelocity = function() return vec(car.vel) end,
-  getDirectionVector = function() return vec({ x = 1, y = 0, z = 0 }) end,
+  getDirectionVector = function() return vec(car.dir) end,
   getID = function() return 1 end,
 }
 be = { getPlayerVehicle = function() return vehicle end, getObjectCount = function() return 0 end,
@@ -197,17 +197,25 @@ drive(555, mph(15), 2.0)
 eq(snap().speedZoneWarning, false, "thirty metres from the face, two seconds later, no warning")
 eq(#sounds(), 0, "and no sound")
 drive(560, mph(15), 3.1)
-eq(snap().speedZoneWarning, true, "five seconds after leaving, the box near by is warned of again")
+eq(snap().speedZoneWarning, false, "five seconds after leaving, the box behind the car does not warn again")
+eq(led().color, "off", "dots out")
+eq(#sounds(), 0, "and no sound")
+car.dir = { x = -1, y = 0, z = 0 }
+drive(560, mph(15), 0.3)
+eq(snap().speedZoneWarning, true, "turned round to face it, it warns straight away")
 eq(led().color, "yellow", "yellow")
 ok(has(sounds(), "advance"), "with the sound")
+car.dir = { x = 1, y = 0, z = 0 }
 box(false, 250)
 drive(780, mph(30), 0.3)
 eq(snap().speedZoneWarning, false, "driven away, the warning goes")
 eq(led().color, "off", "dots out")
 eq(#sounds(), 0, "and driving away from a warning is not leaving a zone: no beep")
+car.dir = { x = -1, y = 0, z = 0 }
 box(false, 150)
 drive(680, mph(30), 0.3)
 eq(snap().speedZoneWarning, true, "and coming back within two hundred it warns straight away")
+car.dir = { x = 1, y = 0, z = 0 }
 
 section("a box takes the unit over a gate zone the car is also in")
 track.zones = { { from = 2, to = 4, mph = 37 } }
@@ -254,6 +262,34 @@ eq(snap().speedZoneWarning, true, "a new race warns of a box near by at once, th
 szNow = nil
 status.state = "idle"
 drive(400, mph(0), 0.3)
+
+section("a pass of your own sits under a zone; a pass to answer sits under a zone the car is in")
+status.state, status.next, status.done = "running", 2, 1
+track.zones = {}
+szNow = nil
+drive(100, mph(30), 5.3)
+sounds()
+S.onRaceManagerPassStatus({ state = "delivered", requestId = 1, aheadName = "Sam" })
+drive(100, mph(30), 0.3)
+eq(led().color, "green", "delivered: green")
+eq(led().pattern, "lines", "lines")
+box(false, 150)
+drive(330, mph(30), 0.3)
+eq(led().color, "yellow", "a box ahead: its yellow over the pass")
+eq(led().pattern, "limit:20", "spelling the limit")
+box(true, 0)
+drive(500, mph(15), 0.3)
+eq(led().color, "red", "in the box: red over the pass")
+S.onRaceManagerPassAlert({ requesterName = "Sam", requestId = 2 })
+drive(500, mph(15), 0.3)
+eq(led().color, "red", "and a pass to answer waits behind a zone the car is in")
+box(false, 1)
+drive(530, mph(15), 0.3)
+eq(led().color, "blue", "out of it, the pass to answer shows")
+eq(led().pattern, "lines", "blue lines")
+S.onRaceManagerPassStatus({ state = "cancelled" })
+drive(540, mph(15), 5.3)
+eq(led().color, "off", "cancelled, dots out")
 
 print("")
 print(("%d passed, %d failed"):format(pass, fail))

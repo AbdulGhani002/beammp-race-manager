@@ -2,7 +2,7 @@
 -- UI is driven primarily by uiPoll() so LED / zone / keys do not depend on
 -- guihooks reaching a nested Angular directive (that path was unreliable).
 local M = {}
-M.VERSION = "0.7.15"
+M.VERSION = "0.7.16"
 
 local cfg = {
   tick = 0.05,
@@ -28,7 +28,10 @@ local lastHdg, lastSpd, lastDist = 0, 0, 0
 local pendingSounds = {}  -- { "advance", "exceed", "vcp", "beep", ... }
 local ticks = 0           -- twentieths of a second of work done, for the test from chat
 local emitSince = 0       -- since the screen was last told
+local emits = 0           -- how many times the screen was told
 local testStep = 0        -- the step of the test from chat that is showing, 0 for none
+local lastZoneDist = nil  -- metres to the zone ahead, as of the last tick
+local bridgeCall          -- defined below, used by the light
 
 local function num(v, d) return tonumber(v) or d or 0 end
 
@@ -78,43 +81,54 @@ local function zoneIdentity(z)
   }, ":")
 end
 
-local function setLed(color, flash, pattern)
+-- each change of the light goes to the log and to the server with why,
+-- so a race that showed the wrong thing can be read afterwards
+local function setLed(color, flash, pattern, why)
+  local was = led
   led = { color = color or "off", flash = not not flash, pattern = pattern or "none" }
+  if was.color == led.color and was.flash == led.flash and was.pattern == led.pattern then return end
+  local line = ("led %s %s%s: %s"):format(led.color, led.pattern, led.flash and " flashing" or "", tostring(why or ""))
+  if type(log) == "function" then log("I", "raceManager", "stella " .. line) end
+  if bridgeCall then bridgeCall("trace", line) end
 end
 
 -- a light the test from chat set by hand, held until the next step; the
 -- tick works the light out from the state every frame and would put it out
 local testLed = nil
 local function restoreLed()
-  if testLed then setLed(testLed.color, testLed.flash, testLed.pattern) return end
+  if testLed then setLed(testLed.color, testLed.flash, testLed.pattern, "test") return end
   if greenUntil > 0 and clock < greenUntil then
-    setLed("green", false, "all")
+    setLed("green", true, "all", "gate")
     return
   end
   if greenUntil > 0 then greenUntil = 0 end
 
+  local zoneIn = zone ~= nil and not zone.upcoming
+  local zoneAhead = zone ~= nil and zone.upcoming == true and zone.advanceWarned == true
   if hazardAhead then
-    setLed("red", true, "triangle")
+    setLed("red", true, "triangle", "a car broken down ahead")
   elseif breakdown then
-    setLed("yellow", true, "triangle")
+    setLed("yellow", true, "triangle", "the red button")
+  elseif zoneIn then
+    setLed("red", lastExceeding, limitPattern(zone),
+      ("in a %d mph zone%s"):format(zoneMph(zone), lastExceeding and ", over" or ""))
   elseif blueFlag.state == "incoming" or blueFlag.state == "requested" or blueFlag.state == "accepted" then
-    setLed("blue", true, "lines")
-  elseif blueFlag.state == "delivered" then
-    setLed("green", true, "lines")
-  elseif blueFlag.state == "go" then
-    setLed("green", true, "all")
+    setLed("blue", true, "lines", "pass " .. blueFlag.state)
   elseif proximity then
-    setLed("yellow", true, "triangle")
-  elseif zone and zone.upcoming and zone.advanceWarned then
-    setLed("yellow", true, limitPattern(zone))
-  elseif zone and not zone.upcoming then
-    setLed("red", lastExceeding, limitPattern(zone))
+    setLed("yellow", true, "triangle", "a car " .. tostring(proximity.kind or "near"))
+  elseif zoneAhead then
+    setLed("yellow", true, limitPattern(zone),
+      ("a %d mph zone ahead, %d m"):format(zoneMph(zone), math.floor(lastZoneDist or 0)))
+  elseif blueFlag.state == "delivered" then
+    setLed("green", true, "lines", "pass delivered")
+  elseif blueFlag.state == "go" then
+    setLed("green", true, "all", "pass go")
   else
-    setLed("off", false, "none")
+    setLed("off", false, "none", "nothing to show")
   end
 end
 
-local function bridgeCall(name, ...)
+bridgeCall = function(name, ...)
   local ok, bridge = pcall(function() return extensions.raceManager_stella end)
   if not ok or type(bridge) ~= "table" or type(bridge[name]) ~= "function" then return false end
   local called, result = pcall(bridge[name], ...)
@@ -191,7 +205,7 @@ end
 
 function M.onVCPCrossed(index)
   greenUntil = clock + cfg.greenSecs
-  setLed("green", false, "all")
+  setLed("green", true, "all", "gate")
   queueSound("vcp")
 end
 
@@ -236,7 +250,7 @@ end
 
 function M.onProximityAlert(data)
   proximity = data or {}
-  setLed("yellow", true, "triangle")
+  restoreLed()
 end
 
 function M.clearProximityAlert()
@@ -327,7 +341,7 @@ function M.getSnapshot()
   local limit = zone and num(zone.limitKmh or zone.speedLimitKmh) or 0
   return {
     heading = lastHdg,
-    speed = lastSpd,
+    speed = math.floor(lastSpd * 0.621371 + 0.5),
     distToVCPm = math.floor(lastDist),
     distToVCPkm = lastDist / 1000,
     vcpName = course[nextCheckpoint] and (course[nextCheckpoint].name or ("VCP" .. nextCheckpoint)) or "",
@@ -358,6 +372,21 @@ function M.getSnapshot()
 end
 
 function M.ticks() return ticks end
+function M.emits() return emits end
+
+-- one line on everything the unit holds, for !stella during a race
+function M.report()
+  local z = "none"
+  if zone then
+    z = ("%s %d mph%s%s"):format(zone.upcoming and "ahead" or "in", zoneMph(zone),
+      zone.upcoming and (zone.advanceWarned and ", warned" or ", not yet") or (lastExceeding and ", over" or ""),
+      (zone.upcoming and lastZoneDist) and (", " .. math.floor(lastZoneDist) .. " m") or "")
+  end
+  return ("led %s %s%s | zone %s | pass %s | near %s | hazard %s | sos %s | green %.1f s | ticks %d, told %d"):format(
+    led.color, led.pattern, led.flash and " flashing" or "", z, tostring(blueFlag.state),
+    proximity and tostring(proximity.kind or "yes") or "none", hazardAhead and "yes" or "no",
+    breakdown and "yes" or "no", math.max(0, greenUntil - clock), ticks, emits)
+end
 
 -- The poll's answer, for a screen whose poll does come back: the readings
 -- only. It drains nothing. It used to take the sounds and the keys with
@@ -471,10 +500,13 @@ local function tickUnit(dt)
       ed = ep and math.sqrt((ep.x - pos.x)^2 + (ep.y - pos.y)^2) or 0
       if not ep then ed = 0 end
     end
+    lastZoneDist = ed
     if ed <= warnDist and not zone.advanceWarned then
       zone.advanceWarned = true
       queueSound("advance")
     end
+  else
+    lastZoneDist = nil
   end
 
   local zoneActive = zone ~= nil and not zone.upcoming
@@ -491,6 +523,7 @@ local function tickUnit(dt)
   -- light, the sounds to play and the keys pressed
   if emitSince >= 0.1 then
     emitSince = 0
+    emits = emits + 1
     local snap = M.getSnapshot()
     snap.sounds = M.drainSounds()
     snap.keys = {}
@@ -527,7 +560,7 @@ function M.testShow(what, step)
   elseif what == "green" then
     M.setSpeedZone(nil)
     greenUntil = clock + cfg.greenSecs
-    setLed("green", false, "all")
+    setLed("green", true, "all", "test")
   elseif what == "ahead" then
     limit.upcoming = true
     M.setSpeedZone(limit)
@@ -553,7 +586,7 @@ end
 
 function M.onExtensionLoaded()
   greenUntil = 0
-  setLed("off", false, "none")
+  setLed("off", false, "none", "loaded")
   for _, rival in ipairs({ "bajaStella", "BajaStella", "baja_stella" }) do
     pcall(function()
       local loaded = type(extensions.isExtensionLoaded) == "function"

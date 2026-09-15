@@ -698,7 +698,9 @@ angular.module('beamng.apps').directive('rmStellaInstrument', function () {
       // The unit's word, by hook, ten times a second: the readings, the
       // light, the sounds and the keys. The same code takes it in as takes
       // the poll's answer, so the two roads cannot disagree.
+      var lastHookAt = 0;
       $scope.$on('RMSI_Update', function (_ev, d) {
+        lastHookAt = Date.now();
         applySnapshot(d);
         if (d && d.isApproaching && d.bearingToVCP != null) {
           setTimeout(function () { updateCompass(d.heading || 0, d.bearingToVCP || 0); }, 0);
@@ -916,7 +918,9 @@ angular.module('beamng.apps').directive('rmStellaInstrument', function () {
       // zone, keys and sounds with an Angular digest.
       var lastTestSeen = 0;
       function applySnapshot(d) {
-        if (!d || typeof d !== "object") return;
+        // an answer with no light in it is no reading, and used to put
+        // the dots out and the zone off the screen
+        if (!d || typeof d !== "object" || d.ledColor == null) return;
         $scope.$applyAsync(function () {
           if (d.heading != null) $scope.hdg = String(Math.floor(d.heading)).padStart ? String(Math.floor(d.heading)).padStart(3, "0") : ("000" + Math.floor(d.heading)).slice(-3);
           if (d.speed != null) $scope.spd = String(Math.floor(d.speed));
@@ -982,15 +986,20 @@ angular.module('beamng.apps').directive('rmStellaInstrument', function () {
         }
       }
 
+      // The poll stands in only while the hook is quiet: two roads carrying
+      // the same reading a tenth of a second apart had the screen painted
+      // twice, and a late answer from the poll painted over a fresh hook.
       var _uiPoll = setInterval(function () {
         try {
           if (typeof bngApi === "undefined" || !bngApi.engineLua) return;
+          if (Date.now() - lastHookAt < 1000) return;
           // an expression, not statements: the game puts a command that
           // wants an answer inside a call of its own, as an argument
           bngApi.engineLua(
             "(function() local u=extensions.raceManager_stellaUnit; if u and u.uiPoll then return u.uiPoll() else return '{}' end end)()",
             function (raw) {
               if (!raw) return;
+              if (Date.now() - lastHookAt < 1000) return;
               var d = raw;
               if (typeof raw === "string") {
                 try { d = JSON.parse(raw); } catch (e) { return; }

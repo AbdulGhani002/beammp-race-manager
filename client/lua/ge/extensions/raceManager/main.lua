@@ -1,6 +1,6 @@
 local M = {}
 
-M.VERSION = "0.7.15-poll-as-expression"
+M.VERSION = "0.7.16-zones-first"
 
 -- ui goes last: it reads from every other module the moment it comes up
 local SUBS = {

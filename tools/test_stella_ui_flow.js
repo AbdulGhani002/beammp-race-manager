@@ -27,7 +27,7 @@ const timers = [];
 const intervals = [];
 const polls = [];
 const plays = [];
-let now = 0;
+let now = 100000;
 const fakeWindow = {
   innerWidth: 1920, innerHeight: 1080,
   addEventListener() {}, removeEventListener() {},
@@ -149,9 +149,11 @@ poll();
 $scope.pressFlag();
 ok(lua.some(c => /requestBlueFlag/.test(c)), "and asks when nobody is");
 lua.length = 0;
+now += 4000;
 $scope.pressOK();
 ok(lua.some(c => /acknowledgeBlueFlag/.test(c)), "OK acknowledges");
 lua.length = 0;
+now += 4000;
 $scope.pressSOSStart({ stopPropagation() {} });
 ok(lua.some(c => /requestMechanicalBreakdown/.test(c)), "the red button is a press, and the unit toggles");
 
@@ -217,6 +219,28 @@ eq($scope.powered, true, "and back");
 fire("RMSI_Update", snapshot({ heading: 355, raceActive: true, vcpIndex: 3, vcpName: "VCP3" }));
 eq($scope.hdg, "355", "the heading");
 eq($scope.wpLabel, "03-VCP3", "and the gate");
+
+section("while the hook flows the poll stands aside, and asks again once it is quiet");
+polls.length = 0;
+intervals.forEach(fn => fn());
+eq(polls.length, 0, "no poll a moment after a hook");
+now += 1500;
+polls.length = 0;
+intervals.forEach(fn => fn());
+eq(polls.length, 1, "a second and a half later it asks again");
+const late = polls.pop();
+fire("RMSI_Update", snapshot({ ledColor: "yellow", ledPattern: "limit:37" }));
+late(JSON.stringify(snapshot({ ledColor: "off" })));
+ok(/l-yellow/.test($scope.ledCls), "an answer that lands after a fresh hook is not painted over it");
+now += 1500;
+poll({ ledColor: "red", ledPattern: "limit:37" });
+ok(/l-red/.test($scope.ledCls), "and the poll paints again once the hook is quiet");
+
+section("an answer with no light in it is no reading");
+fire("RMSI_Update", {});
+ok(/l-red/.test($scope.ledCls), "an empty answer leaves the dots as they were");
+fire("RMSI_Update", { sounds: ["vcp"] });
+ok(/l-red/.test($scope.ledCls), "so does one with only a sound in it");
 
 section("the speed on the idle screen is mph, like the tachometer");
 fire("streamsUpdate", { electrics: { airspeed: 20 } });

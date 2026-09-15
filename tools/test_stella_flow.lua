@@ -264,7 +264,7 @@ eq(led().color, "off", "nothing lit")
 section("!stella runs the unit through everything it can show, two seconds a step, and ends with a verdict")
 extensions.raceManager_race.isActive = function() return false end
 ok(B.selfTest(), "starts when there is no race on")
-ok(notices[#notices]:find("unit 0.7.15", 1, true) ~= nil, "the unit's version is said first")
+ok(notices[#notices]:find("unit 0.7.16", 1, true) ~= nil, "the unit's version is said first")
 run(0.2)
 eq(led().color, "yellow", "one: yellow, straight away") eq(led().pattern, "triangle", "triangle")
 eq(snap().testStep, 1, "and the snapshot carries the step, for the screen to answer")
@@ -293,9 +293,21 @@ ok(notices[#notices]:find("ticking 10 a second", 1, true) ~= nil, "with how fast
 ok(notices[#notices]:find("answered 1 of 6", 1, true) ~= nil, "and how often the screen answered")
 ok(notices[#notices]:find("did not reach the screen", 1, true) ~= nil, "and what that means")
 extensions.raceManager_race.isActive = function() return true end
-eq(B.selfTest(), false, "not during a race")
-ok(notices[#notices]:find("not during a race", 1, true) ~= nil, "and says why")
+local reportsBefore = countSent("stella.report")
+eq(B.selfTest(), true, "during a race it is a live report instead")
+ok(notices[#notices]:find("Stella: race", 1, true) ~= nil, "on screen")
+ok(notices[#notices]:find("unit led", 1, true) ~= nil, "with what the unit shows")
+eq(countSent("stella.report"), reportsBefore + 1, "and sent up to the server's log")
+ok(lastSent("stella.report").text:find("ticks", 1, true) ~= nil, "with the unit's tick count")
 extensions.raceManager_race.isActive = nil
+
+section("every change of the light went up to the server, with why")
+ok(countSent("stella.trace") >= 6, ("at least one a step (%d)"):format(countSent("stella.trace")))
+local gateTraced = false
+for _, m in ipairs(sent) do
+  if m.ch == "stella.trace" and type(m.d) == "table" and tostring(m.d.text):find("green all flashing: gate", 1, true) then gateTraced = true end
+end
+ok(gateTraced, "the gate's green among them")
 
 print("")
 print(("%d passed, %d failed"):format(pass, fail))

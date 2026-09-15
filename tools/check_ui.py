@@ -340,10 +340,25 @@ def main():
     bs = read("client/lua/ge/extensions/raceManager/stellaUnit.lua")
     bridge = read("client/lua/ge/extensions/raceManager/stella.lua")
     stella_ui = read("client/ui/modules/apps/RaceManagerStella/app.js")
-    check('setLed("yellow", true, limitPattern(zone))' in bs,
+    check('setLed("yellow", true, limitPattern(zone),' in bs,
           "a zone ahead no longer flashes the limit in yellow on the Stella")
-    check('setLed("red", lastExceeding, limitPattern(zone))' in bs,
+    check('setLed("red", lastExceeding, limitPattern(zone),' in bs,
           "inside a zone the Stella no longer sits red with the limit, flashing when over")
+    # a zone the car is in sits above every pass state and a car close by;
+    # a zone ahead sits above a pass of your own
+    order = [bs.find(m) for m in ('elseif zoneIn then', 'blueFlag.state == "incoming"', 'elseif proximity then',
+                                  'elseif zoneAhead then', 'blueFlag.state == "delivered"')]
+    check(all(o >= 0 for o in order) and order == sorted(order),
+          "the Stella's zone colours sit under a pass or a car close by again")
+    check('setLed("green", true, "all", "gate")' in bs,
+          "a gate no longer flashes the dots green")
+    check("if (Date.now() - lastHookAt < 1000) return;" in stella_ui,
+          "the poll no longer stands aside while the hook flows")
+    check("d.ledColor == null) return;" in stella_ui,
+          "an answer with no light in it clears the screen again")
+    check('RM.bus.on("stella.report"' in read("server/RaceManager/99_main.lua")
+          and 'RM.bus.on("stella.trace"' in read("server/RaceManager/99_main.lua"),
+          "the server no longer keeps the unit's word on itself")
     check("local WARN_M = 200" in bridge and "warnDistance = WARN_M," in bridge and "limitMph = mph," in bridge,
           "the bridge no longer warns at two hundred metres with the limit in mph")
     check("local QUIET_SECS = 5" in bridge and "quietUntil = clock + QUIET_SECS" in bridge,

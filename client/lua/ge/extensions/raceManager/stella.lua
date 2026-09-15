@@ -199,10 +199,25 @@ local function showBox(key, mph, upcoming, entryPos, faceDist)
   })
 end
 
+-- a box counts as ahead when its nearest face is in front of the car's
+-- nose. The one just left is behind, and used to warn again once the
+-- quiet time ran out, while the car drove away from it.
+local function boxAhead(sz)
+  local face = sz.face or (type(sz.box) == "table" and sz.box.pos) or nil
+  if type(face) ~= "table" then return true end
+  local pos, fwd
+  pcall(function()
+    local v = be:getPlayerVehicle(0)
+    if v then pos, fwd = v:getPosition(), v:getDirectionVector() end
+  end)
+  if not pos or not fwd then return true end
+  return ((face.x or 0) - pos.x) * fwd.x + ((face.y or 0) - pos.y) * fwd.y > 0
+end
+
 -- In this order: a box the car is in, then a gate zone it is in. Nothing
 -- it is in and something was shown as in: that is leaving, and the quiet
--- time starts. Then, outside the quiet time, a box within the warning
--- distance, then the next gate zone ahead.
+-- time starts. Then, outside the quiet time, a box ahead within the
+-- warning distance, then the next gate zone ahead.
 local function updateZones(track, nextCp)
   local trig = extensions.raceManager_triggers
   local sz = trig and type(trig.szState) == "function" and trig.szState() or nil
@@ -228,7 +243,7 @@ local function updateZones(track, nextCp)
     return
   end
 
-  if boxMph and (tonumber(sz.dist) or math.huge) <= WARN_M then
+  if boxMph and (tonumber(sz.dist) or math.huge) <= WARN_M and boxAhead(sz) then
     showBox("box-approach:" .. boxId, boxMph, true, sz.face or sz.box.pos, sz.dist)
     return
   end
@@ -326,7 +341,7 @@ end
 local TEST = {
   { "yellow", "Stella test 1 of 6: yellow triangle, flashing" },
   { "blue",   "Stella test 2 of 6: blue lines, flashing" },
-  { "green",  "Stella test 3 of 6: green, all dots" },
+  { "green",  "Stella test 3 of 6: green flashing, all dots" },
   { "ahead",  "Stella test 4 of 6: speed zone ahead, 37 in yellow" },
   { "in",     "Stella test 5 of 6: in the zone, 37 in red" },
   { "over",   "Stella test 6 of 6: over the limit, red flashing" },
@@ -344,12 +359,41 @@ local function unitTicks()
   return ok and tonumber(n) or 0
 end
 
+-- everything on the road at this moment: the race, what the bridge holds,
+-- what the box poll measures and what the unit shows, with why
+function M.liveReport()
+  local rs = {}
+  pcall(function() rs = extensions.raceManager_race.status() or {} end)
+  local sz
+  pcall(function() sz = extensions.raceManager_triggers.szState() end)
+  local poll = "no box"
+  if type(sz) == "table" then
+    poll = ("box %s %s"):format(tostring(sz.box and sz.box.i or "?"),
+      sz.inside and "in" or ("out, " .. math.floor(tonumber(sz.dist) or 0) .. " m"))
+  end
+  local quiet = math.max(0, quietUntil - clock)
+  local unit = "no unit"
+  pcall(function()
+    local s = stella()
+    if s and type(s.report) == "function" then unit = s.report() end
+  end)
+  return ("race %s, next %s, done %s | bridge %s%s | poll %s | unit %s"):format(
+    tostring(rs.state or "idle"), tostring(rs.next or "?"), tostring(rs.done or "?"),
+    lastZoneKey and (lastZoneKey .. (lastZoneUpcoming and " ahead" or " in")) or "no zone",
+    quiet > 0 and (", quiet %.0f s"):format(quiet) or "",
+    poll, unit)
+end
+
 function M.selfTest()
   local racing = false
   pcall(function() racing = extensions.raceManager_race.isActive() end)
   if racing then
-    pcall(function() extensions.raceManager_state.notice("Stella test: not during a race") end)
-    return false
+    local line = M.liveReport()
+    pcall(function() extensions.raceManager_state.notice("Stella: " .. line) end)
+    if type(log) == "function" then log("I", "raceManager", "stella live: " .. line) end
+    local net = extensions.raceManager_net
+    if net and type(net.send) == "function" then net.send("stella.report", { text = line }) end
+    return true
   end
   local s = stella()
   if not s then
@@ -416,6 +460,13 @@ end
 -- box from the same poll that shows it here, so the two already agree,
 -- and showing the word as well had the unit flicker at every box edge.
 function M.setPairZone(z) end
+
+-- each change of the unit's light, with why, up to the server's log
+function M.trace(line)
+  local net = extensions.raceManager_net
+  if not net or type(net.send) ~= "function" then return false end
+  return net.send("stella.trace", { text = tostring(line or "") })
+end
 
 function M.sendBreakdown(active)
   local net = extensions.raceManager_net

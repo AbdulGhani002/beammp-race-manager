@@ -589,6 +589,17 @@ local function wireChannels()
     RM.stella.requestPass(pid)
   end)
 
+  -- the unit's word on itself: !stella during a race, and each change of
+  -- its light with why, so a race that showed the wrong thing reads here
+  RM.bus.on("stella.report", function(pid, d)
+    RM.info(("%s Stella: %s"):format(RM.identity.displayName(pid),
+      tostring(type(d) == "table" and d.text or "")))
+  end)
+  RM.bus.on("stella.trace", function(pid, d)
+    if RM.config.stellaTrace == false then return end
+    RM.info(("%s Stella %s"):format(RM.identity.displayName(pid),
+      tostring(type(d) == "table" and d.text or "")))
+  end)
   RM.bus.on("stella.pass.accept", function(pid, d)
     local ok, why = RM.stella.acceptPass(pid, type(d) == "table" and d.requestId or nil)
     if not ok then

@@ -1,6 +1,6 @@
 RM = RM or {}
 
-RM.VERSION = "0.7.15-poll-as-expression"
+RM.VERSION = "0.7.16-zones-first"
 
 RM.config = {
   nameMinLen  = 3,
@@ -38,6 +38,11 @@ RM.config = {
   guestKey = "ip",
 
   tickMs     = 100,
+
+  -- each change of a Stella's light comes up to this log with why, so a
+  -- race that showed the wrong thing can be read here. Off once it is
+  -- trusted.
+  stellaTrace = true,
   rosterMs   = 500,
   autosaveMs = 30000,
 
