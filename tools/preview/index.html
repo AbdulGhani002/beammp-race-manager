@@ -69,7 +69,17 @@ window.UiUnits = {
   temperature: function (c) { return { val: c * 9 / 5 + 32, unit: "F" }; },
   pressure: function (bar) { return { val: bar * 14.5, unit: "psi" }; }
 };
-window.guihooks = { trigger: function (n, d) { console.log("guihooks:", n); } };
+// the game's guihooks.trigger hands the event to angular as a broadcast
+// from the root scope; the preview does the same, so an app mounted inside
+// Race Manager hears what the game side would send it
+window.guihooks = { trigger: function (n, d) {
+  console.log("guihooks:", n);
+  try {
+    var el = document.querySelector("[ng-app]");
+    var inj = el && angular.element(el).injector();
+    if (inj) { var rs = inj.get("$rootScope"); rs.$broadcast(n, d); if (!rs.$$phase) rs.$applyAsync(); }
+  } catch (e) { console.error("guihooks broadcast failed", e); }
+} };
 
 // The game's app loader. Race Manager mounts the other two apps through it,
 // so the preview needs one that does the same thing: fetch the script, run

@@ -867,7 +867,13 @@ local function pollSzGeometry()
   if not now and lastGeomInside and box and (tonumber(dist) or math.huge) <= SZ_SLACK_M then now = true end
   szNow = { box = box, inside = now, dist = now and 0 or dist, face = face }
   local mph = now and box and tonumber(box.mph) or nil
-  if now == lastGeomInside and mph == lastGeomMph then return end
+  -- out is where every race starts, so the first frame out is no change;
+  -- it used to send an out to the server on the first frame of every race
+  -- on a course with a box, and the server said "Speed zone off" back
+  if now == (lastGeomInside == true) and mph == lastGeomMph then
+    lastGeomInside = now
+    return
+  end
   lastGeomInside, lastGeomMph = now, mph
   extensions.raceManager_net.send("sz.state", {
     inside = now, mph = mph, i = box and box.i or nil,
