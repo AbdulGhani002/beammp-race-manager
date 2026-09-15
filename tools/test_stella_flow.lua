@@ -264,7 +264,7 @@ eq(led().color, "off", "nothing lit")
 section("!stella runs the unit through everything it can show, two seconds a step, and ends with a verdict")
 extensions.raceManager_race.isActive = function() return false end
 ok(B.selfTest(), "starts when there is no race on")
-ok(notices[#notices]:find("unit 0.7.14", 1, true) ~= nil, "the unit's version is said first")
+ok(notices[#notices]:find("unit 0.7.15", 1, true) ~= nil, "the unit's version is said first")
 run(0.2)
 eq(led().color, "yellow", "one: yellow, straight away") eq(led().pattern, "triangle", "triangle")
 eq(snap().testStep, 1, "and the snapshot carries the step, for the screen to answer")

@@ -2,7 +2,7 @@
 -- UI is driven primarily by uiPoll() so LED / zone / keys do not depend on
 -- guihooks reaching a nested Angular directive (that path was unreliable).
 local M = {}
-M.VERSION = "0.7.14"
+M.VERSION = "0.7.15"
 
 local cfg = {
   tick = 0.05,
@@ -556,7 +556,9 @@ function M.onExtensionLoaded()
   setLed("off", false, "none")
   for _, rival in ipairs({ "bajaStella", "BajaStella", "baja_stella" }) do
     pcall(function()
-      if extensions[rival] then extensions.unload(rival) end
+      local loaded = type(extensions.isExtensionLoaded) == "function"
+        and extensions.isExtensionLoaded(rival) or rawget(extensions, rival) ~= nil
+      if loaded then extensions.unload(rival) end
     end)
   end
 end

@@ -1,6 +1,6 @@
 local M = {}
 
-M.VERSION = "0.7.14-by-hook"
+M.VERSION = "0.7.15-poll-as-expression"
 
 -- ui goes last: it reads from every other module the moment it comes up
 local SUBS = {
@@ -82,9 +82,13 @@ end
 local function onExtensionLoaded()
   -- Isolate Stella: unload any standalone Baja Stella so it cannot steal
   -- hooks, LEDs, or sounds from Race Manager's own instrument.
+  -- looked for, not asked for: extensions[name] makes the game try to
+  -- load it and log that it could not
   for _, rival in ipairs({ "bajaStella", "BajaStella", "baja_stella" }) do
     pcall(function()
-      if extensions[rival] then
+      local loaded = type(extensions.isExtensionLoaded) == "function"
+        and extensions.isExtensionLoaded(rival) or rawget(extensions, rival) ~= nil
+      if loaded then
         extensions.unload(rival)
         log("I", "raceManager", "unloaded competing Stella extension: " .. rival)
       end

@@ -34,13 +34,26 @@ local function stella()
 end
 
 -- a Stella mod of its own in the mods folder is not the unit Race Manager
--- talks to any more; said once so its owner knows why it sits there dead
+-- talks to any more; said once so its owner knows why it sits there dead.
+-- Looked for every ten seconds, and only looked for: asking the extension
+-- table for it by name made the game try to load one and log that it
+-- could not, ten times a second.
+local function extensionLoaded(name)
+  local ok, is = pcall(function()
+    if type(extensions.isExtensionLoaded) == "function" then return extensions.isExtensionLoaded(name) end
+    return rawget(extensions, name) ~= nil
+  end)
+  return ok and is == true
+end
+
 local strangerSaid = false
-local function noticeStranger()
+local strangerSince = 10
+local function noticeStranger(dt)
   if strangerSaid then return end
-  local other = false
-  pcall(function() other = type(extensions.bajaStella) == "table" end)
-  if not other then return end
+  strangerSince = strangerSince + (tonumber(dt) or 0)
+  if strangerSince < 10 then return end
+  strangerSince = 0
+  if not extensionLoaded("bajaStella") then return end
   strangerSaid = true
   pcall(function()
     extensions.raceManager_state.notice("Another Stella mod is installed. Race Manager uses its own; remove the other from your mods folder.")
@@ -394,7 +407,7 @@ function M.onUpdate(dt)
   if since < EVERY then return end
   since = 0
   wireNetwork()
-  noticeStranger()
+  noticeStranger(EVERY)
   sync()
 end
 

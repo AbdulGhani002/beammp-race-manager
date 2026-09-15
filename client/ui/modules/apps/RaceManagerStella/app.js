@@ -985,8 +985,10 @@ angular.module('beamng.apps').directive('rmStellaInstrument', function () {
       var _uiPoll = setInterval(function () {
         try {
           if (typeof bngApi === "undefined" || !bngApi.engineLua) return;
+          // an expression, not statements: the game puts a command that
+          // wants an answer inside a call of its own, as an argument
           bngApi.engineLua(
-            "local u=extensions.raceManager_stellaUnit; if u and u.uiPoll then return u.uiPoll() else return '{}' end",
+            "(function() local u=extensions.raceManager_stellaUnit; if u and u.uiPoll then return u.uiPoll() else return '{}' end end)()",
             function (raw) {
               if (!raw) return;
               var d = raw;

@@ -1,6 +1,6 @@
 RM = RM or {}
 
-RM.VERSION = "0.7.14-by-hook"
+RM.VERSION = "0.7.15-poll-as-expression"
 
 RM.config = {
   nameMinLen  = 3,

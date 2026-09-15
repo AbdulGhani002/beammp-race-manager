@@ -363,6 +363,20 @@ def main():
           "the screen no longer takes the unit's hook in through applySnapshot")
     check("snap.sounds = {}" in bs.split("function M.uiPoll()")[1].split("\nend")[0],
           "the poll drains the sounds again, and loses them where its answer never comes back")
+    # A command that wants an answer back is put inside a call by the game,
+    # as an argument, so it has to be an expression. Statements there are a
+    # syntax error ten times a second, and the answer never comes.
+    for m in re.finditer(r'bngApi\.engineLua\(\s*"([^"]*)"\s*,\s*function', stella_ui):
+        cmd = m.group(1).strip()
+        check(cmd.startswith("(function()") and cmd.endswith("end)()"),
+              "a command that wants an answer is not an expression: " + cmd[:60])
+    # extensions.name makes the game try to load an extension of that name
+    # and log that it could not; a rival is looked for, not asked for
+    for path in ("stella.lua", "stellaUnit.lua", "main.lua", "editorlock.lua", "uifix.lua", "keys.lua", "boostlock.lua"):
+        body = read(os.path.join(LUA, path))
+        check(not re.search(r"extensions\.(bajaStella|BajaStella|baja_stella|editor|core_editor)\b", body)
+              and "extensions[rival]" not in body,
+              "%s asks the game for an extension it may not have, and the game logs it every time" % path)
     # and the race panel says what zones a course has, so nobody drives one
     # expecting a penalty it cannot give
     check("rm-track-zones" in html and "No speed zones on this course" in html,

@@ -62,13 +62,9 @@ local function editorIsOpen()
       if worldEditor and worldEditor.isActive and worldEditor.isActive() then open = true end
     end)
   end
-  if not open then
-    pcall(function()
-      -- Some builds expose this through extensions
-      local e = extensions and (extensions.editor or extensions.core_editor)
-      if e and e.isActive and e.isActive() then open = true end
-    end)
-  end
+  -- not by asking the extension table for an editor: that makes the game
+  -- try to load an extension of that name and log that it could not, four
+  -- times a second. The editor's own global says whether it is up.
   return open
 end
 
