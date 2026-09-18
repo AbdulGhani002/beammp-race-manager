@@ -71,33 +71,23 @@ end
 -- the nearest car in front on the same course, inside the window
 function RM.stella.ahead(pid)
   local myDone, myToNext, track = progress(pid)
+  if not myDone then return nil, "not_racing" end
   local window = cfg("passWindowM", 300)
-  local mine = RM.race.get(pid)
-  if not track and mine then track = mine.track end
-  if not mine or mine.state ~= "running" then return nil, "not_racing" end
 
-  local best, bestDist, fallback, fallDist = nil, nil, nil, nil
+  local best, bestDist = nil, nil
   for other in pairs(RM.identity.sessions()) do
     if other ~= pid then
       local r = RM.race.get(other)
-      if r and r.state == "running" and r.track == track then
+      if r and r.state == "running" and r.track == track and isAhead(other, myDone, myToNext) then
         local d = distance(pid, other)
-        if d and d <= window then
-          if (not fallDist or d < fallDist) then
-            fallback, fallDist = other, d
-          end
-          if myDone and isAhead(other, myDone, myToNext) then
-            if not bestDist or d < bestDist then
-              best, bestDist = other, d
-            end
-          end
+        if d and d <= window and (not bestDist or d < bestDist) then
+          best, bestDist = other, d
         end
       end
     end
   end
-  if best then return best, bestDist end
-  if fallback then return fallback, fallDist end
-  return nil, "nobody_ahead"
+  if not best then return nil, "nobody_ahead" end
+  return best, bestDist
 end
 
 ------------------------------------------------------------------ breakdown
@@ -219,11 +209,6 @@ end
 
 function RM.stella.acceptPass(pid, requestId)
   local req = requests[tonumber(requestId) or -1]
-  if not req then
-    for _, r in pairs(requests) do
-      if r.to == pid and r.state == "delivered" then req = r break end
-    end
-  end
   if not req then return false, "no_such_request" end
   if req.to ~= pid then return false, "not_yours" end
   if req.state ~= "delivered" then return false, "not_open" end

@@ -150,11 +150,20 @@ local function applyTree(cfg)
   end)
 end
 
--- takes one off the rack and rebuilds, which brings every tire back new
-local function fitSpare(consume)
+-- takes one off the rack and rebuilds, which brings every tire back new.
+-- In a pit, an empty rack refills first, from what was last remembered
+-- full, before taking one -- no separate rerack press needed there first;
+-- that is the whole point of driving in rather than fixing it on the course.
+local function fitSpare(consume, inPit)
   local cfg = vehicleConfig()
   if not cfg or not cfg.partsTree then return false, "no_config" end
-  if consume and not takeOneSpare(cfg) then return false, "no_spares_left" end
+  if consume then
+    local took = takeOneSpare(cfg)
+    if not took and inPit then
+      if fillRack(cfg) then took = takeOneSpare(cfg) end
+    end
+    if not took then return false, "no_spares_left" end
+  end
   local ok = applyTree(cfg)
   return ok, (not ok) and "swap_failed" or nil
 end
@@ -183,7 +192,7 @@ function M.onFlat(flat)
     return
   end
   extensions.raceManager_net.send("service.use",
-    { which = "spare", flat = true, spares = rackCount() })
+    { which = "spare", flat = true, spares = rackCount(), cap = rackCount0 })
 end
 
 local function askFlat()
@@ -200,7 +209,7 @@ local function askFlat()
                      and not extensions.raceManager_race.inPit()
   if not mustBeFlat then
     extensions.raceManager_net.send("service.use",
-      { which = "spare", spares = rackCount() })
+      { which = "spare", spares = rackCount(), cap = rackCount0 })
     return
   end
 
@@ -471,7 +480,7 @@ local function doJob(which, full)
   -- for a tire past mending, and on his screen that read as a button that
   -- played its sounds and did nothing.
   if which == "spare" then
-    return fitSpare(takesSpare)
+    return fitSpare(takesSpare, full)
   end
 
   if which == "repair" then

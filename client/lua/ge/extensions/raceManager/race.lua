@@ -114,6 +114,18 @@ function M.arm(trackId, mode, laps, class, challenge, official, officialName)
   extensions.raceManager_net.send("race.arm", payload)
 end
 
+-- A challenge with no course picked: no id to send, no grid to be put on.
+-- The server starts the clock the instant it hears this.
+function M.armChallenge(challengeId, mode, class)
+  if type(challengeId) ~= "string" or challengeId == "" then return end
+  st.problem = nil
+  extensions.raceManager_net.send("race.arm", {
+    challenge = challengeId,
+    mode  = tostring(mode or "controller"),
+    class = type(class) == "string" and class ~= "" and class or nil,
+  })
+end
+
 function M.endRace()
   if not M.isActive() then return end
   extensions.raceManager_net.send("race.end", {})
@@ -257,6 +269,15 @@ local function onState(d)
     extensions.raceManager_state.notice(
       ("%s is on. Your clock starts when you cross the start line."):format(
         st.trackName or st.track or "The race"))
+  end
+
+  -- a free-roam challenge attempt has no start line to cross, so "running"
+  -- arrives straight from idle/finished rather than by way of "armed" and
+  -- onSplit's "started" flag -- this is the only signal its clock gets.
+  if st.state == "running" and was ~= "running" and not startedLocal then
+    startedLocal = extensions.raceManager_clock.now()
+    shownTenths = -1
+    extensions.raceManager_state.notice("Challenge started. Drive.")
   end
 
   blockStock(st.state == "armed" or st.state == "running")

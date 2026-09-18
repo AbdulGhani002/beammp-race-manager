@@ -321,7 +321,7 @@
           <h3>Track records</h3>
           <div class="rm-empty" ng-if="!s.tracks.length">No course is saved yet.</div>
           <div class="rm-field" ng-if="trackList().length">Race</div>
-          <div class="rm-picklist" ng-if="trackList().length">
+          <div class="rm-picklist rm-trackpick" ng-if="trackList().length">
             <button ng-repeat="t in trackList() track by t.id" ng-click="recordsFor(t.id)"
                     ng-class="{on: recPick.track === t.id}">
               <span class="rm-pick-name">{{ t.name }}</span>
@@ -329,7 +329,7 @@
             </button>
           </div>
           <div class="rm-field" ng-if="trackListOther().length">Other maps</div>
-          <div class="rm-picklist" ng-if="trackListOther().length">
+          <div class="rm-picklist rm-trackpick" ng-if="trackListOther().length">
             <button ng-repeat="t in trackListOther() track by t.id" ng-click="recordsFor(t.id)"
                     ng-class="{on: recPick.track === t.id}">
               <span class="rm-pick-name">{{ t.name }}</span>
@@ -435,6 +435,7 @@
           <div class="rm-ch-fact"><span class="rm-ch-meta">Miles</span><span>{{ drvShown().miles || 0 }}</span></div>
           <div class="rm-ch-fact"><span class="rm-ch-meta">Avg speed</span><span>{{ drvShown().avgMph || 0 }} mph</span></div>
           <div class="rm-ch-fact"><span class="rm-ch-meta">Top speed</span><span>{{ drvShown().topMph || 0 }} mph</span></div>
+          <div class="rm-ch-fact"><span class="rm-ch-meta">Races completed</span><span>{{ drvShown().racesCompleted || 0 }}</span></div>
           <div class="rm-ch-fact" ng-if="drvShown().fastest"><span class="rm-ch-meta">Fastest lap</span>
             <span>{{ clock(drvShown().fastest.time) }} on {{ drvShown().fastest.trackName }}</span></div>
         </div>
@@ -469,7 +470,7 @@
           <div class="rm-empty" ng-if="!(drvShown().challenges && drvShown().challenges.length)">No challenge times stored yet.</div>
           <div class="rm-tier" ng-repeat="c in drvShown().challenges">
             <span>{{ c.name }}
-              <span class="rm-ch-meta">· {{ c.class || 'any class' }}{{ c.mode ? ' · ' + modeLabel(c.mode) : '' }}{{ c.tier ? ' · rung ' + c.tier : '' }}</span>
+              <span class="rm-ch-meta">· {{ c.class || 'any class' }}{{ c.mode ? ' · ' + modeLabel(c.mode) : '' }}{{ c.tier ? ' · tier ' + c.tier : '' }}</span>
             </span>
             <span>{{ clock(c.best) }}</span>
           </div>
@@ -611,7 +612,10 @@
         <p class="rm-ch-desc" ng-if="chShown().description">{{ chShown().description }}</p>
         <div class="rm-ch-facts">
           <div class="rm-ch-fact"><span class="rm-ch-meta">{{ t('course') }}</span>
-            <span>{{ chShown().trackName }}, {{ chShown().laps }} {{ chShown().laps === 1 ? t('lap') : t('laps') }}</span></div>
+            <span ng-if="chShown().track">{{ chShown().trackName }}, {{ chShown().laps }} {{ chShown().laps === 1 ? t('lap') : t('laps') }}</span>
+            <span ng-if="!chShown().track">{{ t('ch.roam.free.tag') }}</span></div>
+          <div class="rm-ch-fact" ng-if="chShown().style !== 'laptime' && chShown().timeLimit">
+            <span class="rm-ch-meta">{{ t('ch.timelimit') }}</span><span>{{ clock(chShown().timeLimit) }}</span></div>
           <div class="rm-ch-fact"><span class="rm-ch-meta">{{ t('ch.classes') }}</span>
             <span>{{ chClasses(chShown()) }}</span></div>
           <div class="rm-ch-fact"><span class="rm-ch-meta">{{ t('ch.when') }}</span>
@@ -621,14 +625,17 @@
         <div class="rm-field">{{ t('ch.ladder') }}</div>
         <div class="rm-scrollbox">
           <div class="rm-tier" ng-repeat="r in chShown().tiers track by $index">
-            <span>{{ t('ch.under') }} {{ clock(r.time) }}</span>
+            <span>{{ chRungWord(chShown().style) }} {{ chValueText(r.time, chShown().style) }}</span>
             <span class="rm-zone-mph">{{ r.xp }} XP</span>
           </div>
+        </div>
+        <div class="rm-field" ng-if="chShown().style && chShown().style !== 'laptime' && chShown().timeLimit">
+          {{ t('ch.timelimit') }} <span class="rm-field-note">{{ clock(chShown().timeLimit) }}</span>
         </div>
 
         <div class="rm-field" ng-if="chShown().mine">{{ t('ch.yours') }}</div>
         <div class="rm-tier rm-mine" ng-if="chShown().mine">
-          <span>{{ clock(chShown().mine.best) }}</span>
+          <span>{{ chValueText(chShown().mine.best, chShown().style) }}</span>
           <span>{{ chShown().mine.tier ? t('ch.rung') + ' ' + chShown().mine.tier : t('ch.norung') }}</span>
           <span class="rm-zone-mph">{{ chShown().mine.xp }} XP</span>
         </div>
@@ -638,7 +645,7 @@
           <div class="rm-empty" ng-if="!chShown().top.length">{{ t('ch.noone') }}</div>
           <div class="rm-tier" ng-repeat="r in chShown().top track by r.key">
             <span>{{ r.pos }}. {{ r.name }}</span>
-            <span>{{ clock(r.best) }}</span>
+            <span>{{ chValueText(r.best, chShown().style) }}</span>
             <span class="rm-zone-mph">{{ r.xp }} XP</span>
           </div>
         </div>
@@ -677,30 +684,49 @@
           <button ng-click="chForm.kind = 'daily'" ng-class="{on: chForm.kind === 'daily'}">{{ t('ch.daily') }}</button>
           <button ng-click="chForm.kind = 'weekly'" ng-class="{on: chForm.kind === 'weekly'}">{{ t('ch.weekly') }}</button>
         </div>
-        <div class="rm-field">{{ t('course') }}</div>
-        <div class="rm-picklist">
-          <button ng-repeat="tr in trackList() track by tr.id" ng-click="chForm.track = tr.id"
-                  ng-class="{on: chForm.track === tr.id, away: trackAway(tr)}">
-            <span class="rm-pick-name">{{ tr.name }}</span>
-            <span class="rm-pick-note">{{ tr.count }} gates</span>
-          </button>
+        <div class="rm-field">{{ t('ch.style') }}</div>
+        <div class="rm-pickrow rm-pickrow-wrap">
+          <button ng-repeat="st in chStyles" ng-click="chSetStyle(st.key)"
+                  ng-class="{on: chForm.style === st.key}">{{ chStyleLabel(st.key) }}</button>
         </div>
-        <div class="rm-field" ng-if="chFormTrack() && chFormTrack().circuit">{{ t('laps') }}</div>
-        <input type="number" min="1" max="99" ng-model="chForm.laps" ng-if="chFormTrack() && chFormTrack().circuit" />
+        <div class="rm-field" ng-if="chForm.style !== 'laptime'">{{ t('ch.roam') }}</div>
+        <div class="rm-pickrow" ng-if="chForm.style !== 'laptime'">
+          <button ng-click="chSetUseCourse(false)" ng-class="{on: !chForm.useCourse}">{{ t('ch.roam.free') }}</button>
+          <button ng-click="chSetUseCourse(true)" ng-class="{on: chForm.useCourse}">{{ t('ch.roam.course') }}</button>
+        </div>
+        <p class="rm-hint" ng-if="chForm.style !== 'laptime' && !chForm.useCourse">{{ t('ch.roam.free.note') }}</p>
+        <div ng-if="chForm.style === 'laptime' || chForm.useCourse">
+          <div class="rm-field">{{ t('course') }}</div>
+          <div class="rm-picklist">
+            <button ng-repeat="tr in trackList() track by tr.id" ng-click="chForm.track = tr.id"
+                    ng-class="{on: chForm.track === tr.id, away: trackAway(tr)}">
+              <span class="rm-pick-name">{{ tr.name }}</span>
+              <span class="rm-pick-note">{{ tr.count }} gates</span>
+            </button>
+          </div>
+          <div class="rm-field" ng-if="chFormTrack() && chFormTrack().circuit">{{ t('laps') }}</div>
+          <input type="number" min="1" max="99" ng-model="chForm.laps" ng-if="chFormTrack() && chFormTrack().circuit" />
+        </div>
         <div class="rm-field">{{ t('ch.classes') }} <span class="rm-field-note">{{ t('ch.classes.note') }}</span></div>
         <div class="rm-classgrid">
           <button ng-repeat="k in classNames()" ng-click="chToggleClass(k)"
                   ng-class="{on: chForm.classes.indexOf(k) >= 0}">{{ k }}</button>
         </div>
-        <div class="rm-field">{{ t('ch.ladder') }} <span class="rm-field-note">{{ t('ch.ladder.note') }}</span></div>
+        <div class="rm-field">{{ t('ch.ladder') }} <span class="rm-field-note">{{ t('ch.ladder.note.' + (chForm.style || 'laptime')) }}</span></div>
         <div class="rm-scrollbox">
           <div class="rm-tier rm-tier-edit" ng-repeat="r in chForm.tiers track by $index">
-            <input type="text" ng-model="r.time" placeholder="1:32.43" />
+            <input type="text" ng-model="r.time" ng-attr-placeholder="{{ chTierPlaceholder() }}" />
             <input type="number" min="0" ng-model="r.xp" placeholder="100" />
             <button ng-click="chRemoveTier($index)">{{ t('remove') }}</button>
           </div>
         </div>
         <button ng-click="chAddTier()" ng-if="chForm.tiers.length < 20">{{ t('ch.addrung') }}</button>
+        <div ng-if="chForm.style !== 'laptime'">
+          <div class="rm-field">{{ t('ch.timelimit') }}
+            <span class="rm-field-note">{{ t('ch.timelimit.' + (chForm.style === 'speed' ? 'optional' : 'required')) }}</span>
+          </div>
+          <input type="text" ng-model="chForm.timeLimit" placeholder="0:00:30.00" />
+        </div>
         <div class="rm-field">{{ t('ch.start') }}</div>
         <div class="rm-pickrow">
           <button ng-click="chForm.startInHours = 0" ng-class="{on: chForm.startInHours === 0}">{{ t('now') }}</button>
@@ -747,7 +773,7 @@
         <button ng-click="setPanel('capture')">{{ t('opt.capture') }}</button>
       </div>
 
-      <div class="rm-group" ng-if="s.isOwner">
+      <div class="rm-group" ng-if="s.isStaff">
         <h3>{{ t('opt.staff') }}</h3>
         <p class="rm-hint">{{ t('opt.staff.note') }}</p>
         <div class="rm-picklist rm-chlist">
@@ -763,16 +789,45 @@
         </div>
         <div class="rm-group" ng-if="staffPick">
           <p class="rm-hint">{{ staffPick.name }} — {{ staffPick.role || 'player' }}</p>
-          <div class="rm-pickrow">
+          <!-- kicking from the current race only, not the server -- open to
+               staff, not just the owner, and shown whenever this driver has
+               a live session to actually be racing in -->
+          <div class="rm-pickrow" ng-if="staffPick.pid != null">
+            <button class="rm-danger" ng-click="staffRaceKick()">{{ t('opt.racekick') }}</button>
+          </div>
+          <div class="rm-pickrow" ng-if="s.isOwner">
             <button ng-click="staffRole('player')" ng-class="{on: staffPick.role === 'player'}">{{ t('opt.player') }}</button>
             <button ng-click="staffRole('staff')" ng-class="{on: staffPick.role === 'staff'}">{{ t('opt.makestaff') }}</button>
             <button ng-click="staffRole('admin')" ng-class="{on: staffPick.role === 'admin'}">{{ t('opt.makeadmin') }}</button>
           </div>
-          <div class="rm-pickrow">
+          <div class="rm-pickrow" ng-if="s.isAdmin">
             <button class="rm-danger" ng-click="staffKick()">{{ t('opt.kick') }}</button>
             <button class="rm-danger" ng-click="staffBan()">{{ t('opt.ban') }}</button>
             <button class="rm-danger" ng-click="staffClear()">{{ t('opt.clearrec') }}</button>
           </div>
+        </div>
+      </div>
+
+      <!-- picking one of the currently-live challenges and dropping every
+           connected driver into an attempt of it right now -- for kicking
+           off a scheduled event on the spot instead of waiting for each
+           driver to find and enter it themselves -->
+      <div class="rm-group" ng-if="s.isStaff">
+        <h3>{{ t('opt.launchall') }}</h3>
+        <p class="rm-hint">{{ t('opt.launchall.note') }}</p>
+        <div class="rm-picklist rm-chlist">
+          <div class="rm-empty" ng-if="!liveChallenges().length">{{ t('opt.nolivechallenges') }}</div>
+          <button class="rm-ch-row" ng-repeat="c in liveChallenges() track by c.id"
+                  ng-class="{on: launchPick === c.id}"
+                  ng-click="launchPick = c.id">
+            <span class="rm-ch-main">
+              <span class="rm-pick-name">{{ c.name }}</span>
+              <span class="rm-ch-meta">{{ chStyleLabel(c.style) }} · {{ c.kind }}</span>
+            </span>
+          </button>
+        </div>
+        <div class="rm-buttons" ng-if="launchPick">
+          <button class="rm-primary" ng-click="staffLaunchAll()">{{ t('opt.launchall.go') }}</button>
         </div>
       </div>
 
@@ -994,7 +1049,7 @@
     <!-- the racing clock. up from the moment the line is crossed until the run
          is over, panel open or not, counted locally from a start the server
          gave us. before that a toast says what to do and nothing sits there. -->
-    <div class="rm-hud" ng-if="raceRunning() && dash.clock">
+    <div class="rm-hud" rm-move="hud" title="Drag to move" ng-if="raceRunning() && dash.clock && !s.challengeLive.active">
       <!-- the big number already has the penalties in it, so the total sits
            with the cut count instead of next to the clock, where it read as
            another ninety seconds still to come -->
@@ -1032,6 +1087,74 @@
       </div>
 
       <button class="rm-hud-end" ng-click="endRace()">End race</button>
+    </div>
+
+    <!-- the challenge HUD: same box, same position, as the race clock above,
+         but for a speed/g-force/damage/long-jump/distance attempt, where
+         what matters is not a lap time but the thing that style measures.
+         Mutually exclusive with the clock above (never both at once). -->
+    <div class="rm-hud rm-chud" rm-move="chud" title="Drag to move" ng-if="s.challengeLive.active" ng-class="'rm-chud-' + s.challengeLive.style">
+      <div class="rm-hud-row rm-chud-title"><span>{{ chActive().name }}</span></div>
+
+      <div class="rm-hud-clock rm-chud-countdown" ng-if="chRemaining() !== null"
+           ng-class="{warn: chRemaining() < 10}">{{ clock(chRemaining()) }}</div>
+      <div class="rm-hud-row" ng-if="chRemaining() === null">{{ t('ch.roam.notimelimit') }}</div>
+
+      <!-- top speed: the number that matters, big, with a bar climbing
+           toward the next tier -->
+      <div ng-if="s.challengeLive.style === 'speed'">
+        <div class="rm-chud-big">{{ s.challengeLive.speedMph || 0 | number:0 }}<span class="rm-chud-unit">mph</span></div>
+        <div class="rm-hud-bar" ng-if="chLiveNextTier()">
+          <div class="rm-hud-bar-fill rm-chud-fill" style="width: {{ chLiveProgressPct() }}%"></div>
+        </div>
+        <div class="rm-hud-row">
+          <span>{{ t('ch.chud.peak') }} {{ s.challengeLive.peakSpeedMph || 0 | number:0 }} mph</span>
+          <span ng-if="chLiveNextTier()">{{ t('ch.chud.next') }} {{ chLiveNextTierText() }}</span>
+        </div>
+      </div>
+
+      <!-- g-force: current and peak, big numbers -- the same shape as
+           every other panel here, no gauge to render or size the box around -->
+      <div ng-if="s.challengeLive.style === 'gforce'">
+        <div class="rm-chud-big rm-chud-gbig">{{ s.challengeLive.gForce || 0 | number:1 }}<span class="rm-chud-unit">g</span></div>
+        <div class="rm-hud-row"><span>{{ t('ch.chud.peak') }} {{ s.challengeLive.peakG || 0 | number:1 }} g</span></div>
+      </div>
+
+      <!-- damage & distance: the live score, with distance and damage taken
+           broken out underneath so the number's inputs are never a mystery -->
+      <div ng-if="s.challengeLive.style === 'damage'">
+        <div class="rm-chud-big rm-chud-damagebig">{{ chLiveValue() || 0 | number:0 }}<span class="rm-chud-unit">{{ t('ch.chud.pts') }}</span></div>
+        <div class="rm-hud-row">
+          <span>{{ (s.challengeLive.distanceM || 0) / 1609.344 | number:2 }} mi</span>
+          <span class="rm-hud-pen">{{ t('ch.chud.damage') }} {{ s.challengeLive.damageTaken || 0 | number:0 }}</span>
+        </div>
+      </div>
+
+      <!-- distance: an odometer climbing toward the next tier -->
+      <div ng-if="s.challengeLive.style === 'distance'">
+        <div class="rm-chud-big">{{ (s.challengeLive.distanceM || 0) / 1609.344 | number:2 }}<span class="rm-chud-unit">mi</span></div>
+        <div class="rm-hud-bar" ng-if="chLiveNextTier()">
+          <div class="rm-hud-bar-fill rm-chud-fill" style="width: {{ chLiveProgressPct() }}%"></div>
+        </div>
+        <div class="rm-hud-row" ng-if="chLiveNextTier()"><span>{{ t('ch.chud.next') }} {{ chLiveNextTierText() }}</span></div>
+      </div>
+
+      <!-- long jump: airborne or not, and the best so far, with a flash the
+           moment a jump lands -->
+      <div ng-if="s.challengeLive.style === 'longjump'">
+        <div ng-if="s.challengeLive.airborne">
+          <div class="rm-chud-airborne">{{ t('ch.chud.airborne') }}</div>
+          <div class="rm-hud-row rm-chud-flash">
+            <span>{{ s.challengeLive.distanceNowFt || 0 | number:0 }} ft &middot; {{ s.challengeLive.heightNowFt || 0 | number:0 }} ft {{ t('ch.chud.high') }}</span>
+          </div>
+        </div>
+        <div class="rm-chud-big" ng-if="!s.challengeLive.airborne">{{ chLiveValue() || 0 | number:0 }}<span class="rm-chud-unit">{{ t('ch.chud.bestft') }}</span></div>
+        <div class="rm-hud-row rm-chud-flash" ng-if="s.challengeLive.lastJump">
+          <span>{{ s.challengeLive.lastJump.distanceFt || 0 | number:0 }} ft &middot; {{ s.challengeLive.lastJump.heightFt || 0 | number:0 }} ft {{ t('ch.chud.high') }}</span>
+        </div>
+      </div>
+
+      <button class="rm-hud-end" ng-click="endRace()">{{ t('ch.chud.stop') }}</button>
     </div>
 
     <!-- bottom bar. every one of these needs the car stopped. -->
@@ -1073,13 +1196,13 @@
           by {{ s.race.results.bestLap.name }}
         </div>
 
-        <div class="rm-results-head">
+        <div class="rm-results-head rm-xp7">
           <span>#</span><span>Driver</span><span>Time</span>
-          <span>Penalties</span><span>Leader</span><span>Ahead</span>
+          <span>Penalties</span><span>Leader</span><span>Ahead</span><span>XP</span>
         </div>
 
         <div class="rm-entry" ng-repeat="e in s.race.results.finished">
-          <div class="rm-result-row" ng-click="expand(e.name)"
+          <div class="rm-result-row rm-xp7" ng-click="expand(e.name)"
                ng-class="{open: opened === e.name, me: e.name === s.me.name}">
             <span class="rm-pos">{{ e.pos }}</span>
             <span class="rm-rname">{{ e.name }}<em ng-if="e.suspect"
@@ -1098,6 +1221,8 @@
               penaltySeconds(e) ? "+" + penaltyClock(penaltySeconds(e)) : "—" }}</span>
             <span class="rm-gap">{{ e.pos === 1 ? "—" : "+" + clock(e.toLeader) }}</span>
             <span class="rm-gap">{{ e.pos === 1 ? "—" : "+" + clock(e.toAhead) }}</span>
+            <span class="rm-xp-col" ng-if="e.xp || e.completionXp" title="{{ raceXpTitle(e) }}">+{{ (e.xp || 0) + (e.completionXp || 0) }}</span>
+            <span class="rm-xp-col" ng-if="!e.xp && !e.completionXp">—</span>
           </div>
 
           <div class="rm-detail" ng-if="opened === e.name">
@@ -1145,6 +1270,108 @@
         <div class="rm-buttons rm-finish">
           <button class="rm-primary" ng-click="raceAgain()">Go again</button>
           <button ng-click="closeResults()">Close</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- the personal results screen for a speed/g-force/damage/long-jump/
+         distance attempt: score, tier, XP, how this compares with the
+         driver's own previous best and attempt count on this challenge, and
+         a handful of their stats from other challenges. No heat, no other
+         drivers -- it is a solo attempt and shows the moment it ends. -->
+    <div class="rm-veil rm-results-veil" ng-if="s.challengeFinished">
+      <div class="rm-card rm-results rm-chresults">
+        <img class="rm-crest rm-crest-small"
+             src="/ui/modules/apps/RaceManager/logo-shield.png" alt="Baja Sim" />
+        <h2>{{ s.challengeFinished.challenge.name }}</h2>
+        <div class="rm-best">
+          {{ chStyleLabel(s.challengeFinished.challenge.style) }} &middot; {{ t('ch.' + s.challengeFinished.challenge.kind) }}
+        </div>
+
+        <p class="rm-hint" ng-if="s.challengeFinished.result.suspect">{{ t('ch.cr.suspect') }}</p>
+        <p class="rm-hint" ng-if="!s.challengeFinished.result">{{ t('ch.cr.noscore') }}</p>
+
+        <div ng-if="s.challengeFinished.result && !s.challengeFinished.result.suspect">
+          <div class="rm-ch-facts">
+            <div class="rm-ch-fact rm-chresults-score">
+              <span class="rm-ch-meta">{{ t('ch.cr.score') }}</span>
+              <span class="rm-chresults-big">{{ chValueText(s.challengeFinished.result.value, s.challengeFinished.challenge.style) }}</span>
+            </div>
+            <div class="rm-ch-fact">
+              <span class="rm-ch-meta">{{ t('ch.rung') }}</span>
+              <span>{{ s.challengeFinished.result.tier ? (t('ch.rung') + ' ' + s.challengeFinished.result.tier) : t('ch.norung') }}</span>
+            </div>
+            <div class="rm-ch-fact">
+              <span class="rm-ch-meta">XP</span>
+              <span class="rm-chresults-xp" ng-class="{good: (s.challengeFinished.result.gained || 0) + (s.challengeFinished.result.completionXp || 0) > 0}">
+                +{{ (s.challengeFinished.result.gained || 0) + (s.challengeFinished.result.completionXp || 0) }}
+              </span>
+            </div>
+            <div class="rm-ch-fact" ng-if="s.challengeFinished.result.previousBest != null">
+              <span class="rm-ch-meta">{{ t('ch.cr.previous') }}</span>
+              <span>{{ chValueText(s.challengeFinished.result.previousBest, s.challengeFinished.challenge.style) }}</span>
+            </div>
+            <div class="rm-ch-fact">
+              <span class="rm-ch-meta">{{ t('ch.cr.attempt') }}</span>
+              <span>#{{ s.challengeFinished.result.attempts }}</span>
+            </div>
+          </div>
+
+          <!-- the breakdown behind that XP total: a flat amount for
+               finishing at all, plus whatever the ladder itself paid --
+               shown apart so "0 from the ladder" reads as "you already
+               hold this tier", not as nothing having happened -->
+          <p class="rm-hint rm-chresults-breakdown">
+            <span ng-if="s.challengeFinished.result.completionXp">+{{ s.challengeFinished.result.completionXp }} {{ t('ch.cr.completionxp') }}</span>
+            <span ng-if="s.challengeFinished.result.gained > 0">{{ s.challengeFinished.result.completionXp ? ', ' : '' }}+{{ s.challengeFinished.result.gained }} {{ t('ch.cr.ladderxp') }}<span ng-if="s.challengeFinished.result.attempts > 1"> {{ t('ch.cr.ladderdecay') }}</span></span>
+            <span ng-if="!s.challengeFinished.result.gained && s.challengeFinished.result.tier">{{ s.challengeFinished.result.completionXp ? ' — ' : '' }}{{ t('ch.cr.ladderused') }}</span>
+          </p>
+          <p class="rm-hint rm-good-tag" ng-if="s.challengeFinished.result.improved">{{ t('ch.cr.improved') }}</p>
+
+          <!-- the same level bar the records tab shows, but right here, so
+               a challenge's own results screen says what it actually did
+               for your overall progress, not just for this one challenge -->
+          <div class="rm-chresults-level" ng-if="s.challengeFinished.result.level">
+            <div class="rm-chresults-level-row">
+              <span>{{ t('ch.cr.level') }} {{ s.challengeFinished.result.level }}</span>
+              <span>{{ s.challengeFinished.result.xpInto }} / {{ s.challengeFinished.result.xpNeed }} XP</span>
+            </div>
+            <div class="rm-hud-bar">
+              <div class="rm-hud-bar-fill rm-chud-fill" style="width: {{ s.challengeFinished.result.xpPct }}%"></div>
+            </div>
+          </div>
+
+          <!-- every jump this attempt made, not only the one that scored --
+               the score above came from whichever row here is marked best,
+               its own distance and height together, never mixed with a
+               different jump's numbers -->
+          <div class="rm-chresults-jumps" ng-if="s.challengeFinished.result.jumps.length">
+            <p class="rm-hint">{{ t('ch.cr.jumps') }}</p>
+            <div class="rm-jumps-head">
+              <span>#</span><span>{{ t('ch.cr.jumpdist') }}</span><span>{{ t('ch.cr.jumphigh') }}</span><span>{{ t('ch.cr.jumpscore') }}</span>
+            </div>
+            <div class="rm-jumps-row" ng-repeat="j in s.challengeFinished.result.jumps track by $index"
+                 ng-class="{best: $index + 1 === s.challengeFinished.result.bestJumpIdx}">
+              <span>{{ $index + 1 }}</span>
+              <span>{{ j.distanceFt | number:0 }} ft</span>
+              <span>{{ j.heightFt | number:0 }} ft</span>
+              <span>{{ j.scoreFt | number:0 }}<em ng-if="$index + 1 === s.challengeFinished.result.bestJumpIdx"> ★</em></span>
+            </div>
+          </div>
+        </div>
+
+        <div ng-if="s.challengeFinished.others.length">
+          <h3>{{ t('ch.cr.others') }}</h3>
+          <div class="rm-tier" ng-repeat="o in s.challengeFinished.others">
+            <span>{{ o.name }} <em class="rm-ch-kind">{{ chStyleLabel(o.style) }}</em></span>
+            <span>{{ chValueText(o.best, o.style) }}</span>
+            <span class="rm-zone-mph">{{ o.xp }} XP</span>
+          </div>
+        </div>
+
+        <div class="rm-buttons rm-finish">
+          <button class="rm-primary" ng-click="chAgain()">{{ t('ch.cr.again') }}</button>
+          <button ng-click="chClearFinished()">{{ t('ch.cr.close') }}</button>
         </div>
       </div>
     </div>

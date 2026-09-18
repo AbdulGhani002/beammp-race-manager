@@ -29,33 +29,6 @@ local quietUntil = 0
 local clock = 0
 local leftBoxId = nil   -- the box just driven through, quiet until clear of it
 
--- A box keeps its limit in mph. Read it from whatever the course actually
--- carries: a course captured by an older build, or edited by hand, can
--- spell it another way, and a box whose limit could not be read used to
--- show nothing at all, in or out, which is a zone that does not exist as
--- far as the driver can tell. A box with no readable limit is still a box,
--- so it warns at the same default the server gives a new one.
-local DEFAULT_BOX_MPH = 37
-local function boxLimit(b)
-  if type(b) ~= "table" then return nil, true end
-  local mph = tonumber(b.mph) or tonumber(b.limitMph) or tonumber(b.limit)
-           or tonumber(b.speed) or tonumber(b.speedMph)
-  if not mph then
-    local kmh = tonumber(b.limitKmh) or tonumber(b.kmh) or tonumber(b.speedLimitKmh)
-    if kmh then mph = kmh * 0.621371 end
-  end
-  if mph and mph > 0 then return math.floor(mph + 0.5), true end
-  return DEFAULT_BOX_MPH, false
-end
-
--- what this race has actually done, so one !stella tells the story of the
--- race rather than the one frame it was typed in
-local tally = {}
-local function forgetTally()
-  tally = { box = 0, noLimit = 0, nearest = nil, boxWarned = 0, boxIn = 0, gateWarned = 0, gateIn = 0 }
-end
-forgetTally()
-
 local function stella()
   local ok, s = pcall(function() return extensions.raceManager_stellaUnit end)
   return ok and type(s) == "table" and s or nil
@@ -186,8 +159,6 @@ local function showGate(track, chosen, isUpcoming)
     lastZoneKey, lastZoneKph = key, kph
     lastZoneFrom, lastZoneTo = tonumber(z.from), tonumber(z.to)
     lastZoneUpcoming = isUpcoming
-    if isUpcoming then tally.gateWarned = tally.gateWarned + 1
-    else tally.gateIn = tally.gateIn + 1 end
   end
 end
 
@@ -216,8 +187,6 @@ local function showBox(key, mph, upcoming, entryPos, faceDist)
   end
   lastZoneKey, lastZoneKph, lastZoneUpcoming = key, kph, upcoming
   lastZoneFrom, lastZoneTo = nil, nil
-  if upcoming then tally.boxWarned = tally.boxWarned + 1
-  else tally.boxIn = tally.boxIn + 1 end
   call("setSpeedZone", {
     id = key,
     name = "Speed zone",
@@ -245,18 +214,9 @@ end
 local function updateZones(track, nextCp)
   local trig = extensions.raceManager_triggers
   local sz = trig and type(trig.szState) == "function" and trig.szState() or nil
-  local box = sz and type(sz.box) == "table" and sz.box or nil
-  local boxMph, hadLimit = nil, true
-  if box then boxMph, hadLimit = boxLimit(box) end
-  local boxId = box and tostring(box.i or box.id or boxMph) or nil
+  local boxMph = sz and type(sz.box) == "table" and tonumber(sz.box.mph) or nil
+  local boxId = boxMph and tostring(sz.box.i or sz.box.id or boxMph) or nil
   local boxDist = tonumber(sz and sz.dist) or math.huge
-
-  if box then
-    tally.box = tally.box + 1
-    if not hadLimit then tally.noLimit = tally.noLimit + 1 end
-    local d = sz.inside and 0 or boxDist
-    if d ~= math.huge and (tally.nearest == nil or d < tally.nearest) then tally.nearest = d end
-  end
 
   -- clear of the one just driven through, or near a different one: armed
   if leftBoxId and (not boxId or boxId ~= leftBoxId or boxDist > WARN_M) then
@@ -362,7 +322,6 @@ local function sync()
     clearZone()
     quietUntil = 0
     leftBoxId = nil
-    forgetTally()
     return
   end
   if type(track) ~= "table" then return end
@@ -411,11 +370,10 @@ function M.liveReport()
   local sz
   pcall(function() sz = extensions.raceManager_triggers.szState() end)
   local poll = "no box"
-  if type(sz) == "table" and type(sz.box) == "table" then
-    local b = sz.box
+  if type(sz) == "table" then
+    local b = type(sz.box) == "table" and sz.box or {}
     local id = tostring(b.i or b.id or "?")
-    local mph, had = boxLimit(b)
-    poll = ("box %s at %d mph%s, %s%s"):format(id, mph, had and "" or " (GUESSED, the box carries no limit)",
+    poll = ("box %s at %s mph, %s%s"):format(id, tostring(b.mph or "no limit"),
       sz.inside and "in" or ("out, " .. math.floor(tonumber(sz.dist) or 0) .. " m"),
       (leftBoxId and id == leftBoxId) and ", just driven through" or "")
   end
@@ -425,15 +383,11 @@ function M.liveReport()
     local s = stella()
     if s and type(s.report) == "function" then unit = s.report() end
   end)
-  return ("race %s, next %s, done %s | bridge %s%s | poll %s | this race: box seen %d%s, nearest %s m, warned %d, inside %d; gate warned %d, inside %d | unit %s"):format(
+  return ("race %s, next %s, done %s | bridge %s%s | poll %s | unit %s"):format(
     tostring(rs.state or "idle"), tostring(rs.next or "?"), tostring(rs.done or "?"),
     lastZoneKey and (lastZoneKey .. (lastZoneUpcoming and " ahead" or " in")) or "no zone",
     quiet > 0 and (", quiet %.0f s"):format(quiet) or "",
-    poll,
-    tally.box, tally.noLimit > 0 and (" (%d with no limit)"):format(tally.noLimit) or "",
-    tally.nearest and tostring(math.floor(tally.nearest)) or "never",
-    tally.boxWarned, tally.boxIn, tally.gateWarned, tally.gateIn,
-    unit)
+    poll, unit)
 end
 
 function M.selfTest()
@@ -504,7 +458,24 @@ function M.onUpdate(dt)
   since = 0
   wireNetwork()
   noticeStranger(EVERY)
-  sync()
+  -- sync() decides every zone/checkpoint transition the unit shows; an
+  -- error partway through it (used to run unprotected, unlike stellaUnit's
+  -- own tickUnit, which pcalls itself for exactly this reason) meant
+  -- whatever was ABOUT to clear a state -- the box you just left, the
+  -- checkpoint flash expiring -- never ran, and the next tick hit the same
+  -- wall and never ran it either, so the light stuck at whatever it last
+  -- managed to show. Caught here the same way, and logged with what was
+  -- actually going on at the time, so a repeat of this shows up as a real
+  -- error to fix rather than another silent freeze.
+  local ok, err = pcall(sync)
+  if not ok then
+    local line = ("sync failed: %s (zone %s, box %s, quiet %.1f)"):format(
+      tostring(err), tostring(lastZoneKey), tostring(leftBoxId),
+      math.max(0, quietUntil - clock))
+    if type(log) == "function" then log("E", "raceManager", "stella " .. line) end
+    local net = extensions.raceManager_net
+    if net and type(net.send) == "function" then net.send("stella.trace", { text = line }) end
+  end
 end
 
 -- The server's word on a box zone, from zone.warn. Kept for the code that

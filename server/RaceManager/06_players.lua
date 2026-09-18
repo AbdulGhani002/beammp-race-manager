@@ -229,6 +229,17 @@ function RM.players.remember(key, event)
   RM.identity.markDirty()
 end
 
+-- one finished run, of any kind (a race, a lap-time challenge, or one of
+-- the newer challenge styles) -- the tally the completion XP bonus is
+-- counted against, shown on the records tab alongside miles and top speed.
+function RM.players.markRaceCompleted(key)
+  local rec = RM.identity.record(tostring(key or ""))
+  if not rec then return end
+  rec.stats = rec.stats or { miles = 0, topMph = 0, sumMph = 0, samples = 0, racesCompleted = 0 }
+  rec.stats.racesCompleted = (tonumber(rec.stats.racesCompleted) or 0) + 1
+  RM.identity.markDirty()
+end
+
 function RM.players.flushStats()
   local dirty = false
   for _, s in pairs(RM.identity.sessions()) do
@@ -281,6 +292,7 @@ function RM.players.profile(key)
     ranked = ranked,
     miles = RM.util.round and RM.util.round(tonumber(stats.miles) or 0, 2) or (tonumber(stats.miles) or 0),
     topMph = math.floor(tonumber(stats.topMph) or 0),
+    racesCompleted = tonumber(stats.racesCompleted) or 0,
     avgMph = math.floor(avg + 0.5),
     firstSeen = rec.firstSeen,
     lastSeen = rec.lastSeen,

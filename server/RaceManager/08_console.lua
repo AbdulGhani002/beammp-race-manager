@@ -445,7 +445,8 @@ function RM.console.handle(input)
     if n == 0 then say("nobody is watching anybody") end
   elseif cmd == "zoneclear" then
     local id = rest:match("^zoneclear%s+(%S+)%s*$")
-    local ok, why = id and RM.tracks.setZonesDirect(id, {})
+    local ok, why = false, "no_track_given"
+    if id then ok, why = RM.tracks.setZonesDirect(id, {}) end
     if ok then say("zones cleared from " .. id)
     else say("could not clear: " .. tostring(why)) end
   else

@@ -73,6 +73,26 @@ function RM.live.writeChallenges()
   })
 end
 
+-- top-5-by-the-month XP board: current standings plus every archived past
+-- month, in one file, so Bobby never needs a second round trip just to
+-- look up an older month.
+function RM.live.writeXpMonthly()
+  if not RM.xp then return false end
+  local month = RM.xp.currentMonthKey()
+  local archived = {}
+  for _, key in ipairs(RM.xp.archivedMonths() or {}) do
+    archived[#archived + 1] = RM.xp.archivedMonth(key)
+  end
+  return write("live_xp_monthly.json", {
+    at = os.time(),
+    month = month,
+    monthLabel = RM.xp.monthLabel(month),
+    resetsAt = RM.xp.nextMonthResetUnix(),
+    top = RM.xp.monthlyTop(5),
+    archive = archived,
+  })
+end
+
 function RM.live.writeResults(payload)
   if type(payload) ~= "table" then return false end
   if type(payload.finished) ~= "table" or #payload.finished < 1 then

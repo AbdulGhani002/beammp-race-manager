@@ -80,9 +80,27 @@ function RM.service.use(pid, d)
   -- The rack empties as it is used and only the pit fills it again. Outside a
   -- run there is nothing to ration, so it is not counted.
   local reported = type(d) == "table" and d.spares or nil
+  -- the car's own remembered peak (see rackCount0 in service.lua), sent
+  -- alongside spares -- the one number that tells "never had a rack" (this
+  -- stays 0 no matter what) apart from "has one, currently empty" (spares
+  -- can be 0 while this is still positive)
+  local trueCap = type(d) == "table" and tonumber(d.cap) or nil
   if racing and action.takesSpare then
-    local left = sparesLeft(r, reported)
-    if left ~= nil and left <= 0 then return false, "no_spares_left" end
+    if inPitNow then
+      -- the pit is a full stop: a spare tire here does not wait on a
+      -- separate rerack first, it just works, as many times as the car's
+      -- own rack allows -- the whole reason to drive in rather than fix
+      -- it out on the course. A car whose peak was ever above zero is
+      -- reseeded to it; a car that never had one still has none, pit or not.
+      r.spares = spareCap(trueCap or reported)
+      if r.spares <= 0 then return false, "no_rack" end
+    else
+      local left = sparesLeft(r, reported)
+      if left ~= nil and left <= 0 then
+        if (trueCap or reported or 0) <= 0 then return false, "no_rack" end
+        return false, "no_spares_left"
+      end
+    end
   end
   if racing and action.fillsRack then
     r.spares = spareCap(reported)
@@ -120,17 +138,66 @@ function RM.service.use(pid, d)
     -- one comes off the rack every time, run or no run. only the count of
     -- how many are left is a race thing, and that is kept in report below.
     takes  = action.takesSpare and true or false,
+    -- where the car actually was when the hold began, so the tick below
+    -- can tell a genuine hold from one that stopped being enforced. The
+    -- hold itself -- freezing the car -- is entirely the client's own
+    -- doing (core_vehicleBridge setFreeze); the server only ever measured
+    -- time, never verified the car actually stayed put, which is how
+    -- someone found they could open System > HUD Apps mid-hold and just
+    -- drive off. This can't reach in and re-freeze a car the client isn't
+    -- cooperating with, but it can catch that it happened and make it
+    -- worthless: see the movement check in RM.service.tick.
+    holdX = nil, holdY = nil, holdZ = nil,
   }
+  if hold > 0 then
+    -- RM.stella.posOf(pid) returns three values (x, y, z) -- but as the
+    -- last operand of "and", Lua truncates a function call to exactly one
+    -- return value, so hy/hz were always nil regardless of what posOf
+    -- actually returned. That's not just wrong data: the very next
+    -- RM.service.tick for this job did `y - job.holdY` with both sides
+    -- nil, which throws -- uncaught, since this tick isn't pcall-wrapped
+    -- -- aborting everything queued after it in that tick, every tick,
+    -- for as long as this job existed. Splitting the existence check from
+    -- the call itself is what actually keeps all three return values.
+    if RM.stella and RM.stella.posOf then
+      local hx, hy, hz = RM.stella.posOf(pid)
+      if hx then jobs[pid].holdX, jobs[pid].holdY, jobs[pid].holdZ = hx, hy, hz end
+    end
+  end
 
   RM.info(("%s: %s%s"):format(RM.identity.displayName(pid), which,
     hold > 0 and (", %ds hold, %ss on the clock"):format(hold, tostring(cost or 0)) or ", free"))
   return true, jobs[pid]
 end
 
+-- a car more than this far from where a hold began is not still frozen,
+-- whatever the client claims -- a little slack for suspension settling or
+-- a slope, not for driving away
+local HOLD_BREAK_M = 4.0
+
 -- rides the 100ms tick that already exists, so this adds no timer
 function RM.service.tick(now)
   local ready
   for pid, job in pairs(jobs) do
+    -- checked every tick a hold is outstanding, not only when it ends: a
+    -- car that got free of the freeze (the HUD Apps trick, a client error,
+    -- anything) is caught within a tenth of a second, not only discovered
+    -- once the job was already about to pay out
+    if job.holdX and not job.broke then
+      local x, y, z
+      if RM.stella and RM.stella.posOf then x, y, z = RM.stella.posOf(pid) end
+      if x then
+        local dx, dy = x - job.holdX, y - job.holdY
+        local dz = (z or 0) - (job.holdZ or 0)
+        if (dx * dx + dy * dy + dz * dz) > (HOLD_BREAK_M * HOLD_BREAK_M) then
+          job.broke = true
+          local r = RM.race.get(pid)
+          if r then r.suspect = true end
+          RM.info(("%s: moved during the %s hold (server-side check) -- run marked suspect"):format(
+            RM.identity.displayName(pid), tostring(job.which)))
+        end
+      end
+    end
     if now >= job.endsAt then
       ready = ready or {}
       ready[#ready + 1] = pid

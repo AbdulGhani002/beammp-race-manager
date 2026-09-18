@@ -24,6 +24,8 @@ local S = {
   team       = nil,         -- { team = {...} } or { offer = {...} }
   profile    = nil,
   drivers    = {},
+  challengeFinished = nil,  -- the personal results screen for a non-lap-time
+                             -- challenge attempt; see onChallengeFinished
 }
 
 function M.get() return S end
@@ -239,13 +241,17 @@ local CHALLENGE_NO = {
   not_a_circuit      = "That course is point to point, so it is one lap",
   no_such_class      = "One of those classes is not on the list",
   no_tiers           = "Give it at least one time and the XP it pays",
-  bad_tier           = "Every rung needs a time above zero and XP of zero or more",
-  too_many_tiers     = "Twenty rungs at most",
+  bad_tier           = "Every tier needs a value above zero and XP of zero or more",
+  too_many_tiers     = "Twenty tiers at most",
   too_many_daily     = "Three daily challenges is the most at once. End one first.",
   too_many_weekly    = "Five weekly challenges is the most at once. End one first.",
   no_such_challenge  = "That challenge is gone",
   already_ended      = "That one has already ended",
   description_too_long = "Keep the description under three hundred letters",
+  bad_style          = "Pick a challenge style",
+  bad_time_limit     = "The time limit is five seconds to one hour",
+  time_limit_required = "This style needs a time limit",
+  bad_measure        = "Pick distance or height for the long jump",
 }
 
 local CHALLENGE_DONE = {
@@ -262,21 +268,34 @@ local function onStaffResult(d)
     local done = {
       role = "Role updated for " .. tostring(who),
       kick = "Kicked " .. tostring(who),
+      raceKick = "Kicked " .. tostring(who) .. " from the race",
       ban = "Banned " .. tostring(who),
       clearRecords = "Cleared records for " .. tostring(who),
+      launchAll = tostring(who or "Done"),
     }
     M.notice(done[tostring(d.action)] or "Done")
   else
+    if d.action == "raceKick" and tostring(d.reason) == "not_allowed" then
+      M.notice("You need to be staff or higher to do that")
+      return
+    end
+    if d.action == "launchAll" and tostring(d.reason) == "not_allowed" then
+      M.notice("You need to be staff or higher to do that")
+      return
+    end
     local no = {
       not_allowed = "Only the owner can do that",
       outranks_you = "They outrank you",
       not_yourself = "Not yourself",
       no_such_player = "No such driver",
       not_here = "They are not on the server",
+      not_in_a_race = "They are not currently in a race",
       already_banned = "Already banned",
       cannot_change_own_role = "You cannot change your own role here",
       cannot_grant_that_high = "You cannot grant that role",
       target_outranks_you = "They outrank you",
+      no_such_challenge = "No such challenge",
+      challenge_not_live = "That challenge is not live",
     }
     M.notice(no[tostring(d.reason)] or ("That did not work: " .. tostring(d.reason)))
   end
@@ -289,6 +308,25 @@ local function onChallengeResult(d)
   else
     M.notice(CHALLENGE_NO[tostring(d.reason)] or ("That did not work: " .. tostring(d.reason)))
   end
+end
+
+-- A non-lap-time challenge attempt ending: the personal results screen
+-- reads this, not the shared race-results table (that one is still for a
+-- lap-time challenge or a plain race -- see race.lua's onResults).
+local function onChallengeFinished(d)
+  if type(d) ~= "table" then return end
+  if not d.ok then
+    -- ended without anything to score (abandoned, disconnected, and so on)
+    M.notice(d.why == "ended" and "Challenge ended" or ("Challenge attempt ended: " .. tostring(d.why)))
+    return
+  end
+  S.challengeFinished = d
+  extensions.raceManager_ui.push()
+end
+
+function M.clearChallengeFinished()
+  S.challengeFinished = nil
+  extensions.raceManager_ui.push()
 end
 
 local inviteSeq = 0
@@ -517,6 +555,7 @@ local function onExtensionLoaded()
   net.on("copilot.state",  onCopilotState)
   net.on("challenges.list", onChallenges)
   net.on("challenge.result", onChallengeResult)
+  net.on("challenge.finished", onChallengeFinished)
   net.on("staff.result", onStaffResult)
 end
 

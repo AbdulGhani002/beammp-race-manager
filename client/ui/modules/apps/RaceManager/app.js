@@ -923,7 +923,7 @@ angular.module("beamng.apps")
               $scope.chForm = null;
               $scope.chFormBusy = false;
               $scope.chFormError = "";
-            } else if ($scope.chFormBusy && /did not work|not posted|not saved|only admin|pick a course|rung|daily challenges|weekly challenges/i.test(toast)) {
+            } else if ($scope.chFormBusy && /did not work|not posted|not saved|only admin|pick a course|tier|daily challenges|weekly challenges/i.test(toast)) {
               $scope.chFormBusy = false;
               $scope.chFormError = toast;
             }
@@ -970,11 +970,12 @@ angular.module("beamng.apps")
           "opt.capture": "Checkpoint capture",
           "opt.staff": "Drivers and staff",
           "opt.staff.note": "Click a driver. Staff and admins can mark courses and post challenges. Only you can change roles or clear records. Admins cannot demote anyone.",
+          "opt.launchall": "Launch a challenge for everyone", "opt.launchall.note": "Picks a live challenge and starts an attempt for every connected driver right now.", "opt.nolivechallenges": "No live challenges right now.", "opt.launchall.go": "Launch everyone",
           "opt.nodrivers": "No named drivers yet.",
           "opt.player": "Player",
           "opt.makestaff": "Staff",
           "opt.makeadmin": "Admin",
-          "opt.kick": "Kick",
+          "opt.kick": "Kick", "opt.racekick": "Kick from race",
           "opt.ban": "Ban",
           "opt.clearrec": "Clear records",
           "opt.framerate": "Frame rate",
@@ -998,21 +999,54 @@ angular.module("beamng.apps")
           "ch.trackingoff": "Your tracking is off under Options, so you cannot enter one.",
           "ch.none": "Nothing posted yet.", "ch.new": "Post a challenge", "ch.daily": "daily",
           "ch.weekly": "weekly", "ch.classes": "Classes", "ch.anyclass": "Any class",
-          "ch.ladder": "The ladder", "ch.under": "Under", "ch.yours": "Your best", "ch.rung": "rung",
+          "ch.ladder": "The ladder", "ch.under": "Under", "ch.yours": "Your best", "ch.rung": "tier",
           "ch.norung": "outside the ladder", "ch.board": "The board", "ch.noone": "Nobody has finished it yet.",
           "ch.enteras": "Enter as", "ch.enter": "Enter and go to the grid", "ch.endnow": "End it now",
           "ch.change": "Change the challenge", "ch.post": "Post a challenge", "ch.kind": "Daily or weekly",
           "ch.classes.note": "none picked means any class", "ch.ladder.note": "a time as 1:32.43 and the XP it pays",
-          "ch.addrung": "Add a rung", "ch.start": "Starts", "ch.in1h": "In 1 hour", "ch.in6h": "In 6 hours",
+          "ch.addrung": "Add a tier", "ch.start": "Starts", "ch.in1h": "In 1 hour", "ch.in6h": "In 6 hours",
           "ch.in24h": "Tomorrow", "ch.postit": "Post it",
           "ch.live": "live", "ch.scheduled": "starts in", "ch.ended": "ended", "ch.left": "left",
           "ch.pickclass": "Pick the class you are entering as.", "ch.notlive": "This one is not live.",
           "ch.needtracking": "Turn tracking on under Options first.",
-          "ch.p.name": "It needs a name.", "ch.p.track": "Pick a course.", "ch.p.tiers": "Give it at least one rung.",
-          "ch.p.time": "A rung's time reads like 1:32.43 or 92.43.", "ch.p.xp": "XP is a whole number, zero or more.",
+          "ch.p.name": "It needs a name.", "ch.p.track": "Pick a course.", "ch.p.tiers": "Give it at least one tier.",
+          "ch.p.time": "A tier's time reads like 0:01:32.43 (hours:minutes:seconds).", "ch.p.xp": "XP is a whole number, zero or more.",
           "ch.daily.title": "Daily challenges", "ch.weekly.title": "Weekly challenges", "ch.nonekind": "None right now.",
           "ch.when": "When", "ch.description": "Description", "ch.description.note": "a few lines, shown under the name",
           "ch.ends": "ends in",
+          "ch.style": "Style", "ch.style.laptime": "Lap Time", "ch.style.speed": "Top Speed",
+          "ch.style.gforce": "G-Force", "ch.style.damage": "Damage & Distance",
+          "ch.style.longjump": "Long Jump", "ch.style.distance": "Distance",
+          "ch.ladder.note.laptime": "a time as 0:01:32.43 (hours:minutes:seconds) and the XP it pays",
+          "ch.ladder.note.speed": "an mph to reach and the XP it pays",
+          "ch.ladder.note.gforce": "a peak g to hit and the XP it pays",
+          "ch.ladder.note.damage": "a damage/distance score to beat and the XP it pays",
+          "ch.ladder.note.longjump": "a distance or height in feet and the XP it pays",
+          "ch.ladder.note.distance": "a distance in miles and the XP it pays",
+          "ch.timelimit": "Time limit", "ch.timelimit.none": "This style has no time limit; the run's own finish line ends it.",
+          "ch.timelimit.optional": "Optional. Leave blank for no cap.",
+          "ch.timelimit.required": "Required for this style. Reads as hours:minutes:seconds, e.g. 0:00:30.00.",
+          "ch.measure": "Measure", "ch.measure.distance": "Distance", "ch.measure.height": "Height",
+          "ch.p.timelimit": "The time limit reads like 0:00:30.00 and has to be between five seconds and one hour.",
+          "ch.p.value": "A tier's value has to be above zero.",
+          "ch.atleast": "At least",
+          "ch.roam": "Course", "ch.roam.free": "Free roam", "ch.roam.course": "Use a course",
+          "ch.roam.free.note": "No course picked: the attempt starts wherever the driver is the moment they enter, and ends on the time limit or when they choose to stop.",
+          "ch.roam.free.tag": "Free roam — drive anywhere",
+          "ch.roam.notimelimit": "No time limit — stop when you're ready",
+          "ch.chud.peak": "Peak", "ch.chud.next": "Next:", "ch.chud.pts": "pts",
+          "ch.chud.damage": "damage", "ch.chud.airborne": "AIRBORNE", "ch.chud.bestft": "ft best",
+          "ch.chud.high": "high", "ch.chud.stop": "Stop attempt",
+          "ch.cr.suspect": "The clock could not vouch for part of this attempt, so it was not scored.",
+          "ch.cr.noscore": "Nothing to score from that attempt.",
+          "ch.cr.score": "Score", "ch.cr.previous": "Previous best", "ch.cr.attempt": "Attempt",
+          "ch.cr.others": "Your other challenges", "ch.cr.again": "Go again", "ch.cr.close": "Close",
+          "ch.cr.improved": "New personal best!",
+          "ch.cr.completionxp": "for finishing", "ch.cr.ladderxp": "from the ladder",
+          "ch.cr.ladderdecay": "(repeats pay a little less each time)",
+          "ch.cr.ladderused": "this challenge's ladder has nothing left to pay you — still yours to run, just not for more XP",
+          "ch.cr.level": "Level",
+          "ch.cr.jumps": "Jumps this attempt", "ch.cr.jumpdist": "Distance", "ch.cr.jumphigh": "Height", "ch.cr.jumpscore": "Score",
         },
         es: {
           race: "Carrera", records: "Récords", team: "Equipo", copilot: "Copiloto",
@@ -1028,11 +1062,12 @@ angular.module("beamng.apps")
           "opt.capture": "Captura de checkpoints",
           "opt.staff": "Pilotos y staff",
           "opt.staff.note": "Pulsa un piloto. Staff y admin pueden marcar circuitos y publicar retos. Solo tú cambias roles o borras récords. Un admin no puede bajar a nadie.",
+          "opt.launchall": "Lanzar un reto para todos", "opt.launchall.note": "Elige un reto activo y empieza un intento para cada piloto conectado ahora mismo.", "opt.nolivechallenges": "No hay retos activos ahora mismo.", "opt.launchall.go": "Lanzar a todos",
           "opt.nodrivers": "Aún no hay pilotos con nombre.",
           "opt.player": "Piloto",
           "opt.makestaff": "Staff",
           "opt.makeadmin": "Admin",
-          "opt.kick": "Expulsar",
+          "opt.kick": "Expulsar", "opt.racekick": "Expulsar de la carrera",
           "opt.ban": "Banear",
           "opt.clearrec": "Borrar récords",
           "opt.framerate": "Fotogramas",
@@ -1056,21 +1091,54 @@ angular.module("beamng.apps")
           "ch.trackingoff": "Tienes el registro apagado en Opciones, así que no puedes entrar.",
           "ch.none": "Aún no hay nada.", "ch.new": "Publicar un reto", "ch.daily": "diario",
           "ch.weekly": "semanal", "ch.classes": "Clases", "ch.anyclass": "Cualquier clase",
-          "ch.ladder": "La escalera", "ch.under": "Menos de", "ch.yours": "Tu mejor", "ch.rung": "peldaño",
+          "ch.ladder": "La escalera", "ch.under": "Menos de", "ch.yours": "Tu mejor", "ch.rung": "nivel",
           "ch.norung": "fuera de la escalera", "ch.board": "La tabla", "ch.noone": "Nadie lo ha terminado aún.",
           "ch.enteras": "Entrar como", "ch.enter": "Entrar e ir a la parrilla", "ch.endnow": "Terminarlo ya",
           "ch.change": "Cambiar el reto", "ch.post": "Publicar un reto", "ch.kind": "Diario o semanal",
           "ch.classes.note": "sin elegir, cualquier clase", "ch.ladder.note": "un tiempo como 1:32.43 y el XP que paga",
-          "ch.addrung": "Añadir peldaño", "ch.start": "Empieza", "ch.in1h": "En 1 hora", "ch.in6h": "En 6 horas",
+          "ch.addrung": "Añadir nivel", "ch.start": "Empieza", "ch.in1h": "En 1 hora", "ch.in6h": "En 6 horas",
           "ch.in24h": "Mañana", "ch.postit": "Publicar",
           "ch.live": "en marcha", "ch.scheduled": "empieza en", "ch.ended": "terminado", "ch.left": "quedan",
           "ch.pickclass": "Elige la clase con la que entras.", "ch.notlive": "Este no está en marcha.",
           "ch.needtracking": "Enciende el registro en Opciones primero.",
-          "ch.p.name": "Necesita un nombre.", "ch.p.track": "Elige un circuito.", "ch.p.tiers": "Dale al menos un peldaño.",
-          "ch.p.time": "El tiempo de un peldaño se escribe 1:32.43 o 92.43.", "ch.p.xp": "El XP es un número entero, cero o más.",
+          "ch.p.name": "Necesita un nombre.", "ch.p.track": "Elige un circuito.", "ch.p.tiers": "Dale al menos un nivel.",
+          "ch.p.time": "El tiempo de un nivel se escribe 0:01:32.43 (horas:minutos:segundos).", "ch.p.xp": "El XP es un número entero, cero o más.",
           "ch.daily.title": "Retos diarios", "ch.weekly.title": "Retos semanales", "ch.nonekind": "Ninguno ahora mismo.",
           "ch.when": "Cuándo", "ch.description": "Descripción", "ch.description.note": "unas líneas, bajo el nombre",
           "ch.ends": "termina en",
+          "ch.style": "Estilo", "ch.style.laptime": "Tiempo por vuelta", "ch.style.speed": "Velocidad máxima",
+          "ch.style.gforce": "Fuerza G", "ch.style.damage": "Daño y distancia",
+          "ch.style.longjump": "Salto de longitud", "ch.style.distance": "Distancia",
+          "ch.ladder.note.laptime": "un tiempo como 0:01:32.43 (horas:minutos:segundos) y el XP que paga",
+          "ch.ladder.note.speed": "un mph a alcanzar y el XP que paga",
+          "ch.ladder.note.gforce": "un pico de g a alcanzar y el XP que paga",
+          "ch.ladder.note.damage": "una puntuación de daño/distancia a superar y el XP que paga",
+          "ch.ladder.note.longjump": "una distancia o altura en pies y el XP que paga",
+          "ch.ladder.note.distance": "una distancia en millas y el XP que paga",
+          "ch.timelimit": "Límite de tiempo", "ch.timelimit.none": "Este estilo no tiene límite de tiempo; la propia meta del recorrido lo termina.",
+          "ch.timelimit.optional": "Opcional. Déjalo en blanco para no poner límite.",
+          "ch.timelimit.required": "Obligatorio para este estilo. Se escribe horas:minutos:segundos, por ejemplo 0:00:30.00.",
+          "ch.measure": "Medida", "ch.measure.distance": "Distancia", "ch.measure.height": "Altura",
+          "ch.p.timelimit": "El límite de tiempo se escribe 0:00:30.00 y debe estar entre cinco segundos y una hora.",
+          "ch.p.value": "El valor de un nivel tiene que ser mayor que cero.",
+          "ch.atleast": "Al menos",
+          "ch.roam": "Circuito", "ch.roam.free": "Recorrido libre", "ch.roam.course": "Usar un circuito",
+          "ch.roam.free.note": "Sin circuito elegido: el intento empieza donde esté el piloto en el momento de entrar, y termina con el límite de tiempo o cuando decida parar.",
+          "ch.roam.free.tag": "Recorrido libre — conduce donde quieras",
+          "ch.roam.notimelimit": "Sin límite de tiempo — para cuando quieras",
+          "ch.chud.peak": "Pico", "ch.chud.next": "Siguiente:", "ch.chud.pts": "pts",
+          "ch.chud.damage": "daño", "ch.chud.airborne": "EN EL AIRE", "ch.chud.bestft": "pies mejor",
+          "ch.chud.high": "de alto", "ch.chud.stop": "Terminar intento",
+          "ch.cr.suspect": "El reloj no pudo dar fe de parte de este intento, así que no se puntuó.",
+          "ch.cr.noscore": "Nada que puntuar de ese intento.",
+          "ch.cr.score": "Puntuación", "ch.cr.previous": "Mejor anterior", "ch.cr.attempt": "Intento",
+          "ch.cr.others": "Tus otros retos", "ch.cr.again": "Otra vez", "ch.cr.close": "Cerrar",
+          "ch.cr.improved": "¡Nuevo récord personal!",
+          "ch.cr.completionxp": "por terminar", "ch.cr.ladderxp": "de la escalera",
+          "ch.cr.ladderdecay": "(las repeticiones pagan un poco menos cada vez)",
+          "ch.cr.ladderused": "la escalera de este reto ya no tiene más para pagarte — sigue siendo tuya para correr, solo que sin más XP",
+          "ch.cr.level": "Nivel",
+          "ch.cr.jumps": "Saltos de este intento", "ch.cr.jumpdist": "Distancia", "ch.cr.jumphigh": "Altura", "ch.cr.jumpscore": "Puntaje",
         }
       };
       $scope.lang = "en";
@@ -1106,13 +1174,21 @@ angular.module("beamng.apps")
           ui("keepRoster");
         }
         if ($scope.panel === "challenges") { $scope.chOpen = null; $scope.chForm = null; ui("challengesGet"); }
-        if ($scope.panel === "options" && $scope.s && $scope.s.isOwner) {
+        if ($scope.panel === "options" && $scope.s && $scope.s.isStaff) {
+          // the drivers-and-staff list and the challenge launcher both
+          // live in Options now (staff and up, not just the owner), but
+          // this fetch was still gated to isOwner and only ever asked for
+          // the driver list -- the challenge launcher's picker had nothing
+          // to show unless the Challenges tab happened to have been opened
+          // first in the same session, which is why "launch a challenge
+          // for everyone" could look empty or broken with no error at all.
           bngApi.engineLua(
             "pcall(function() " +
             "local u = extensions.raceManager_ui; " +
             "if u and type(u.getDrivers) == 'function' then u.getDrivers() end; " +
             "end)"
           );
+          ui("challengesGet");
         }
         if ($scope.panel === "records") {
           $scope.recOpen = false;
@@ -1247,20 +1323,34 @@ angular.module("beamng.apps")
 
       $scope.driverRows = function () {
         var seen = {};
+        var byName = {};
         var out = [];
         function add(d) {
           if (!d || !d.name) return;
           var key = String(d.key || d.id || d.name);
-          if (seen[key] || seen[d.name]) return;
+          var existing = byName[d.name];
+          if (existing) {
+            // a driver known from before (profile.list, no live session)
+            // and the same driver currently connected (roster.delta, has a
+            // live pid) can both show up here; whichever passes first
+            // wins the row, but a pid from either pass is worth keeping --
+            // it's what a "kick from race" action needs, and only the
+            // roster ever has one
+            if (d.id != null && existing.pid == null) existing.pid = d.id;
+            return;
+          }
+          if (seen[key]) return;
           seen[key] = true;
-          seen[d.name] = true;
-          out.push({
+          var row = {
             key: d.key || d.id || d.name,
             name: d.name,
             level: d.level || 1,
             xp: d.xp || 0,
-            role: d.role || "player"
-          });
+            role: d.role || "player",
+            pid: d.id != null ? d.id : null
+          };
+          byName[d.name] = row;
+          out.push(row);
         }
         angular.forEach($scope.s.drivers || [], add);
         angular.forEach($scope.s.roster || [], add);
@@ -1614,7 +1704,7 @@ angular.module("beamng.apps")
       };
       $scope.chMeta = function (c) {
         if (!c) return "";
-        return $scope.chClasses(c) + " \u00b7 " + (c.trackName || c.track || "");
+        return $scope.chStyleLabel(c.style || "laptime") + " \u00b7 " + $scope.chClasses(c);
       };
 
       $scope.chShown = function () {
@@ -1639,8 +1729,25 @@ angular.module("beamng.apps")
         if (!r) return "";
         if (r.suspect) return "challenge, marked";
         if (!r.tier) return "challenge: outside the ladder";
-        return "challenge rung " + r.tier + (r.gained ? ", +" + r.gained + " XP" : "");
+        return "challenge tier " + r.tier + (r.gained ? ", +" + r.gained + " XP" : "");
       };
+
+      // the tooltip behind a race result row's XP total: placement and the
+      // flat finishing bonus are two different amounts (see 17_xp.lua's
+      // RM.xp.forRace), shown apart here so the number in the column isn't
+      // the only place that says where it came from
+      $scope.raceXpTitle = function (e) {
+        if (!e) return "";
+        var bits = [];
+        if (e.xp) bits.push(e.xp + " for finishing " + ordinal(e.pos));
+        if (e.completionXp) bits.push("+" + e.completionXp + " for finishing the race");
+        return bits.join(", ") || "";
+      };
+      function ordinal(n) {
+        n = parseInt(n, 10) || 0;
+        var s = ["th", "st", "nd", "rd"], v = n % 100;
+        return n + (s[(v - 20) % 10] || s[v] || s[0]);
+      }
 
       $scope.chProblem = function () {
         var c = $scope.chShown();
@@ -1654,44 +1761,226 @@ angular.module("beamng.apps")
         var c = $scope.chShown();
         if (!c || $scope.chProblem()) return;
         var klass = list(c.classes).length ? $scope.chClass : null;
-        ui("armRace", [c.track, $scope.entry.mode, c.laps, klass, c.id]);
+        if (c.track) {
+          ui("armRace", [c.track, $scope.entry.mode, c.laps, klass, c.id]);
+        } else {
+          // free roam: no course, no grid -- the clock starts the moment
+          // the server hears this
+          ui("armChallenge", [c.id, $scope.entry.mode, klass]);
+        }
         $scope.panel = null;
       };
 
-      // the form: an admin posting or changing one. tiers are typed as
-      // 1:32.43 and sent as seconds.
+      // ---------------------------------------------------- the challenge HUD
+      // the challenge currently on the clock, cross-referenced from the run
+      // state (s.race.challenge) against the board (s.challenges) the same
+      // way telemetry.lua itself decides whether to be measuring anything
+      $scope.chActive = function () {
+        var r = $scope.s && $scope.s.race;
+        if (!r || !r.challenge) return null;
+        var all = ($scope.s && $scope.s.challenges) || [];
+        for (var i = 0; i < all.length; i++) if (all[i].id === r.challenge) return all[i];
+        return null;
+      };
+      $scope.chRemaining = function () {
+        var c = $scope.chActive();
+        if (!c || !c.timeLimit) return null;
+        var left = c.timeLimit - (($scope.s.race || {}).elapsed || 0);
+        return left > 0 ? left : 0;
+      };
+      // "the value this attempt would score right now", mirroring
+      // RM.challenges.valueFor server side (22_challenges.lua) closely
+      // enough for a live preview -- the server's own copy is what
+      // actually gets scored at the end.
+      $scope.chLiveValue = function () {
+        var c = $scope.chActive();
+        var live = $scope.s && $scope.s.challengeLive;
+        if (!c || !live) return null;
+        if (c.style === "speed") return live.peakSpeedMph;
+        if (c.style === "gforce") return live.peakG;
+        if (c.style === "distance") return (live.distanceM || 0) / 1609.344;
+        if (c.style === "damage") {
+          var miles = (live.distanceM || 0) / 1609.344;
+          return miles * (1 + (live.damageTaken || 0) / 1000);
+        }
+        if (c.style === "longjump") return live.bestJump ? live.bestJump.scoreFt : null;
+        return null;
+      };
+      // the easiest tier not yet cleared, so the HUD can say what is next
+      $scope.chLiveNextTier = function () {
+        var c = $scope.chActive();
+        if (!c) return null;
+        var v = $scope.chLiveValue();
+        var tiers = list(c.tiers).slice().sort(function (a, b) { return a.time - b.time; });
+        for (var i = 0; i < tiers.length; i++) {
+          if (v == null || v < tiers[i].time) return tiers[i];
+        }
+        return null;
+      };
+      $scope.chLiveNextTierText = function () {
+        var t = $scope.chLiveNextTier();
+        var c = $scope.chActive();
+        if (!t || !c) return "";
+        return $scope.chValueText(t.time, c.style) + " (" + t.xp + " XP)";
+      };
+      $scope.chLiveProgressPct = function () {
+        var t = $scope.chLiveNextTier();
+        var v = $scope.chLiveValue();
+        if (!t || !t.time) return 0;
+        var pct = ((v || 0) / t.time) * 100;
+        return Math.max(0, Math.min(100, pct));
+      };
+
+      // ------------------------------------------------- challenge results
+      $scope.chClearFinished = function () { ui("clearChallengeFinished"); };
+      $scope.chAgain = function () {
+        var cf = $scope.s.challengeFinished;
+        $scope.chClearFinished();
+        if (!cf || !cf.challenge) return;
+        var all = list($scope.s.challenges);
+        var c = null;
+        for (var i = 0; i < all.length; i++) {
+          if (all[i].id === cf.challenge.id) { c = all[i]; break; }
+        }
+        if (!c) return;
+        // repeating a challenge is the whole point of a ladder with tiers
+        // to climb -- when there's no class to pick, re-arm right here,
+        // the same call chEnter() makes, instead of sending the driver
+        // back through the detail screen just to press the same button
+        // they already pressed once
+        if (!list(c.classes).length) {
+          if (c.track) {
+            ui("armRace", [c.track, $scope.entry.mode, c.laps, null, c.id]);
+          } else {
+            ui("armChallenge", [c.id, $scope.entry.mode, null]);
+          }
+          return;
+        }
+        $scope.chOpen = c.id;
+        $scope.panel = "challenges";
+      };
+
+      // the form: an admin posting or changing one. A lap-time tier (or a
+      // time limit, on any style) is typed as hours:minutes:seconds, e.g.
+      // 0:01:32.43 or, for over an hour, 1:15:00.00 -- there is no ceiling
+      // at 59 minutes, the hour figure just keeps counting up. Plain
+      // minutes:seconds (1:32.43) and bare seconds (92.43) still parse the
+      // same as before, so nothing already saved needs re-typing.
+      var MAX_TIME_SECONDS = 24 * 3600;
       function parseTime(text) {
         var s = String(text == null ? "" : text).trim().replace(",", ".");
         if (!s) return null;
+        var seconds = null;
         var hms = s.match(/^(\d+):(\d{1,2}):(\d{1,2})(?:\.(\d{1,3}))?$/);
         if (hms) {
-          return parseInt(hms[1], 10) * 3600 + parseInt(hms[2], 10) * 60
+          seconds = parseInt(hms[1], 10) * 3600 + parseInt(hms[2], 10) * 60
             + parseInt(hms[3], 10) + (hms[4] ? parseFloat("0." + hms[4]) : 0);
+        } else {
+          var m = s.match(/^(\d+):(\d{1,2})(?:\.(\d{1,3}))?$/);
+          if (m) {
+            seconds = parseInt(m[1], 10) * 60 + parseInt(m[2], 10) + (m[3] ? parseFloat("0." + m[3]) : 0);
+          } else if (/^\d+(\.\d{1,3})?$/.test(s)) {
+            seconds = parseFloat(s);
+          }
         }
-        var m = s.match(/^(\d+):(\d{1,2})(?:\.(\d{1,3}))?$/);
-        if (m) return parseInt(m[1], 10) * 60 + parseInt(m[2], 10) + (m[3] ? parseFloat("0." + m[3]) : 0);
-        if (/^\d+(\.\d{1,3})?$/.test(s)) return parseFloat(s);
-        return null;
+        if (seconds == null || seconds > MAX_TIME_SECONDS) return null;
+        return seconds;
       }
+      // always shown as H:MM:SS.hh, hour figure included even at zero, so
+      // the format itself says there is no cap at 59 minutes.
       function timeText(sec) {
-        var m = Math.floor(sec / 60), r = sec - m * 60;
-        return m + ":" + (r < 10 ? "0" : "") + r.toFixed(2);
+        var h = Math.floor(sec / 3600), rem = sec - h * 3600;
+        var m = Math.floor(rem / 60), r = rem - m * 60;
+        return h + ":" + (m < 10 ? "0" : "") + m + ":" + (r < 10 ? "0" : "") + r.toFixed(2);
       }
+
+      // Every style beyond lap time scores a plain number in its own unit
+      // (mph, g, a damage/distance score, feet, miles) rather than a time,
+      // so the ladder is a tier and an XP, same as always, but the tier is
+      // typed and shown as that number rather than as a clock.
+      var CH_STYLES = [
+        { key: "laptime",  unit: "time",  higherBetter: false, timeLimit: "none",     max: 24 * 3600 },
+        { key: "speed",    unit: "mph",   higherBetter: true,  timeLimit: "optional", max: 400 },
+        { key: "gforce",   unit: "g",     higherBetter: true,  timeLimit: "required", max: 50 },
+        { key: "damage",   unit: "score", higherBetter: true,  timeLimit: "required", max: 1000000 },
+        { key: "longjump", unit: "ft",    higherBetter: true,  timeLimit: "required", max: 5000 },
+        { key: "distance", unit: "mi",    higherBetter: true,  timeLimit: "required", max: 5000 },
+      ];
+      function styleMeta(key) {
+        for (var i = 0; i < CH_STYLES.length; i++) if (CH_STYLES[i].key === key) return CH_STYLES[i];
+        return CH_STYLES[0];
+      }
+      $scope.chStyles = CH_STYLES;
+      $scope.chStyleLabel = function (key) { return $scope.t("ch.style." + key); };
+
+      function parseTierValue(text, style) {
+        var meta = styleMeta(style);
+        if (meta.unit === "time") return parseTime(text);
+        var v = parseFloat(String(text == null ? "" : text).trim().replace(",", "."));
+        if (isNaN(v) || v <= 0 || v > meta.max) return null;
+        return v;
+      }
+      function tierValueText(v, style) {
+        var meta = styleMeta(style);
+        if (meta.unit === "time") return timeText(v);
+        if (meta.unit === "score") return String(Math.round(v));
+        return (Math.round(v * 10) / 10).toString();
+      }
+      $scope.chTierPlaceholder = function () {
+        var meta = $scope.chForm ? styleMeta($scope.chForm.style) : CH_STYLES[0];
+        if (meta.unit === "time") return "0:01:32.43";
+        if (meta.unit === "mph") return "85";
+        if (meta.unit === "g") return "1.8";
+        if (meta.unit === "score") return "500";
+        if (meta.unit === "ft") return "40";
+        return "3.5";
+      };
+      // switching style resets the ladder to blank tiers in the new unit,
+      // rather than leaving old numbers on screen that no longer mean what
+      // they say (a "45" left over from a speed challenge reads as 45mph,
+      // not as 45 seconds, the moment the style changes to lap time)
+      $scope.chSetStyle = function (key) {
+        if (!$scope.chForm || $scope.chForm.style === key) return;
+        var wasLaptime = $scope.chForm.style === "laptime";
+        var isLaptime = key === "laptime";
+        $scope.chForm.style = key;
+        $scope.chForm.tiers = [{ time: "", xp: 100 }, { time: "", xp: 50 }];
+        // the time-limit field only exists for non-lap-time styles, and
+        // reads the same h:mm:ss format for every one of them, so a value
+        // already typed carries over between them -- it only clears
+        // crossing to/from lap time, where the field disappears entirely.
+        // (Re-clicking the style already selected is a no-op, above --
+        // that alone used to be enough to silently wipe a typed time
+        // limit if an admin clicked it again out of habit.)
+        if (wasLaptime !== isLaptime) $scope.chForm.timeLimit = "";
+        $scope.chForm.useCourse = isLaptime;
+        if (isLaptime) $scope.chForm.track = $scope.chForm.track || null;
+      };
+      $scope.chSetUseCourse = function (on) {
+        if (!$scope.chForm) return;
+        $scope.chForm.useCourse = !!on;
+        if (!on) $scope.chForm.track = null;
+      };
       $scope.classNames = function () {
         var out = [], groups = $scope.classGroups();
         for (var i = 0; i < groups.length; i++) out = out.concat(groups[i].classes);
         return out;
       };
       $scope.chNew = function () {
-        $scope.chForm = { kind: "daily", track: null, laps: 1, classes: [],
+        $scope.chForm = { kind: "daily", style: "laptime", useCourse: true, track: null, laps: 1, classes: [],
                           tiers: [{ time: "", xp: 100 }, { time: "", xp: 75 }, { time: "", xp: 50 }],
+                          timeLimit: "",
                           startInHours: 0, name: "", description: "" };
       };
       $scope.chEdit = function (c) {
+        var style = c.style || "laptime";
         var tiers = [];
-        list(c.tiers).forEach(function (r) { tiers.push({ time: timeText(r.time), xp: r.xp }); });
-        $scope.chForm = { id: c.id, name: c.name, kind: c.kind, track: c.track, laps: c.laps,
+        list(c.tiers).forEach(function (r) { tiers.push({ time: tierValueText(r.time, style), xp: r.xp }); });
+        $scope.chForm = { id: c.id, name: c.name, kind: c.kind, style: style,
+                          useCourse: style === "laptime" || !!c.track,
+                          track: c.track, laps: c.laps,
                           classes: list(c.classes).slice(), tiers: tiers, startInHours: null,
+                          timeLimit: c.timeLimit ? timeText(c.timeLimit) : "",
                           description: c.description || "" };
         $scope.chOpen = null;
       };
@@ -1715,13 +2004,26 @@ angular.module("beamng.apps")
         var f = $scope.chForm;
         if (!f) return "";
         if (!(f.name || "").trim() || (f.name || "").trim().length < 2) return $scope.t("ch.p.name");
-        if (!f.track) return $scope.t("ch.p.track");
+        var style = f.style || "laptime";
+        var needsCourse = style === "laptime" || f.useCourse;
+        if (needsCourse && !f.track) return $scope.t("ch.p.track");
+        var meta = styleMeta(style);
         var tiers = list(f.tiers);
         if (!tiers.length) return $scope.t("ch.p.tiers");
         for (var i = 0; i < tiers.length; i++) {
-          if (parseTime(tiers[i].time) == null || parseTime(tiers[i].time) <= 0) return $scope.t("ch.p.time");
+          var val = parseTierValue(tiers[i].time, style);
+          if (val == null) return meta.unit === "time" ? $scope.t("ch.p.time") : $scope.t("ch.p.value");
           var xp = parseInt(tiers[i].xp, 10);
           if (isNaN(xp) || xp < 0) return $scope.t("ch.p.xp");
+        }
+        if (meta.timeLimit !== "none") {
+          var tl = (f.timeLimit || "").trim();
+          if (tl === "") {
+            if (meta.timeLimit === "required") return $scope.t("ch.p.timelimit");
+          } else {
+            var secs = parseTime(tl);
+            if (secs == null || secs < 5 || secs > 3600) return $scope.t("ch.p.timelimit");
+          }
         }
         return "";
       };
@@ -1734,13 +2036,22 @@ angular.module("beamng.apps")
           return;
         }
         $scope.chFormError = "";
-        var t = $scope.chFormTrack();
+        var style = f.style || "laptime";
+        var needsCourse = style === "laptime" || f.useCourse;
+        var t = needsCourse ? $scope.chFormTrack() : null;
+        var meta = styleMeta(style);
         var tiers = [];
-        list(f.tiers).forEach(function (r) { tiers.push({ time: parseTime(r.time), xp: parseInt(r.xp, 10) || 0 }); });
-        var out = { name: (f.name || "").trim(), kind: f.kind || "daily", track: f.track,
-                    laps: (t && t.circuit) ? Math.max(1, parseInt(f.laps, 10) || 1) : 1,
+        list(f.tiers).forEach(function (r) {
+          tiers.push({ time: parseTierValue(r.time, style), xp: parseInt(r.xp, 10) || 0 });
+        });
+        var out = { name: (f.name || "").trim(), kind: f.kind || "daily", style: style,
+                    track: needsCourse ? f.track : null,
+                    laps: (needsCourse && t && t.circuit) ? Math.max(1, parseInt(f.laps, 10) || 1) : 1,
                     classes: (f.classes && f.classes.length) ? f.classes : null, tiers: tiers,
                     description: (f.description || "").trim() };
+        if (meta.timeLimit !== "none" && (f.timeLimit || "").trim() !== "") {
+          out.timeLimit = parseTime(f.timeLimit);
+        }
         if (f.startInHours != null) out.startInHours = f.startInHours;
         if (f.id) out.id = f.id;
         // JSON string, not a Lua table literal — engineLua used to swallow the post.
@@ -1815,6 +2126,7 @@ angular.module("beamng.apps")
         no_session:      "The server has not finished recognising you yet.",
         no_such_challenge: "That challenge is gone.",
         challenge_not_live: "That challenge is not live.",
+        challenge_misconfigured: "This challenge is missing its time limit and can't be scored yet — an admin needs to open and re-save it.",
         wrong_course_for_challenge: "That is not the challenge's course.",
         wrong_laps_for_challenge: "The laps are set by the challenge.",
         class_not_in_challenge: "Pick one of the challenge's classes.",
@@ -1841,6 +2153,22 @@ angular.module("beamng.apps")
       }
 
       $scope.clock = function (sec) { return fmt(sec, 3); };
+
+      // how a challenge's own number is shown once it is not a lap time:
+      // plain value plus its unit, rather than running it through the
+      // mm:ss clock formatter that every other time-like number on this
+      // screen uses.
+      var CH_UNIT_SUFFIX = { mph: " mph", g: " g", score: " pts", ft: " ft", mi: " mi" };
+      $scope.chValueText = function (value, style) {
+        if (value == null || value === "") return "—";
+        var meta = styleMeta(style);
+        if (meta.unit === "time") return $scope.clock(value);
+        var n = meta.unit === "score" ? Math.round(value) : (Math.round(value * 10) / 10);
+        return n + (CH_UNIT_SUFFIX[meta.unit] || "");
+      };
+      $scope.chRungWord = function (style) {
+        return styleMeta(style).higherBetter ? $scope.t("ch.atleast") : $scope.t("ch.under");
+      };
 
       // the big one redraws ten times a second, so it shows tenths. three
       // decimals flickering at that rate is unreadable and looks broken.
@@ -2297,7 +2625,7 @@ angular.module("beamng.apps")
 
       $scope.staffPick = null;
       $scope.openStaff = function (d) {
-        $scope.staffPick = d ? { key: d.key, name: d.name, role: d.role || "player" } : null;
+        $scope.staffPick = d ? { key: d.key, name: d.name, role: d.role || "player", pid: d.pid != null ? d.pid : null } : null;
       };
       $scope.staffRole = function (role) {
         if (!$scope.staffPick) return;
@@ -2307,6 +2635,23 @@ angular.module("beamng.apps")
       $scope.staffKick = function () {
         if (!$scope.staffPick) return;
         ui("staffKick", $scope.staffPick.key);
+      };
+      $scope.staffRaceKick = function () {
+        if (!$scope.staffPick || $scope.staffPick.pid == null) return;
+        ui("staffRaceKick", $scope.staffPick.pid);
+      };
+      $scope.launchPick = null;
+      $scope.liveChallenges = function () {
+        var all = list($scope.s.challenges);
+        var out = [];
+        for (var i = 0; i < all.length; i++) {
+          if (all[i].state === "live") out.push(all[i]);
+        }
+        return out;
+      };
+      $scope.staffLaunchAll = function () {
+        if (!$scope.launchPick) return;
+        ui("staffLaunchAll", $scope.launchPick);
       };
       $scope.staffBan = function () {
         if (!$scope.staffPick) return;

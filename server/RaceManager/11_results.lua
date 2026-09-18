@@ -129,6 +129,13 @@ local function build(trackId, h)
 
   table.sort(finished, function(a, b) return a.corrected < b.corrected end)
 
+  -- DNFs ranked by how long each stayed in before leaving or being kicked --
+  -- the most recent departure first, which is the same thing as "made it
+  -- the furthest" for anyone who left of their own accord partway through,
+  -- and for a kick, simply the order they actually happened in.
+  table.sort(dnf, function(a, b) return (a.at or 0) > (b.at or 0) end)
+  for i = 1, #dnf do dnf[i].pos = i end
+
   local leader = finished[1]
   local overallBest = nil
 
@@ -324,6 +331,70 @@ local function close(trackId)
 end
 
 -- called once for every run that stops, however it stopped
+-- The dispatcher every call site uses once a run is off track, however it
+-- got there (crossed the finish line, timed out, End Race, or the driver
+-- disconnected). A lap-time challenge is still a race against whoever else
+-- is on the course -- it goes through the heat above, same as ever. Every
+-- other style is a solo attempt with nothing to wait on, so it resolves on
+-- its own, immediately, through onChallengeAttemptEnded below.
+function RM.results.finishRun(pid)
+  local r = RM.race.get(pid)
+  local c = r and r.challenge and RM.challenges.get(r.challenge)
+  if c and (c.style or "laptime") ~= "laptime" then
+    return RM.results.onChallengeAttemptEnded(pid)
+  end
+  return RM.results.onRunEnded(pid)
+end
+
+-- A speed/g-force/damage/long-jump/distance attempt, free roam or on a
+-- course, resolves the moment it ends: there is no heat to wait on, so the
+-- driver hears back straight away rather than waiting on whoever else might
+-- be racing the same course.
+function RM.results.onChallengeAttemptEnded(pid)
+  local r = RM.race.get(pid)
+  if not r then return end
+
+  if r.state ~= "finished" then
+    RM.bus.queue(pid, "challenge.finished", { ok = false, why = r.why or "ended" })
+    return
+  end
+
+  local entry = RM.race.results(pid)
+  if not entry then return end
+  entry.gates = r.gates
+  entry.vehicle = RM.players.modelOf(pid)
+  entry.class = r.class
+  entry.challenge = r.challenge
+  entry.telemetry = r.telemetry
+
+  local c = RM.challenges.get(r.challenge)
+  local result = RM.challenges.onFinish(entry)
+
+  -- a handful of the driver's other challenge standings, so the screen can
+  -- show "you've also done well elsewhere" rather than only this one result
+  local others = {}
+  if RM.challenges.forDriver then
+    local all = RM.challenges.forDriver(r.key) or {}
+    for i = 1, #all do
+      if all[i].id ~= r.challenge and #others < 5 then
+        others[#others + 1] = all[i]
+      end
+    end
+  end
+
+  RM.bus.queue(pid, "challenge.finished", {
+    ok = true,
+    challenge = c and {
+      id = c.id, name = c.name, kind = c.kind, style = c.style or "laptime",
+      trackName = c.trackName, description = c.description,
+    } or nil,
+    run = { clean = entry.clean, corrected = entry.corrected,
+            vehicle = entry.vehicle, class = entry.class },
+    result = result,
+    others = others,
+  })
+end
+
 function RM.results.onRunEnded(pid)
   local r = RM.race.get(pid)
   if not r then return end
@@ -340,19 +411,25 @@ function RM.results.onRunEnded(pid)
       entry.vehicle = RM.players.modelOf(pid)
       entry.class   = r.class
       entry.challenge = r.challenge
+      -- what the client sampled during the run, for a challenge scored on
+      -- something other than the clock (speed/g-force/damage/long jump/
+      -- distance). Absent for a plain race or a lap-time challenge.
+      entry.telemetry = r.telemetry
       entry.official = r.official and true or false
       entry.officialName = r.officialName
       h.done[#h.done + 1] = entry
     end
   else
     h.done[#h.done + 1] = {
-      key   = r.key,
-      name  = RM.identity.displayName(pid),
-      track = r.track,
-      mode  = r.mode,
-      dnf   = true,
-      why   = r.why or "did not finish",
-      lap   = r.currentLap,
+      key     = r.key,
+      name    = RM.identity.displayName(pid),
+      track   = r.track,
+      mode    = r.mode,
+      dnf     = true,
+      why     = r.why or "did not finish",
+      kicked  = r.kicked and true or false,
+      lap     = r.currentLap,
+      at      = r.abandonedAt or RM.now(),
     }
   end
 

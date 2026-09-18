@@ -106,18 +106,19 @@ angular.module('beamng.apps').directive('rmStellaInstrument', function () {
     '.lcd-sz-overlay{position:absolute;inset:0;z-index:9;pointer-events:none;display:flex;flex-direction:column;align-items:center;justify-content:center;}' +
     '.lcd-sz-overlay.sz-warn{background:rgba(212,170,18,.12);}' +
     '.lcd-sz-overlay.sz-exceed{background:rgba(210,30,20,.16);}' +
-    '@keyframes szPulse{0%,100%{opacity:1}50%{opacity:.3}}' +
     '.lcd-sz-limit{font-size:36px;font-weight:800;color:#523d04;letter-spacing:2px;line-height:1;}' +
     '.lcd-sz-limit.sz-red{color:#8b1a12;}' +
     '.lcd-sz-label{font-size:10px;font-weight:700;color:#5a5024;letter-spacing:2px;text-transform:uppercase;}' +
-    '.lcd-sz-label.sz-red{color:#8b1a12;animation:szPulse .6s ease-in-out infinite;}' +
+    '.lcd-sz-label.sz-red{color:#8b1a12;animation:none;}' +
     '.lcd-sz-unit{font-size:14px;font-weight:700;color:#6b6232;margin-left:2px;}' +
     '.lcd-sz-unit.sz-red{color:#8b1a12;}' +
-    /* the three states he described: ahead flashes yellow, inside sits red, over flashes red */
+    /* all three states are solid, matching the LED bar and the sounds
+       that trigger them exactly -- ahead, inside, and over all just hold
+       their color rather than pulsing */
     '.lcd-sz-overlay.sz-ahead{background:rgba(212,170,18,.10);}' +
-    '.lcd-sz-limit.sz-yellow,.lcd-sz-unit.sz-yellow,.lcd-sz-label.sz-yellow{color:#8a6300;animation:szPulse .6s ease-in-out infinite;}' +
-    '.lcd-sz-limit.sz-in,.lcd-sz-unit.sz-in,.lcd-sz-label.sz-in{color:#8b1a12;animation:none;}' +
-    '.lcd-sz-limit.sz-red,.lcd-sz-unit.sz-red{animation:szPulse .6s ease-in-out infinite;}' +
+    '.lcd-sz-limit.sz-yellow,.lcd-sz-unit.sz-yellow,.lcd-sz-label.sz-yellow{color:#8a6300;animation:none;}' +
+    '.lcd-sz-limit.sz-in,.lcd-sz-unit.sz-in,.lcd-sz-label.sz-in{color:#8a6300;animation:none;}' +
+    '.lcd-sz-limit.sz-red,.lcd-sz-unit.sz-red{animation:none;}' +
 
     /* === Blue flag LCD overlay === */
     '.lcd-bf-overlay{position:absolute;inset:0;z-index:8;pointer-events:none;}' +

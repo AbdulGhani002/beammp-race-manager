@@ -2,12 +2,12 @@
 -- UI is driven primarily by uiPoll() so LED / zone / keys do not depend on
 -- guihooks reaching a nested Angular directive (that path was unreliable).
 local M = {}
-M.VERSION = "0.7.18"
+M.VERSION = "0.7.17"
 
 local cfg = {
   tick = 0.05,
   zoneWarnDistance = 250,
-  greenSecs = 3.0,
+  greenSecs = 1.0,
   immediateRange = 8,
   rearApproachRange = 150,
   proximityClear = 175,
@@ -69,8 +69,6 @@ local function zoneMph(z)
   return math.floor(mph + 0.5)
 end
 
-local function limitPattern(z) return "limit:" .. tostring(zoneMph(z)) end
-
 local function zoneIdentity(z)
   if type(z) ~= "table" then return "" end
   return table.concat({
@@ -98,31 +96,49 @@ local testLed = nil
 local function restoreLed()
   if testLed then setLed(testLed.color, testLed.flash, testLed.pattern, "test") return end
   if greenUntil > 0 and clock < greenUntil then
-    setLed("green", true, "all", "gate")
+    setLed("green", false, "all", "gate")
     return
   end
   if greenUntil > 0 then greenUntil = 0 end
 
+  -- zoneAhead used to also require zone.advanceWarned == true -- a flag
+  -- meant only to stop the "advance" sound from repeating every tick, not
+  -- to gate the display. setSpeedZone only ever gets called with
+  -- upcoming=true once the caller (stella.lua) has already confirmed the
+  -- car is within warning range in the first place, so by the time the
+  -- display would ever check this, the warning is already due -- the flag
+  -- added nothing but a second place for the same fact to get out of sync
+  -- with the sound, which is exactly what made the box path never show
+  -- yellow at all. Both now simply mean "the caller says we're
+  -- approaching/in this zone" -- the same fact, one flag.
   local zoneIn = zone ~= nil and not zone.upcoming
-  local zoneAhead = zone ~= nil and zone.upcoming == true and zone.advanceWarned == true
+  local zoneAhead = zone ~= nil and zone.upcoming == true
   if hazardAhead then
     setLed("red", true, "triangle", "a car broken down ahead")
   elseif breakdown then
     setLed("yellow", true, "triangle", "the red button")
   elseif zoneIn then
-    setLed("red", lastExceeding, limitPattern(zone),
-      ("in a %d mph zone%s"):format(zoneMph(zone), lastExceeding and ", over" or ""))
+    -- solid yellow holding the limit, solid red going over -- both the
+    -- whole grid lit, colored by compliance. The exact mph is on the big
+    -- LCD number, not spelled out in the dots.
+    if lastExceeding then
+      setLed("red", false, "all", ("in a %d mph zone, over"):format(zoneMph(zone)))
+    else
+      setLed("yellow", false, "all", ("in a %d mph zone"):format(zoneMph(zone)))
+    end
   elseif blueFlag.state == "incoming" or blueFlag.state == "requested" or blueFlag.state == "accepted" then
-    setLed("blue", true, "lines", "pass " .. blueFlag.state)
+    setLed("blue", false, "all", "pass " .. blueFlag.state)
   elseif proximity then
     setLed("yellow", true, "triangle", "a car " .. tostring(proximity.kind or "near"))
   elseif zoneAhead then
-    setLed("yellow", true, limitPattern(zone),
+    -- solid yellow, the same full-grid pattern as actually being in the
+    -- zone -- a bar, not a triangle icon, per how this is meant to look
+    setLed("yellow", false, "all",
       ("a %d mph zone ahead, %d m"):format(zoneMph(zone), math.floor(lastZoneDist or 0)))
   elseif blueFlag.state == "delivered" then
-    setLed("green", true, "lines", "pass delivered")
+    setLed("green", false, "all", "pass delivered")
   elseif blueFlag.state == "go" then
-    setLed("green", true, "all", "pass go")
+    setLed("green", false, "all", "pass go")
   else
     setLed("off", false, "none", "nothing to show")
   end
@@ -205,7 +221,7 @@ end
 
 function M.onVCPCrossed(index)
   greenUntil = clock + cfg.greenSecs
-  setLed("green", true, "all", "gate")
+  setLed("green", false, "all", "gate")
   queueSound("vcp")
 end
 
@@ -337,7 +353,7 @@ function M.blueFlagState() return blueFlag.state end
 
 function M.getSnapshot()
   local zoneActive = zone ~= nil and not zone.upcoming
-  local zoneWarn = zone ~= nil and zone.upcoming == true and zone.advanceWarned == true
+  local zoneWarn = zone ~= nil and zone.upcoming == true
   local limit = zone and num(zone.limitKmh or zone.speedLimitKmh) or 0
   return {
     heading = lastHdg,
@@ -556,16 +572,15 @@ function M.testShow(what, step)
     testLed = { color = "yellow", flash = true, pattern = "triangle" }
     restoreLed()
   elseif what == "blue" then
-    testLed = { color = "blue", flash = true, pattern = "lines" }
+    testLed = { color = "blue", flash = false, pattern = "all" }
     restoreLed()
   elseif what == "green" then
     M.setSpeedZone(nil)
     greenUntil = clock + cfg.greenSecs
-    setLed("green", true, "all", "test")
+    setLed("green", false, "all", "test")
   elseif what == "ahead" then
     limit.upcoming = true
     M.setSpeedZone(limit)
-    zone.advanceWarned = true
     restoreLed()
   elseif what == "in" then
     testOver = false

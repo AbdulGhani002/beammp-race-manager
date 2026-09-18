@@ -9,6 +9,14 @@ local rosterEvery, saveEvery, helloEvery
 local function onTick()
   ticks = ticks + 1
 
+  -- checked whether or not anyone is on the server: an admin posting a
+  -- challenge from Discord at 3am should not have to wait for a player to
+  -- join before it goes live.
+  if ticks % rosterEvery == 0 and RM.discordbridge then
+    pcall(RM.discordbridge.tick)
+    pcall(RM.discordbridge.tickLaunch)
+  end
+
   if MP.GetPlayerCount() == 0 then
     if ticks % saveEvery == 0 then RM.store.flushDirty() end
     if ticks % rosterEvery == 0 then RM.serverconfig.tick(RM.config.rosterMs / 1000) end
@@ -20,6 +28,11 @@ local function onTick()
   if ticks % (rosterEvery * 4) == 0 and RM.live then
     pcall(function() RM.live.writeRoster() end)
     pcall(function() RM.live.writeChallenges() end)
+    -- checked before the export below so a month that just rolled over
+    -- gets archived and reflected in the very same write, not one tick
+    -- behind it
+    pcall(function() if RM.xp then RM.xp.checkMonthRollover() end end)
+    pcall(function() RM.live.writeXpMonthly() end)
   end
   if ticks % (rosterEvery * 20) == 0 and RM.live and RM.live.writeDrivers then
     pcall(function() RM.live.writeDrivers() end)
@@ -27,14 +40,28 @@ local function onTick()
 
   RM.players.tick()
 
-  -- a team whose cars stopped matching, and offers nobody answered
-  if ticks % rosterEvery == 0 then RM.team.tick() end
-  if ticks % rosterEvery == 0 then RM.stella.tick() end
-  if ticks % rosterEvery == 0 then RM.copilot.tick() end
-  if ticks % rosterEvery == 0 then RM.challenges.tick() end
+  -- a team whose cars stopped matching, and offers nobody answered.
+  -- pcall'd for the same reason RM.service.tick below is: an uncaught
+  -- error in any per-tick function here aborts everything queued after
+  -- it for that tick, RM.bus.flush() included -- which is what actually
+  -- delivers every message to every player, this one function's own
+  -- business or not. One bug in one of these once took the whole message
+  -- bus down for the entire server until restart; these four hadn't had
+  -- a bug like that found in them, but there was no reason to leave them
+  -- as exposed to the same failure mode as the one that did.
+  if ticks % rosterEvery == 0 then pcall(RM.team.tick) end
+  if ticks % rosterEvery == 0 then pcall(RM.stella.tick) end
+  if ticks % rosterEvery == 0 then pcall(RM.copilot.tick) end
+  if ticks % rosterEvery == 0 then pcall(RM.challenges.tick) end
 
-  -- a hold that has run its course, so the game can do the job
-  RM.service.tick(RM.now())
+  -- a hold that has run its course, so the game can do the job. pcall'd
+  -- because it used to not be: one bug in here once threw uncaught, every
+  -- single tick, for as long as the job existed -- which silently aborted
+  -- everything queued after this point in onTick, RM.bus.flush() included,
+  -- so nothing server-wide went out until the server was restarted. This
+  -- doesn't fix a bug like that; it just stops one from ever again taking
+  -- the rest of the tick down with it.
+  pcall(RM.service.tick, RM.now())
 
   -- the clock probe rides the batch that is already going out
   if ticks % rosterEvery == 0 then
@@ -61,7 +88,21 @@ local function onTick()
       for i = 1, #ended do
         local pid = ended[i]
         RM.bus.queue(pid, "race.state", RM.race.wire(pid))
-        RM.results.onRunEnded(pid)
+        RM.results.finishRun(pid)
+        RM.race.clear(pid)
+      end
+    end
+
+    -- a speed/g-force/damage/distance attempt whose time limit just ran out.
+    -- checked on the same cadence as the sweep above, and handled exactly
+    -- the same way: the run already finished (RM.race.checkAttemptLimits
+    -- does that part), this just tells the driver and files the result.
+    local timedOut = RM.race.checkAttemptLimits and RM.race.checkAttemptLimits()
+    if timedOut then
+      for i = 1, #timedOut do
+        local pid = timedOut[i]
+        RM.bus.queue(pid, "race.state", RM.race.wire(pid))
+        RM.results.finishRun(pid)
         RM.race.clear(pid)
       end
     end
@@ -93,7 +134,7 @@ local function onPlayerDisconnect(pid)
   -- the run has to be read before it is thrown away, or whoever is still on
   -- track waits forever for somebody who is not coming back
   RM.race.onLeave(pid)
-  RM.results.onRunEnded(pid)
+  RM.results.finishRun(pid)
   RM.team.forget(pid)
   RM.copilot.forget(pid)
   RM.stella.forget(pid)
@@ -282,25 +323,52 @@ local function wireChannels()
     RM.clock.onPong(pid, d)
   end)
 
+  -- everything that happens right after a successful arm, whoever asked
+  -- for it -- the driver themselves pressing Enter, or staff launching
+  -- everyone into a challenge at once (RM.bus.on("race.launchAll", ...)
+  -- below). Kept in one place so a mass-launch never quietly skips a step
+  -- a normal arm gets: watching the right car, forgetting a stale
+  -- personal result, joining the heat a laptime-style run needs, and
+  -- being dropped on the start grid if the course has one.
   RM.bus.on("race.arm", function(pid, d)
     local ok, result = RM.race.arm(pid, d)
     if not ok then
       RM.bus.queue(pid, "race.result", { ok = false, reason = result })
       return
     end
+    RM.race.afterArm(pid, result)
+  end)
 
-    -- your own car is the one that races, so watching somebody else ends
-    RM.copilot.onRaceArmed(pid)
-
-    -- whatever they were entered for before, they are not in it now
-    RM.results.forget(pid)
-    RM.results.join(pid, result.track)
-    RM.bus.queue(pid, "race.state", RM.race.wire(pid))
-
-    local track = RM.tracks.get(result.track)
-    if track and track.start then
-      RM.bus.queue(pid, "race.teleport", RM.tracks.gridFor(track))
+  -- staff+ launching every connected driver into the same challenge
+  -- attempt right now, all at once -- kicking off a scheduled event on the
+  -- spot rather than waiting for each driver to find and enter it
+  -- themselves. Best-effort: RM.race.arm already runs every one of a
+  -- challenge's own rules per driver (team, class, tracking, already mid
+  -- another run), so somebody it refuses is simply skipped and counted,
+  -- not allowed to hold up everyone else.
+  RM.bus.on("race.launchAll", function(pid, d)
+    local challengeId = type(d) == "table" and d.challenge or d
+    local ok, info = RM.challenges.launchAll(pid, challengeId, RM.race.afterArm)
+    local summary = nil
+    if ok then
+      summary = ("%s: %d started, %d skipped"):format(info.name, info.launched, info.skipped)
+      -- a bare count answers "how many" but not "why" -- worth naming who
+      -- and why right in the toast when it's a small number, since that's
+      -- exactly the question an admin staring at "0 started" is asking
+      if info.skipped > 0 and type(info.skips) == "table" then
+        local bits = {}
+        for i = 1, math.min(#info.skips, 3) do
+          bits[i] = ("%s (%s)"):format(info.skips[i].name, info.skips[i].why)
+        end
+        if #info.skips > 3 then bits[#bits + 1] = ("+%d more"):format(#info.skips - 3) end
+        summary = summary .. ": " .. table.concat(bits, ", ")
+      end
     end
+    RM.bus.queue(pid, "staff.result", {
+      action = "launchAll", ok = ok and true or false,
+      reason = (not ok) and info or nil,
+      name = summary,
+    })
   end)
 
   RM.bus.on("race.end", function(pid)
@@ -312,7 +380,7 @@ local function wireChannels()
     end
     RM.service.forget(pid)
     RM.bus.queue(pid, "race.state", RM.race.wire(pid))
-    RM.results.onRunEnded(pid)
+    RM.results.finishRun(pid)
     RM.race.clear(pid)
   end)
 
@@ -321,6 +389,13 @@ local function wireChannels()
     RM.race.clear(pid)
     RM.results.forget(pid)
     RM.bus.queue(pid, "race.state", RM.race.wire(pid))
+  end)
+
+  -- speed/g-force/damage/distance samples for a running challenge attempt.
+  -- No reply: this is a drip feed, not a request, and a dropped sample here
+  -- and there is fine -- it just means one fewer data point toward the peak.
+  RM.bus.on("race.telemetry", function(pid, d)
+    RM.race.telemetry(pid, d)
   end)
 
   -- a crossing, stamped by the client at the frame the trigger fired. the
@@ -344,7 +419,7 @@ local function wireChannels()
     RM.bus.queue(pid, "race.split", result)
     if result.finished then
       RM.bus.queue(pid, "race.state", RM.race.wire(pid))
-      RM.results.onRunEnded(pid)
+      RM.results.finishRun(pid)
     end
   end)
 
@@ -483,13 +558,6 @@ local function wireChannels()
     if watching(pid) then return end
     local inside = type(d) == "table" and d.inside == true
     local mph = type(d) == "table" and tonumber(d.mph) or nil
-    -- a car whose copy of the box carries no limit still gets judged: the
-    -- server holds the same box and can look it up by its number
-    if inside and not mph then
-      local i = type(d) == "table" and tonumber(d.i) or nil
-      local g = i and RM.zones.szGate((RM.race.get(pid) or {}).track, i) or nil
-      mph = g and tonumber(g.mph) or nil
-    end
     local what = RM.zones.onSzState(pid, inside, mph)
     if what then
       RM.bus.queue(pid, "zone.warn", { charged = false, event = what, zone = RM.zones.wire(pid) })
@@ -636,6 +704,20 @@ local function wireChannels()
   RM.bus.on("staff.kick", function(pid, d)
     staffReply(pid, "kick", RM.mod.kick(pid, type(d) == "table" and d.key or d, type(d) == "table" and d.why or nil))
   end)
+  -- kicked from the current race only -- stays connected to the server,
+  -- just DNFs out of whatever heat they're in, so it isn't stuck waiting
+  -- on someone who went afk. d.pid is a live player id, not an identity
+  -- key: this only ever makes sense against somebody actually in a run.
+  RM.bus.on("race.kick", function(pid, d)
+    local targetPid = type(d) == "table" and tonumber(d.pid) or tonumber(d)
+    local why = type(d) == "table" and d.why or nil
+    local ok, result = RM.race.kickFromRace(pid, targetPid, why)
+    RM.bus.queue(pid, "staff.result", {
+      action = "raceKick", ok = ok and true or false,
+      reason = (not ok) and result or nil,
+      name = ok and RM.identity.displayName(targetPid) or nil,
+    })
+  end)
   RM.bus.on("staff.ban", function(pid, d)
     staffReply(pid, "ban", RM.mod.ban(pid, type(d) == "table" and d.key or d, type(d) == "table" and d.why or nil))
   end)
@@ -688,6 +770,7 @@ local function onInit()
   RM.mod.init()
   RM.tracks.init()
   RM.challenges.init()
+  if RM.discordbridge then RM.discordbridge.init() end
   RM.store.load("perf", { runs = {} })
   RM.serverconfig.check()
 

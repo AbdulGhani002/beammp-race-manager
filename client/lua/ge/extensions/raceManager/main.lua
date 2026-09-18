@@ -1,6 +1,6 @@
 local M = {}
 
-M.VERSION = "0.7.18-box-limit-and-tally"
+M.VERSION = "0.7.17-boxes-by-distance"
 
 -- ui goes last: it reads from every other module the moment it comes up
 local SUBS = {
@@ -12,6 +12,7 @@ local SUBS = {
   "raceManager_triggers",
   "raceManager_capture",
   "raceManager_race",
+  "raceManager_telemetry",
   "raceManager_stellaUnit",
   "raceManager_stella",
   "raceManager_layout",

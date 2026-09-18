@@ -1,6 +1,6 @@
 RM = RM or {}
 
-RM.VERSION = "0.7.18-box-limit-and-tally"
+RM.VERSION = "0.7.17-boxes-by-distance"
 
 RM.config = {
   nameMinLen  = 3,
@@ -84,6 +84,12 @@ RM.config = {
   -- nothing on wheels does this, so a split implying it is a lie
   maxPlausibleMph = 300,
 
+  -- how often the client is expected to report speed/g-force/damage/distance
+  -- during a non-lap-time challenge attempt. Used only as the plausibility
+  -- ceiling on a single distance sample (top speed times this many seconds);
+  -- the client's own send interval is what actually decides the cadence.
+  telemetryIntervalSec = 1.5,
+
   -- how far a client stamp may sit outside what the server believes
   clockTrustMs = 2000,
   -- how long the car is held still while each job is done. only inside a run.
@@ -105,6 +111,18 @@ RM.config = {
   -- what a finish pays by place. two hundred for the win, two less each
   -- place after, never under the floor. Levels grow: 750 / 1,750 / 3,000…
   xpCurve      = { first = 200, step = 2, floor = 20 },
+
+  -- a flat bonus for finishing at all, on top of the placement curve above
+  -- (races) or the ladder (challenges) -- every driver who completes a run
+  -- gets this, win or last place, tier one or outside the ladder entirely.
+  raceCompletionXp = 10,
+
+  -- a challenge's ladder pays every attempt, not only the first one --
+  -- but less each repeat: this fraction of the previous payout, compounding.
+  -- 0.9 = 100% the first time, 90% the second, 81% the third, and so on
+  -- until it floors to nothing, at which point the challenge still runs
+  -- (for the tier itself and the leaderboard), just not for further XP.
+  challengeRepeatDecay = 0.9,
   xpPerLevel   = 1000, -- unused; kept so older configs still load
 
   -- The race classes, as he sent them on 2026-09-04, in his order.

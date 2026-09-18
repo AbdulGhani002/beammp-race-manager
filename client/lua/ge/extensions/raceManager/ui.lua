@@ -71,6 +71,7 @@ local function build()
   local watchOk, watchSt = pcall(function() return extensions.raceManager_copilot.status() end)
   snap.watching = (watchOk and watchSt and watchSt.watching) or false
   snap.challenges = S.challenges
+  snap.challengeFinished = S.challengeFinished
   snap.profile    = S.profile
   snap.drivers    = S.drivers
 
@@ -110,6 +111,7 @@ local function build()
   snap.capture = extensions.raceManager_capture.status()
   snap.perf = extensions.raceManager_perf.status()
   snap.race = extensions.raceManager_race.status()
+  snap.challengeLive = extensions.raceManager_telemetry.status()
   snap.service = extensions.raceManager_service.status()
   snap.records = S.records
 
@@ -331,6 +333,17 @@ end
 function M.staffKick(key)
   extensions.raceManager_net.send("staff.kick", { key = key })
 end
+-- kicks a driver out of whatever race they're currently in, not off the
+-- server -- they stay connected, only their run ends as a DNF, so an afk
+-- driver doesn't leave everyone else waiting on a heat that can't close
+function M.staffRaceKick(pid)
+  extensions.raceManager_net.send("race.kick", { pid = pid })
+end
+-- picks one live challenge and starts an attempt for every connected
+-- driver right now, kicking off a scheduled event on the spot
+function M.staffLaunchAll(challengeId)
+  extensions.raceManager_net.send("race.launchAll", { challenge = challengeId })
+end
 function M.staffBan(key)
   extensions.raceManager_net.send("staff.ban", { key = key, why = "banned" })
 end
@@ -401,6 +414,11 @@ end
 
 function M.armRace(id, mode, laps, class, challenge, official, officialName)
   extensions.raceManager_race.arm(id, mode, laps, class, challenge, official, officialName)
+end
+
+-- a challenge with no course picked -- see race.lua's M.armChallenge
+function M.armChallenge(challengeId, mode, class)
+  extensions.raceManager_race.armChallenge(challengeId, mode, class)
 end
 
 function M.createLobby(trackId, mode, laps, open, class, official, officialName)
@@ -477,6 +495,11 @@ end
 
 function M.closeResults()
   extensions.raceManager_race.closeResults()
+end
+
+-- the personal challenge-results screen, closed
+function M.clearChallengeFinished()
+  extensions.raceManager_state.clearChallengeFinished()
 end
 
 M.onUpdate = onUpdate

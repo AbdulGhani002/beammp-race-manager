@@ -103,6 +103,15 @@
   border-color: var(--rm-line-lit);
 }
 
+/* a click needs to look like it registered the instant it happens, not
+   only once the game reacts to it a moment later -- there was no :active
+   state anywhere in this file before this */
+.rm-root button:active:not(:disabled) {
+  background: var(--rm-red);
+  border-color: var(--rm-red-lit);
+  color: #fff;
+}
+
 .rm-root button:disabled { opacity: 0.35; cursor: default; }
 
 .rm-root button.on {
@@ -558,6 +567,19 @@
 .rm-pick-name { font-weight: 500; }
 .rm-picklist button.on .rm-pick-name { color: #fff; font-weight: 600; }
 
+/* the race picked in Records is meant to stand out clearly, not blend in
+   with the same faint tint every other picklist (drivers, challenges,
+   staff) uses for its own selection -- a bold fill, matching the same
+   red used for a currently-open panel button */
+.rm-trackpick button.on {
+  background: var(--rm-red);
+  border-color: var(--rm-red-lit);
+  color: #fff;
+}
+.rm-trackpick button.on::before { background: #fff; }
+.rm-trackpick button.on .rm-pick-name,
+.rm-trackpick button.on .rm-pick-note { color: #fff; }
+
 .rm-pick-note {
   font-size: 11px;
   color: var(--rm-dim);
@@ -904,6 +926,63 @@
   color: var(--rm-dim) !important;
 }
 
+/* ----------------------------------------------------------- challenge HUD */
+/* Same box as the race clock (.rm-hud), a top border tinted per style so a
+   glance says which kind of attempt is on, and a big number in place of a
+   lap clock -- whatever that style actually measures. */
+.rm-chud-title {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--rm-dim);
+  margin-bottom: 2px;
+}
+.rm-chud-countdown { font-size: 30px; }
+.rm-chud-countdown.warn { color: var(--rm-bad); animation: rmChudPulse 1s infinite; }
+@keyframes rmChudPulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.45; } }
+
+.rm-chud-big {
+  font-size: 44px;
+  font-weight: 700;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  margin-top: 4px;
+}
+.rm-chud-unit {
+  font-size: 13px;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: var(--rm-dim);
+  margin-left: 6px;
+  letter-spacing: 0.04em;
+}
+.rm-chud-fill { background: var(--rm-good); }
+
+.rm-chud { cursor: move; }
+.rm-chud button { cursor: pointer; }
+.rm-chud-speed { border-top-color: var(--rm-red-lit); }
+.rm-chud-speed .rm-chud-big { color: var(--rm-red-lit); }
+
+.rm-chud-gforce .rm-chud-big { color: var(--rm-orange); }
+
+.rm-chud-damagebig, .rm-chud-damage .rm-chud-big { color: var(--rm-bad); }
+
+.rm-chud-distance .rm-chud-big { color: var(--rm-good); }
+
+.rm-chud-jump .rm-chud-big { color: var(--rm-yellow); }
+.rm-chud-airborne {
+  font-size: 26px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  color: var(--rm-yellow);
+  margin-top: 8px;
+  animation: rmChudPulse 0.6s infinite;
+}
+.rm-chud-flash {
+  color: var(--rm-yellow) !important;
+  font-weight: 700;
+}
+
 /* --------------------------------------------------------------- results */
 
 .rm-results-veil { z-index: 20; }
@@ -925,6 +1004,67 @@
 }
 .rm-best strong { color: var(--rm-yellow); font-variant-numeric: tabular-nums; }
 
+/* the solo challenge-results card: narrower than the multi-driver table
+   since there is only ever one driver's own numbers to show */
+.rm-chresults { width: 460px; }
+.rm-chresults-score { text-align: center; grid-column: 1 / -1; }
+.rm-chresults-big {
+  display: block;
+  font-size: 34px;
+  font-weight: 700;
+  color: var(--rm-yellow);
+  font-variant-numeric: tabular-nums;
+  margin-top: 2px;
+}
+.rm-chresults-xp {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--rm-dim);
+}
+.rm-chresults-xp.good { color: var(--rm-good); }
+.rm-good-tag {
+  text-align: center;
+  color: var(--rm-good);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-size: 12px;
+}
+.rm-chresults-breakdown { text-align: center; margin-top: 2px; }
+.rm-chresults-level { margin: 12px 0 4px; }
+.rm-chresults-level-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  color: var(--rm-dim);
+  margin-bottom: 4px;
+  font-variant-numeric: tabular-nums;
+}
+.rm-chresults-level-row span:first-child { color: var(--rm-text); font-weight: 700; }
+
+.rm-chresults-jumps { margin-top: 12px; }
+.rm-jumps-head,
+.rm-jumps-row {
+  display: grid;
+  grid-template-columns: 24px 1fr 1fr 1fr;
+  gap: 8px;
+  padding: 4px 6px;
+}
+.rm-jumps-head {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--rm-dim);
+}
+.rm-jumps-head span:not(:first-child),
+.rm-jumps-row span:not(:first-child) { text-align: right; }
+.rm-jumps-row {
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  border-top: 1px solid var(--rm-line);
+}
+.rm-jumps-row.best { color: var(--rm-good); font-weight: 700; }
+
 .rm-results-head,
 .rm-result-row {
   display: grid;
@@ -942,6 +1082,13 @@
   border-bottom: 1px solid var(--rm-line);
 }
 .rm-results-head span:nth-child(n+3) { text-align: right; }
+
+/* the results screen's own head/row get a 7th column for XP; the records
+   tab's single-row detail view reuses the same base classes at 6 and is
+   left alone -- this modifier is the one place that adds the extra track */
+.rm-results-head.rm-xp7,
+.rm-result-row.rm-xp7 { grid-template-columns: 30px 1fr 92px 74px 78px 78px 56px; }
+.rm-xp-col { text-align: right; font-variant-numeric: tabular-nums; color: var(--rm-good); }
 
 .rm-result-row {
   padding: 9px 8px;

@@ -1,5 +1,6 @@
--- Boost / nitrous (funBoost, toggleNitrousOxide, etc.) is staff/admin/owner only.
--- Non-staff have the actions filtered while on a server.
+-- Boost / nitrous (funBoost, toggleNitrousOxide, etc.) is off for everyone
+-- on a server, staff and owners included -- there's no exemption here on
+-- purpose, unlike the editor lock below, which does exempt staff+.
 local M = {}
 
 local ACTIONS = {
@@ -13,15 +14,6 @@ local GROUP = "raceManagerBoostLock"
 local filtered = nil
 local noticeCooldown = 0
 local sinceLook = 0
-
-local function isStaff()
-  local st = extensions.raceManager_state
-  if not (st and st.get) then return false end
-  local me = st.get().me
-  if not me then return false end
-  local r = me.role
-  return r == "staff" or r == "admin" or r == "owner"
-end
 
 local function onAServer()
   local ok, is = pcall(function()
@@ -53,7 +45,7 @@ local function noticeBlocked()
 end
 
 local function locked()
-  return onAServer() and not isStaff()
+  return onAServer()
 end
 
 function M.sync()

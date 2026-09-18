@@ -1,6 +1,20 @@
--- Level / world editor (F11 / rebound / console) is staff/admin/owner only.
--- Non-staff are blocked from opening it and force-closed if it ever activates.
+-- Level / world editor (F11 / rebound / console / menu) is staff/admin/owner
+-- only. Non-staff are blocked from opening it and force-closed if it ever
+-- activates.
 -- Only while on a server: driving alone, the editor is the player's own.
+--
+-- Two layers, not one. core_input_actionFilter below blocks the game's own
+-- "editor" action group (editorToggle, objectEditorToggle,
+-- editorSafeModeToggle -- confirmed against the game's own
+-- core/input/actionFilter.lua, not a guess) at the input level, so the
+-- keybind never fires. But a menu button or a console command can call
+-- editor.setEditorActive(true) or editor.toggleActive() directly, entirely
+-- bypassing input actions -- and closeEditor() below only ever reacted
+-- after the editor was already active, for however long the next poll
+-- took to catch it. installGuard() instead wraps those two functions at
+-- the source: activation itself now refuses to go through for a locked
+-- player, regardless of what asked for it, and the editor never actually
+-- turns on rather than turning on and being closed a moment later.
 local M = {}
 
 -- the game's own names for the keys that open an editor. Anything else in
@@ -16,6 +30,7 @@ local filtered = nil
 local noticeCooldown = 0
 local closing = false
 local sinceLook = 0
+local guardInstalled = false
 
 local function isStaff()
   local st = extensions.raceManager_state
@@ -121,7 +136,43 @@ local function locked()
   return onAServer() and not isStaff()
 end
 
+-- wraps editor.setEditorActive and editor.toggleActive so activation
+-- itself refuses for a locked player, whatever called it -- a menu button
+-- or a console command included, not only the input-bound keys the
+-- filter above already covers. Deactivation is never touched: a call that
+-- is turning the editor OFF always goes through untouched, including the
+-- ones closeEditor() below makes -- only a call trying to turn it ON, made
+-- while locked, is refused.
+local function installGuard()
+  if guardInstalled then return end
+  if type(editor) ~= "table" then return end
+  local ok = pcall(function()
+    if type(editor.setEditorActive) == "function" then
+      local original = editor.setEditorActive
+      editor.setEditorActive = function(activate, safeMode)
+        if activate and locked() then
+          noticeBlocked()
+          return
+        end
+        return original(activate, safeMode)
+      end
+    end
+    if type(editor.toggleActive) == "function" then
+      local original = editor.toggleActive
+      editor.toggleActive = function(safeMode)
+        if (not editorIsOpen()) and locked() then
+          noticeBlocked()
+          return
+        end
+        return original(safeMode)
+      end
+    end
+  end)
+  if ok then guardInstalled = true end
+end
+
 function M.sync()
+  installGuard()
   if not locked() then
     filterActions(false)
     return

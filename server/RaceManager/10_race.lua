@@ -69,18 +69,8 @@ function RM.race.arm(pid, d)
   local existing = runs[pid]
   if existing and existing.state == "running" then return false, "already_running" end
 
-  local track = RM.tracks.get(type(d.id) == "string" and d.id or "")
-  if not track then return false, "no_such_track" end
-
-  local gates = #track.checkpoints
-  if gates < 2 then return false, "course_too_short" end
-
   local mode = tostring(d.mode or "controller")
   if not MODES[mode] then return false, "bad_mode" end
-
-  local laps = math.floor(tonumber(d.laps) or 1)
-  if laps < 1 or laps > 99 then return false, "bad_laps" end
-  if not track.circuit and laps > 1 then return false, "not_a_circuit" end
 
   -- The class is entered, not read off the car, because he allows every
   -- vehicle. Nothing is refused for not naming one: practice runs and anyone
@@ -93,6 +83,43 @@ function RM.race.arm(pid, d)
       return false, "wrong_car_for_class"
     end
   end
+
+  -- A challenge attempt with no course: no grid, no gates, nothing to cross
+  -- to begin it. The clock starts the instant it is armed, and only the
+  -- challenge's own time limit or the driver's own End Race closes it out
+  -- (RM.race.endRace and RM.race.checkAttemptLimits both call
+  -- RM.race.forceFinish for exactly this run shape).
+  if d.challenge ~= nil and d.challenge ~= "" and (d.id == nil or d.id == "") then
+    local challengeId = tostring(d.challenge)
+    local c = RM.challenges.get(challengeId)
+    if not c then return false, "no_such_challenge" end
+    if c.track then return false, "challenge_needs_a_course" end
+    local okc, why = RM.challenges.check(pid, challengeId, nil, 1, class)
+    if not okc then return false, why end
+
+    runs[pid] = {
+      key = s.key, track = nil, challenge = challengeId, kind = nil,
+      circuit = false, mode = mode, class = class, laps = 1, gates = 0,
+      dist = {}, currentLap = 1, nextGate = 1,
+      state = "running", armedAt = RM.now(), startedAt = RM.now(),
+      finishedAt = nil, splits = { {} }, lapStart = { [1] = 0 }, lapTime = {},
+      missed = {}, penalties = {}, suspect = false, inPit = false,
+      official = false, officialName = nil, spares = nil,
+    }
+    RM.info(("%s started free-roam challenge %s"):format(
+      RM.identity.displayName(pid), challengeId))
+    return true, runs[pid]
+  end
+
+  local track = RM.tracks.get(type(d.id) == "string" and d.id or "")
+  if not track then return false, "no_such_track" end
+
+  local gates = #track.checkpoints
+  if gates < 2 then return false, "course_too_short" end
+
+  local laps = math.floor(tonumber(d.laps) or 1)
+  if laps < 1 or laps > 99 then return false, "bad_laps" end
+  if not track.circuit and laps > 1 then return false, "not_a_circuit" end
 
   -- a run on a challenge has to be the challenge's course, laps and class,
   -- and the driver has to be allowed in
@@ -150,14 +177,66 @@ function RM.race.arm(pid, d)
   return true, runs[pid]
 end
 
-function RM.race.abandon(pid, why)
+-- everything that happens right after a successful arm, whoever asked for
+-- it -- the driver themselves pressing Enter, or staff/Discord launching
+-- everyone into a challenge at once. Kept in one place, namespaced rather
+-- than local to one file, so a mass-launch (in-game or from Discord) never
+-- quietly skips a step a normal arm gets: watching the right car,
+-- forgetting a stale personal result, joining the heat a laptime-style run
+-- needs, and being dropped on the start grid if the course has one.
+function RM.race.afterArm(pid, result)
+  RM.copilot.onRaceArmed(pid)
+  RM.results.forget(pid)
+
+  local ch = result.challenge and RM.challenges.get(result.challenge)
+  local usesHeat = result.track and not (ch and (ch.style or "laptime") ~= "laptime")
+  if usesHeat then
+    RM.results.join(pid, result.track)
+  end
+
+  RM.bus.queue(pid, "race.state", RM.race.wire(pid))
+
+  local track = RM.tracks.get(result.track)
+  if track and track.start then
+    RM.bus.queue(pid, "race.teleport", RM.tracks.gridFor(track))
+  end
+end
+
+function RM.race.abandon(pid, why, kicked)
   local r = runs[pid]
   if not r then return false, "no_run" end
   if r.state == "finished" or r.state == "abandoned" then return false, "not_running" end
   r.state = "abandoned"
   r.why = why or "ended"
+  r.kicked = kicked and true or false
+  r.abandonedAt = RM.now()
   RM.info(("%s abandoned %s: %s"):format(RM.identity.displayName(pid), r.track, r.why))
   return true, r
+end
+
+-- staff+ removing a driver from the CURRENT race, not the server -- an afk
+-- driver otherwise leaves everyone else waiting on a heat that can never
+-- close. The driver stays connected; only their run ends, as a DNF, the
+-- same way leaving early or a stalled timeout already do.
+function RM.race.kickFromRace(actorPid, targetPid, why)
+  if not RM.roles.atLeast(actorPid, "staff") then return false, "not_allowed" end
+  local r = runs[targetPid]
+  if not r or (r.state ~= "running" and r.state ~= "armed") then
+    return false, "not_in_a_race"
+  end
+  local kickerName = RM.identity.displayName(actorPid)
+  local said = why and tostring(RM.util.tidy(why)) or nil
+  local reason = (said and said ~= "") and (("kicked by %s: %s"):format(kickerName, said))
+                                         or ("kicked by " .. kickerName)
+  local ok, err = RM.race.abandon(targetPid, reason, true)
+  if not ok then return false, err end
+  RM.bus.queue(targetPid, "race.state", RM.race.wire(targetPid))
+  RM.results.finishRun(targetPid)
+  local track = r.track
+  RM.race.clear(targetPid)
+  RM.info(("%s kicked %s from the race on %s"):format(
+    kickerName, RM.identity.displayName(targetPid), tostring(track)))
+  return true
 end
 
 function RM.race.clear(pid)
@@ -268,6 +347,113 @@ local function finish(pid, r, t)
     RM.identity.displayName(pid), r.track, r.clean, r.corrected,
     r.suspect and " (marked)" or ""))
   RM.race.refreshBoard(r.track)
+end
+
+-- A speed, g-force, damage, long jump or distance challenge does not end at
+-- a finish gate the way a lap-time run does -- it ends when its time limit
+-- runs out (checked by RM.race.checkAttemptLimits below) or, same as any
+-- other run, when the driver crosses the course's own finish line or
+-- presses End Race. Either way it goes through the same finish() as a lap
+-- time run, so the clock, the board and the results pipeline never have to
+-- know the difference; what actually gets scored is decided later, in
+-- RM.challenges.onFinish, off r.telemetry rather than r.corrected.
+function RM.race.forceFinish(pid)
+  local r = runs[pid]
+  if not r or r.state ~= "running" then return false end
+  finish(pid, r, RM.now())
+  return true
+end
+
+-- Runs whose challenge carries a time limit, and whose limit has now run
+-- out. Returns a list of pids just like RM.race.sweep(), so the caller can
+-- push their state and hand them to RM.results the same way.
+function RM.race.checkAttemptLimits()
+  if not RM.challenges or not RM.challenges.timeLimitOf then return nil end
+  local now, ended = RM.now(), nil
+  for pid, r in pairs(runs) do
+    if r.state == "running" and r.challenge then
+      local limit = RM.challenges.timeLimitOf(r.challenge)
+      if limit and r.startedAt and (now - r.startedAt) >= limit then
+        finish(pid, r, now)
+        ended = ended or {}
+        ended[#ended + 1] = pid
+      end
+    end
+  end
+  return ended
+end
+
+-- Speed/g-force/damage/long-jump/distance samples reported by the client
+-- while a challenge attempt is running. One row of peaks and totals per run,
+-- built up sample by sample and read once, at the finish, by
+-- RM.challenges.onFinish. Nothing here is trusted blindly: a sample outside
+-- what a car can plausibly do is dropped rather than banked, the same
+-- caution RM.race.gate already applies to a gate crossing.
+function RM.race.telemetry(pid, d)
+  local r = runs[pid]
+  if not r or r.state ~= "running" or not r.challenge then return false end
+  if type(d) ~= "table" then return false end
+
+  r.telemetry = r.telemetry or {
+    peakSpeedMph = 0, peakG = 0, damageStart = nil, damageNow = 0,
+    distanceM = 0, jumps = {}, pendingJump = nil,
+  }
+  local tel = r.telemetry
+
+  local speed = tonumber(d.speedMph)
+  if speed and speed >= 0 and speed <= RM.config.maxPlausibleMph * 1.25 then
+    if speed > tel.peakSpeedMph then tel.peakSpeedMph = speed end
+  end
+
+  -- a road car pulling more than about 15g is a bad sample, not a driver
+  local g = tonumber(d.gForce)
+  if g and g >= 0 and g <= 30 then
+    if g > tel.peakG then tel.peakG = g end
+  end
+
+  local damage = tonumber(d.damage)
+  if damage and damage >= 0 then
+    -- the first sample of the run is the baseline: a car that starts a
+    -- damage challenge already wrecked from the drive to the grid should
+    -- not be scored for damage it did not take during the attempt
+    if tel.damageStart == nil then tel.damageStart = damage end
+    tel.damageNow = damage
+  end
+
+  -- nothing on wheels covers more ground per sample than top speed times the
+  -- reporting interval allows; a bigger jump than that is a teleport, a
+  -- reconnect, or a clock hiccup, not driving, and is dropped rather than
+  -- banked into the total
+  local dd = tonumber(d.distanceDeltaM)
+  if dd and dd > 0 then
+    local ceiling = (RM.config.maxPlausibleMph * MPS_PER_MPH) * (RM.config.telemetryIntervalSec or 1.5)
+    if dd <= ceiling then tel.distanceM = tel.distanceM + dd end
+  end
+
+  -- Each jump is its own record -- distance and height from the same jump,
+  -- never mixed with a different one's, so the ladder is always scored on
+  -- one real jump, not a Frankenstein of the best distance ever and the
+  -- best height ever regardless of which jumps they actually came from.
+  -- final=true is a landed jump, appended outright. final=false is a jump
+  -- still in progress, reported early in case the attempt gets cut off
+  -- mid-air (see telemetry.lua) -- held separately and only turned into a
+  -- real entry at finish time if no landing ever arrived for it; a real
+  -- landing simply replaces the estimate rather than adding a second entry
+  -- for the same jump.
+  if type(d.jump) == "table" then
+    local jd = tonumber(d.jump.distanceM)
+    local jh = tonumber(d.jump.heightM)
+    if jd and jh and jd >= 0 and jh >= 0 and jd < 500 and jh < 200 then
+      if d.jump.final then
+        tel.jumps[#tel.jumps + 1] = { distanceM = jd, heightM = jh }
+        tel.pendingJump = nil
+      else
+        tel.pendingJump = { distanceM = jd, heightM = jh }
+      end
+    end
+  end
+
+  return true
 end
 
 -- The offset between the two clocks is re-estimated every few seconds, and
@@ -506,10 +692,16 @@ end
 function RM.race.endRace(pid)
   local r = runs[pid]
   if not r then return false, "no_run" end
-  if r.state == "running" or r.state == "armed" then
-    return RM.race.abandon(pid, "ended by the driver")
-  end
-  return false, "not_running"
+  if r.state ~= "running" and r.state ~= "armed" then return false, "not_running" end
+
+  -- Stop Attempt never scores, whatever the style -- only a natural finish
+  -- does: crossing the line on a course-based run, or the time limit
+  -- actually running out on a free-roam one (RM.race.checkAttemptLimits).
+  -- A free-roam challenge used to force-finish (and score) right here,
+  -- since it has no finish line of its own to cross -- but that meant
+  -- bailing out of a bad attempt scored it anyway, which is exactly what
+  -- Stop Attempt is supposed to let a driver avoid.
+  return RM.race.abandon(pid, "ended by the driver")
 end
 
 function RM.race.onLeave(pid)
