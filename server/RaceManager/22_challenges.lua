@@ -566,8 +566,11 @@ end
 local function doLaunchAll(c, afterArmFn)
   local launched = 0
   local skips = {}
+  -- everyone sent out by one launch is racing each other, so they share a
+  -- board; a second launch of the same challenge is a new one
+  local heat = ("launch:%s:%s"):format(tostring(c.id), tostring(RM.now()))
   for pid in pairs(RM.identity.sessions()) do
-    local d = { challenge = c.id, mode = "controller" }
+    local d = { challenge = c.id, mode = "controller", heat = heat }
     if c.track then
       d.id = c.track
       d.laps = c.laps or 1
@@ -793,14 +796,19 @@ function RM.challenges.onFinish(e)
   -- regular race pays (RM.xp.forRace, 17_xp.lua). Separate from the
   -- ladder above and does not decay: every completed attempt earns this,
   -- ladder paid out or not.
+  -- Once per run, though. An attempt on a course is a race as well, and
+  -- has just come through RM.xp.forRace, which pays this same bonus and
+  -- counts the race; paying again here paid it twice and counted it twice.
   local completionXp = math.floor(tonumber(RM.config.raceCompletionXp) or 0)
-  local completionPaid = 0
-  if completionXp > 0 and RM.xp then
-    local newTotal = RM.xp.give(e.key, completionXp, "completion")
-    if newTotal then completionPaid = completionXp end
-  end
-  if RM.players and RM.players.markRaceCompleted then
-    RM.players.markRaceCompleted(e.key)
+  local completionPaid = tonumber(e.completionXp) or 0
+  if not e.paidForFinishing then
+    if completionXp > 0 and RM.xp then
+      local newTotal = RM.xp.give(e.key, completionXp, "completion")
+      if newTotal then completionPaid = completionXp end
+    end
+    if RM.players and RM.players.markRaceCompleted then
+      RM.players.markRaceCompleted(e.key)
+    end
   end
 
   local mine = c.results[e.key]

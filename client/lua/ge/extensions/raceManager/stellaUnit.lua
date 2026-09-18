@@ -2,7 +2,7 @@
 -- UI is driven primarily by uiPoll() so LED / zone / keys do not depend on
 -- guihooks reaching a nested Angular directive (that path was unreliable).
 local M = {}
-M.VERSION = "0.7.17"
+M.VERSION = "0.8.0"
 
 local cfg = {
   tick = 0.05,
@@ -81,10 +81,26 @@ end
 
 -- each change of the light goes to the log and to the server with why,
 -- so a race that showed the wrong thing can be read afterwards
+-- the same line with every number blanked, so "a 37 mph zone ahead, 190 m"
+-- and the same thing a metre later count as one state and do not fill the
+-- log, while "in a 37 mph zone" is plainly a different one
+local lastWhy = nil
+local function reasonKey(why)
+  return (tostring(why or ""):gsub("%d+", "#"))
+end
+
 local function setLed(color, flash, pattern, why)
   local was = led
   led = { color = color or "off", flash = not not flash, pattern = pattern or "none" }
-  if was.color == led.color and was.flash == led.flash and was.pattern == led.pattern then return end
+  -- Also when only the reason changes. A zone ahead and a zone the car is
+  -- in are the same solid yellow, so entering one moved nothing on the dots
+  -- and went unrecorded, which is the moment worth having.
+  local key = reasonKey(why)
+  if was.color == led.color and was.flash == led.flash and was.pattern == led.pattern
+     and key == lastWhy then
+    return
+  end
+  lastWhy = key
   local line = ("led %s %s%s: %s"):format(led.color, led.pattern, led.flash and " flashing" or "", tostring(why or ""))
   if type(log) == "function" then log("I", "raceManager", "stella " .. line) end
   if bridgeCall then bridgeCall("trace", line) end

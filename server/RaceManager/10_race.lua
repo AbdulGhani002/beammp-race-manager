@@ -141,6 +141,11 @@ function RM.race.arm(pid, d)
   runs[pid] = {
     key        = s.key,
     track      = track.id,
+    -- which board this run belongs on. Everyone a lobby starts together
+    -- carries the same one; a driver who arms on their own carries none and
+    -- gets a board of their own, so a private run on a course cannot land
+    -- in somebody else's race.
+    heat       = (d.heat ~= nil and d.heat ~= "") and tostring(d.heat) or nil,
     challenge  = challenge,
     kind       = track.kind,
     circuit    = track.circuit and true or false,
@@ -220,11 +225,21 @@ end
 -- same way leaving early or a stalled timeout already do.
 function RM.race.kickFromRace(actorPid, targetPid, why)
   if not RM.roles.atLeast(actorPid, "staff") then return false, "not_allowed" end
+  local kickerName = RM.identity.displayName(actorPid)
   local r = runs[targetPid]
   if not r or (r.state ~= "running" and r.state ~= "armed") then
+    -- A run that is already over is not in a race, but the driver can still
+    -- be sitting on a results board that has not gone out yet, which is
+    -- exactly when somebody reaches for this. Take them off it and say so,
+    -- rather than answering that there is nothing to kick them out of.
+    if RM.results and RM.results.remove and RM.results.remove(targetPid) then
+      RM.race.clear(targetPid)
+      RM.info(("%s took %s off the results board"):format(
+        kickerName, RM.identity.displayName(targetPid)))
+      return true
+    end
     return false, "not_in_a_race"
   end
-  local kickerName = RM.identity.displayName(actorPid)
   local said = why and tostring(RM.util.tidy(why)) or nil
   local reason = (said and said ~= "") and (("kicked by %s: %s"):format(kickerName, said))
                                          or ("kicked by " .. kickerName)

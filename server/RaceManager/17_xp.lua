@@ -201,6 +201,10 @@ function RM.xp.forRace(payload)
       if RM.players and RM.players.markRaceCompleted then
         RM.players.markRaceCompleted(e.key)
       end
+      -- this row has had what a finish pays. A laptime challenge on a
+      -- course comes through here and then through the challenge ladder,
+      -- and both used to hand out the finishing bonus and count the race.
+      e.paidForFinishing = true
     end
   end
   return paid

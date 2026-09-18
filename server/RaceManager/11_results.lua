@@ -10,39 +10,113 @@ RM.results = {}
 -- finishes first waits, and is told how many people they are waiting for so
 -- the screen is not just empty.
 
-local heats = {}     -- trackId -> { members = { pid = true }, done = { ... }, at = n }
+local heats = {}     -- heat key -> { key, track, members = { pid = true }, done = { ... }, at = n }
 
-local function heatFor(trackId)
-  local h = heats[trackId]
+-- Which board a run belongs on. Drivers a lobby started together carry the
+-- same heat id and share one board; anybody who armed on their own is their
+-- own heat, even on the same course at the same moment.
+--
+-- This was the course id alone, and that is how a stranger appeared in an
+-- official race: he armed a one lap run of his own on the same course while
+-- the four lap race was on, and the board could not tell the two apart. He
+-- was not in the race, he was just on the same piece of ground.
+local function keyOfRun(r)
+  if type(r) ~= "table" or not r.track then return nil end
+  -- started together by a lobby: that board is exactly those drivers, and
+  -- nobody who merely turned up on the same course can land on it
+  if r.heat then return tostring(r.track) .. "|" .. tostring(r.heat) end
+  -- nobody started them together, so they share with anyone driving the same
+  -- thing: same course, same number of laps, same challenge. Two friends who
+  -- each press Enter still race each other, and a mixed field of classes is
+  -- still one race. A one lap run cannot land on a four lap race's board.
+  return table.concat({
+    tostring(r.track), "open",
+    tostring(r.laps or 1),
+    tostring(r.challenge or ""),
+  }, "|")
+end
+
+local function heatFor(key, trackId)
+  local h = heats[key]
   if not h then
-    h = { members = {}, done = {}, at = RM.now() }
-    heats[trackId] = h
+    h = { key = key, track = trackId, members = {}, done = {}, at = RM.now() }
+    heats[key] = h
   end
   return h
 end
 
 function RM.results.join(pid, trackId)
-  local h = heatFor(trackId)
+  local r = RM.race.get(pid)
+  local key = keyOfRun(r)
+  if not key then return end
+  local h = heatFor(key, r.track or trackId)
   h.members[pid] = true
 end
 
--- how many are still out there. nil rather than 0 so the interface can tell
--- "waiting for two" from "nobody is racing".
+-- how many of this heat are still out there, so it is closed when the last
+-- of them is off track and not before
+local function waitingInHeat(h)
+  if not h then return nil end
+  local n = 0
+  for pid in pairs(h.members) do
+    local r = RM.race.get(pid)
+    if r and keyOfRun(r) == h.key and (r.state == "armed" or r.state == "running") then
+      n = n + 1
+    end
+  end
+  return n > 0 and n or nil
+end
+
+-- how many are still out on this course, for the screen and the console.
+-- Across every heat on it: the question there is "is anyone still driving
+-- this", not "which board is waiting".
 --
 -- The run has to be on this course, not merely active. Somebody who arms on
 -- one course and then arms on another is no longer racing the first, and
 -- counting them would leave that heat waiting on a car that is somewhere else.
 function RM.results.waitingOn(trackId)
-  local h = heats[trackId]
-  if not h then return nil end
   local n = 0
-  for pid in pairs(h.members) do
-    local r = RM.race.get(pid)
-    if r and r.track == trackId and (r.state == "armed" or r.state == "running") then
-      n = n + 1
+  for _, h in pairs(heats) do
+    if h.track == trackId then
+      for pid in pairs(h.members) do
+        local r = RM.race.get(pid)
+        if r and r.track == trackId and (r.state == "armed" or r.state == "running") then
+          n = n + 1
+        end
+      end
     end
   end
   return n > 0 and n or nil
+end
+
+-- One row per driver on a board. A driver who finishes, arms the same course
+-- again and finishes again is one driver with two runs, and a run written
+-- down twice is still one run. The better of the two stands: more laps
+-- first, then the lower corrected time.
+local function lapsOf(e) return e and e.laps and #e.laps or 0 end
+
+local function betterRun(a, b)
+  local la, lb = lapsOf(a), lapsOf(b)
+  if la ~= lb then return la > lb end
+  return (a.corrected or math.huge) < (b.corrected or math.huge)
+end
+
+local function remember(h, entry)
+  local key = entry and entry.key
+  if key then
+    for i = 1, #h.done do
+      local e = h.done[i]
+      if e.key == key then
+        -- finishing beats not finishing; between two of either, the later
+        -- word for a retirement and the better run for a finish
+        if e.dnf and not entry.dnf then h.done[i] = entry
+        elseif e.dnf and entry.dnf then h.done[i] = entry
+        elseif not e.dnf and not entry.dnf and betterRun(entry, e) then h.done[i] = entry end
+        return
+      end
+    end
+  end
+  h.done[#h.done + 1] = entry
 end
 
 -- Splits are stored as seconds from the start of the run, because a stored
@@ -127,7 +201,15 @@ local function build(trackId, h)
     if e.dnf then dnf[#dnf + 1] = e else finished[#finished + 1] = e end
   end
 
-  table.sort(finished, function(a, b) return a.corrected < b.corrected end)
+  -- Distance first, then time. Whoever completed more laps is ahead however
+  -- long they took, which is how every race is scored. Ordered by time alone,
+  -- a driver who did one lap of a four lap race sat at the top of the board,
+  -- above everyone who had driven all four.
+  table.sort(finished, function(a, b)
+    local la, lb = lapsOf(a), lapsOf(b)
+    if la ~= lb then return la > lb end
+    return a.corrected < b.corrected
+  end)
 
   -- DNFs ranked by how long each stayed in before leaving or being kicked --
   -- the most recent departure first, which is the same thing as "made it
@@ -201,12 +283,12 @@ end
 
 -- everybody on this course is off track, so the whole thing can be worked out
 -- and sent in one go and then forgotten about
-local function close(trackId)
-  local h = heats[trackId]
+local function close(h)
   if not h then return end
+  local trackId = h.track
 
   if #h.done == 0 then
-    heats[trackId] = nil
+    heats[h.key] = nil
     return
   end
 
@@ -240,7 +322,7 @@ local function close(trackId)
   rememberQualifying(trackId, payload)
 
   local sent = send(h, payload)
-  heats[trackId] = nil
+  heats[h.key] = nil
 
   -- who hosted, so Bobby can pick the official vs open results channel
   local hostPid, hostName, hostKey
@@ -399,7 +481,7 @@ function RM.results.onRunEnded(pid)
   local r = RM.race.get(pid)
   if not r then return end
 
-  local h = heats[r.track]
+  local h = heats[keyOfRun(r) or ""]
   if not h then return end
 
   if r.state == "finished" then
@@ -417,10 +499,10 @@ function RM.results.onRunEnded(pid)
       entry.telemetry = r.telemetry
       entry.official = r.official and true or false
       entry.officialName = r.officialName
-      h.done[#h.done + 1] = entry
+      remember(h, entry)
     end
   else
-    h.done[#h.done + 1] = {
+    remember(h, {
       key     = r.key,
       name    = RM.identity.displayName(pid),
       track   = r.track,
@@ -430,10 +512,10 @@ function RM.results.onRunEnded(pid)
       kicked  = r.kicked and true or false,
       lap     = r.currentLap,
       at      = r.abandonedAt or RM.now(),
-    }
+    })
   end
 
-  local left = RM.results.waitingOn(r.track)
+  local left = waitingInHeat(h)
   if left then
     for other in pairs(h.members) do
       if RM.identity.session(other) and not RM.race.isActive(other) then
@@ -443,11 +525,43 @@ function RM.results.onRunEnded(pid)
     return
   end
 
-  close(r.track)
+  close(h)
 end
 
 function RM.results.forget(pid)
   for _, h in pairs(heats) do h.members[pid] = nil end
+end
+
+-- Take a driver off any board that has not gone out yet, their rows with
+-- them. A run that is already over cannot be kicked out of a race, but the
+-- driver can still be sitting on a board waiting on somebody else, and
+-- taking them off it is what staff mean when they press Kick from race.
+function RM.results.remove(pid)
+  local key = nil
+  local s = RM.identity.session(pid)
+  if s then key = s.key end
+  if not key then
+    local r = RM.race.get(pid)
+    key = r and r.key or nil
+  end
+
+  local removed = false
+  for hk, h in pairs(heats) do
+    if h.members[pid] then
+      h.members[pid] = nil
+      removed = true
+    end
+    if key then
+      for i = #h.done, 1, -1 do
+        if h.done[i].key == key then
+          table.remove(h.done, i)
+          removed = true
+        end
+      end
+    end
+    if next(h.members) == nil and #h.done == 0 then heats[hk] = nil end
+  end
+  return removed
 end
 
 function RM.results.count()

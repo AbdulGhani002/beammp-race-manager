@@ -94,7 +94,7 @@
           <span class="rm-lvl">{{ p.level }}</span>
           <span class="rm-name" ng-class="{queued: isQueued(p)}">{{ p.name }}<em ng-if="p.guest"> guest</em></span>
           <span class="rm-speed">{{ p.speed }}<small>mph</small></span>
-          <span class="rm-ping" ng-class="pingClass(p.ping)">{{ p.ping >= 0 ? p.ping : "-" }}</span>
+          <span class="rm-ping" ng-class="pingClass(p.ping)" title="Ping">{{ p.ping >= 0 ? p.ping : "-" }}<small ng-if="p.ping >= 0">ms</small></span>
         </div>
       </div>
       <div class="rm-empty" ng-if="!liveBoard().length && !s.roster.length">Nobody here yet.</div>
@@ -819,7 +819,7 @@
           <div class="rm-empty" ng-if="!liveChallenges().length">{{ t('opt.nolivechallenges') }}</div>
           <button class="rm-ch-row" ng-repeat="c in liveChallenges() track by c.id"
                   ng-class="{on: launchPick === c.id}"
-                  ng-click="launchPick = c.id">
+                  ng-click="pickLaunch(c.id)">
             <span class="rm-ch-main">
               <span class="rm-pick-name">{{ c.name }}</span>
               <span class="rm-ch-meta">{{ chStyleLabel(c.style) }} · {{ c.kind }}</span>

@@ -29,6 +29,33 @@ local quietUntil = 0
 local clock = 0
 local leftBoxId = nil   -- the box just driven through, quiet until clear of it
 
+-- A box keeps its limit in mph. Read it from whatever the course actually
+-- carries: a course captured by an older build, or edited by hand, can
+-- spell it another way, and a box whose limit could not be read showed
+-- nothing at all, in or out, which is a zone that does not exist as far as
+-- the driver can tell. A box with no readable limit is still a box, so it
+-- warns at the same default the server gives a new one.
+local DEFAULT_BOX_MPH = 37
+local function boxLimit(b)
+  if type(b) ~= "table" then return nil, true end
+  local mph = tonumber(b.mph) or tonumber(b.limitMph) or tonumber(b.limit)
+           or tonumber(b.speed) or tonumber(b.speedMph)
+  if not mph then
+    local kmh = tonumber(b.limitKmh) or tonumber(b.kmh) or tonumber(b.speedLimitKmh)
+    if kmh then mph = kmh * 0.621371 end
+  end
+  if mph and mph > 0 then return math.floor(mph + 0.5), true end
+  return DEFAULT_BOX_MPH, false
+end
+
+-- what this race has actually done, so one !stella tells the story of the
+-- race rather than the one frame it was typed in
+local tally = {}
+local function forgetTally()
+  tally = { box = 0, noLimit = 0, nearest = nil, boxWarned = 0, boxIn = 0, gateWarned = 0, gateIn = 0 }
+end
+forgetTally()
+
 local function stella()
   local ok, s = pcall(function() return extensions.raceManager_stellaUnit end)
   return ok and type(s) == "table" and s or nil
@@ -91,6 +118,24 @@ end
 
 local function position(cp)
   return type(cp) == "table" and type(cp.pos) == "table" and cp.pos or nil
+end
+
+local function carPos()
+  local p
+  pcall(function()
+    local v = be:getPlayerVehicle(0)
+    if v then p = v:getPosition() end
+  end)
+  return p
+end
+
+-- how far the car is from a point on the ground, flat
+local function metresTo(p)
+  local pos = carPos()
+  if type(p) ~= "table" or not pos then return nil end
+  local dx = (tonumber(p.x) or 0) - pos.x
+  local dy = (tonumber(p.y) or 0) - pos.y
+  return math.sqrt(dx * dx + dy * dy)
 end
 
 local function checkpoint(track, index)
@@ -159,6 +204,8 @@ local function showGate(track, chosen, isUpcoming)
     lastZoneKey, lastZoneKph = key, kph
     lastZoneFrom, lastZoneTo = tonumber(z.from), tonumber(z.to)
     lastZoneUpcoming = isUpcoming
+    if isUpcoming then tally.gateWarned = tally.gateWarned + 1
+    else tally.gateIn = tally.gateIn + 1 end
   end
 end
 
@@ -187,6 +234,8 @@ local function showBox(key, mph, upcoming, entryPos, faceDist)
   end
   lastZoneKey, lastZoneKph, lastZoneUpcoming = key, kph, upcoming
   lastZoneFrom, lastZoneTo = nil, nil
+  if upcoming then tally.boxWarned = tally.boxWarned + 1
+  else tally.boxIn = tally.boxIn + 1 end
   call("setSpeedZone", {
     id = key,
     name = "Speed zone",
@@ -214,9 +263,18 @@ end
 local function updateZones(track, nextCp)
   local trig = extensions.raceManager_triggers
   local sz = trig and type(trig.szState) == "function" and trig.szState() or nil
-  local boxMph = sz and type(sz.box) == "table" and tonumber(sz.box.mph) or nil
-  local boxId = boxMph and tostring(sz.box.i or sz.box.id or boxMph) or nil
+  local box = sz and type(sz.box) == "table" and sz.box or nil
+  local boxMph, hadLimit = nil, true
+  if box then boxMph, hadLimit = boxLimit(box) end
+  local boxId = box and tostring(box.i or box.id or boxMph) or nil
   local boxDist = tonumber(sz and sz.dist) or math.huge
+
+  if box then
+    tally.box = tally.box + 1
+    if not hadLimit then tally.noLimit = tally.noLimit + 1 end
+    local d = sz.inside and 0 or boxDist
+    if d ~= math.huge and (tally.nearest == nil or d < tally.nearest) then tally.nearest = d end
+  end
 
   -- clear of the one just driven through, or near a different one: armed
   if leftBoxId and (not boxId or boxId ~= leftBoxId or boxDist > WARN_M) then
@@ -249,9 +307,16 @@ local function updateZones(track, nextCp)
     showBox("box-approach:" .. boxId, boxMph, true, sz.face or sz.box.pos, sz.dist)
     return
   end
+  -- only once the car is within the warning distance of its first gate.
+  -- The unit shows whatever it is told is coming, so the distance rule
+  -- lives here, where there is something to measure it against; announced
+  -- from anywhere, a zone two kilometres away sat lit the whole way there.
   if upcoming then
-    showGate(track, upcoming, true)
-    return
+    local d = metresTo(position(checkpoint(track, upcoming.z.from)))
+    if d == nil or d <= WARN_M then
+      showGate(track, upcoming, true)
+      return
+    end
   end
   clearZone()
 end
@@ -322,6 +387,7 @@ local function sync()
     clearZone()
     quietUntil = 0
     leftBoxId = nil
+    forgetTally()
     return
   end
   if type(track) ~= "table" then return end
@@ -373,7 +439,8 @@ function M.liveReport()
   if type(sz) == "table" then
     local b = type(sz.box) == "table" and sz.box or {}
     local id = tostring(b.i or b.id or "?")
-    poll = ("box %s at %s mph, %s%s"):format(id, tostring(b.mph or "no limit"),
+    local mph, had = boxLimit(b)
+    poll = ("box %s at %d mph%s, %s%s"):format(id, mph, had and "" or " (GUESSED, the box carries no limit)",
       sz.inside and "in" or ("out, " .. math.floor(tonumber(sz.dist) or 0) .. " m"),
       (leftBoxId and id == leftBoxId) and ", just driven through" or "")
   end
@@ -383,11 +450,15 @@ function M.liveReport()
     local s = stella()
     if s and type(s.report) == "function" then unit = s.report() end
   end)
-  return ("race %s, next %s, done %s | bridge %s%s | poll %s | unit %s"):format(
+  return ("race %s, next %s, done %s | bridge %s%s | poll %s | this race: box seen %d%s, nearest %s m, warned %d, inside %d; gate warned %d, inside %d | unit %s"):format(
     tostring(rs.state or "idle"), tostring(rs.next or "?"), tostring(rs.done or "?"),
     lastZoneKey and (lastZoneKey .. (lastZoneUpcoming and " ahead" or " in")) or "no zone",
     quiet > 0 and (", quiet %.0f s"):format(quiet) or "",
-    poll, unit)
+    poll,
+    tally.box, tally.noLimit > 0 and (" (%d with no limit)"):format(tally.noLimit) or "",
+    tally.nearest and tostring(math.floor(tally.nearest)) or "never",
+    tally.boxWarned, tally.boxIn, tally.gateWarned, tally.gateIn,
+    unit)
 end
 
 function M.selfTest()

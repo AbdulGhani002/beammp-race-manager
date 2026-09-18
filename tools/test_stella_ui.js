@@ -54,12 +54,15 @@ section("the screen overlay comes up for a zone ahead, not only one you are in")
 ok(/lcd-sz-overlay" ng-if="szActive \|\| szWarning"/.test(src),
    "the overlay shows on the warning");
 ok(/SPEED ZONE AHEAD/.test(src), "and says the zone is ahead");
-ok(/sz-yellow[^']*\{color:#8a6300;animation:szPulse/.test(src),
-   "ahead is yellow and flashing");
-ok(/\.lcd-sz-limit\.sz-in[^{]*\{color:#8b1a12;animation:none;\}/.test(src),
-   "inside is red and steady");
-ok(/\.lcd-sz-limit\.sz-red,\.lcd-sz-unit\.sz-red\{animation:szPulse/.test(src),
-   "over the limit flashes red");
+// the screen matches the dots: yellow while the limit is being held,
+// whether the zone is ahead or the car is in it, red only once it is
+// over, and nothing pulsing
+ok(/sz-yellow[^']*\{color:#8a6300;animation:none;\}/.test(src),
+   "ahead is yellow and steady");
+ok(/\.lcd-sz-limit\.sz-in[^{]*\{color:#8a6300;animation:none;\}/.test(src),
+   "inside, holding the limit, is yellow too");
+ok(/\.lcd-sz-limit\.sz-red,\.lcd-sz-unit\.sz-red\{animation:none;\}/.test(src),
+   "and over the limit is red, not flashing");
 ok(/szLimitMph\s*=\s*d\.speedZoneLimitMph/.test(src),
    "the number shown is the mph he set, not a rounding of km/h");
 

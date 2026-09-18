@@ -2641,6 +2641,10 @@ angular.module("beamng.apps")
         ui("staffRaceKick", $scope.staffPick.pid);
       };
       $scope.launchPick = null;
+      // written through a function on purpose: ng-repeat gives each row its
+      // own scope, and assigning straight from the row wrote a copy there
+      // that the Launch button below the list never saw
+      $scope.pickLaunch = function (id) { $scope.launchPick = id; };
       $scope.liveChallenges = function () {
         var all = list($scope.s.challenges);
         var out = [];

@@ -117,17 +117,19 @@ eq(ahead, 1, "Bravo is ahead of Alfa")
 ok(math.abs(dist - 130) < 0.01, ("and a hundred and thirty metres away, not %s"):format(tostring(dist)))
 
 -- Colt is two gates further on than Bravo, so by progress he is in front,
--- but six hundred and fifty metres off is outside the window. His rule from
--- 2026-09-14: with nobody ahead inside the window, the request goes to the
--- nearest car inside it anyway, because on a real course the car in your
--- way is often one that has not crossed the gate you have. So Bravo's
--- request goes to Alfa, a hundred and thirty metres behind.
+-- but six hundred and fifty metres off is outside the window, and Alfa is
+-- inside it but behind. A pass is only ever asked of a car that is
+-- actually in front, so there is nobody to ask.
+--
+-- This replaced an earlier rule of his (2026-09-14) where the request fell
+-- back to the nearest car in the window even when it was behind. His build
+-- of 17 September took that fallback out.
 hit(2, 2)
 hit(2, 3)
 eq(RM.race.get(2).nextGate, 4, "Colt really is through gate 3")
-local near1, nearDist = RM.stella.ahead(1)
-eq(near1, 0, "Colt is six hundred and fifty metres off, so the nearest car in the window gets it, and that is Alfa")
-ok(math.abs(nearDist - 130) < 0.01, ("a hundred and thirty metres back, not %s"):format(tostring(nearDist)))
+local near1, nearWhy = RM.stella.ahead(1)
+eq(near1, nil, "the one in front is too far and the one in the window is behind, so nobody is asked")
+eq(nearWhy, "nobody_ahead", "and that is what it says")
 
 section("a request reaches the car in front and the asker is told it was delivered")
 for _, d in ipairs(DRIVERS) do M.clearOutbox(d.pid) end

@@ -223,13 +223,25 @@ eq(fuelRun.full, true, "at the pit rate, which is the whole tank")
 M.clientSend(0, "service.done", { which = "fuel", ok = true })
 
 section("a spare in the pit needs no flat")
+-- the car says what its rack holds and what it ever held; in the pit a car
+-- with a rack is reseeded from that, so a spare there does not wait on a
+-- rerack first
 M.clearOutbox(0)
-M.clientSend(0, "service.use", { which = "spare" })
+M.clientSend(0, "service.use", { which = "spare", spares = 2, cap = 2 })
 tick(1)
 ok(M.lastMessage(0, "service.hold") ~= nil, "the pit takes the car as it is")
+
 M.advance(RM.config.holds.spareTire + 1)
 tick(1)
 M.clientSend(0, "service.done", { which = "spare", ok = true })
+
+M.clearOutbox(0)
+M.clientSend(0, "service.use", { which = "spare", spares = 0, cap = 0 })
+tick(1)
+do
+  local said = M.lastMessage(0, "service.failed")
+  eq(said and said.why, "no_rack", "and a car that never had a rack is told so")
+end
 
 section("leaving the pit puts the prices back")
 ok(RM.race.setPit(0, false), "the car drives out")

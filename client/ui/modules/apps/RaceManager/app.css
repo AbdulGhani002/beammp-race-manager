@@ -104,12 +104,15 @@
 }
 
 /* a click needs to look like it registered the instant it happens, not
-   only once the game reacts to it a moment later -- there was no :active
-   state anywhere in this file before this */
+   only once the game reacts to it a moment later.
+   It must not wear the red a selected button wears, though. Pressing a
+   button then looked exactly like choosing it, so on a row of choices the
+   wrong one appeared picked; and where the game swallows the release, that
+   red stays on a button nothing has selected. Brightness and a pixel of
+   travel say "pressed" without saying "chosen". */
 .rm-root button:active:not(:disabled) {
-  background: var(--rm-red);
-  border-color: var(--rm-red-lit);
-  color: #fff;
+  filter: brightness(1.4);
+  transform: translateY(1px);
 }
 
 .rm-root button:disabled { opacity: 0.35; cursor: default; }
@@ -297,6 +300,7 @@
 .rm-row.rm-board-row.me { background: rgba(168, 29, 34, 0.28); }
 .rm-row .rm-speed { font-variant-numeric: tabular-nums; }
 .rm-row .rm-speed small { color: var(--rm-dim); margin-left: 2px; font-size: 10px; }
+.rm-row .rm-ping small { color: var(--rm-dim); margin-left: 2px; font-size: 10px; }
 
 .rm-ping { text-align: right; font-variant-numeric: tabular-nums; font-size: 12px; }
 .rm-ping.good { color: var(--rm-good); }

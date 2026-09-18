@@ -218,7 +218,7 @@ section("a car with no rack gets no change at all")
 startRun()
 local _, none = spareRun(0)
 ok(none ~= nil, "nothing on the rack, nothing to fit")
-eq(none.why, "no_spares_left", "and says so")
+eq(none.why, "no_rack", "and says so, and says which: it never had a rack")
 
 section("a spare the game could not fit costs nothing off the rack")
 startRun()

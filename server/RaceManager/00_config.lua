@@ -1,6 +1,6 @@
 RM = RM or {}
 
-RM.VERSION = "0.7.17-boxes-by-distance"
+RM.VERSION = "0.8.0-one-board-per-race"
 
 RM.config = {
   nameMinLen  = 3,

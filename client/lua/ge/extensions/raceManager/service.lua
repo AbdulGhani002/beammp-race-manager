@@ -294,6 +294,21 @@ local function freeze(v, on)
   end
 end
 
+-- The lock is put back on while the hold runs. Opening the menu and closing
+-- it again let the car go: whatever the game does to a vehicle on the way in
+-- and out of there clears the gearbox lock, and the hold was over as far as
+-- the car was concerned. Resetting the car did the same. Put back on the car
+-- that was locked, by id, so switching seats cannot strand a different one.
+local function refreeze()
+  local v = nil
+  if frozenId then
+    local ok, o = pcall(function() return be:getObjectByID(frozenId) end)
+    v = ok and o or nil
+  end
+  if not v then return end
+  pcall(function() core_vehicleBridge.executeAction(v, "setFreeze", true) end)
+end
+
 local function unfreeze(v)
   local held = nil
   if frozenId then
@@ -576,6 +591,7 @@ end
 local GRACE = 5.0
 
 local shown = -1
+local reFreezeAt = 0
 
 local function onUpdate()
   if pendingFuelRestore and (extensions.raceManager_clock.now() or 0) >= fuelRestoreAt then
@@ -596,6 +612,15 @@ local function onUpdate()
     notice((st.which or "The job") .. " was dropped by the server, so the car is let go")
     M.release()
     return
+  end
+
+  -- still serving: keep the car locked, whatever tried to let it go
+  if left > 0 then
+    local now = extensions.raceManager_clock.now() or 0
+    if now >= reFreezeAt then
+      reFreezeAt = now + 0.25
+      refreeze()
+    end
   end
 
   if left < 0 then left = 0 end

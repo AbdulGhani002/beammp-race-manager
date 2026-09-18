@@ -267,12 +267,15 @@ eq(mine and mine.challengeResult.tier, 2, "sixty five seconds is the second rung
 eq(mine and mine.challengeResult.xp, 75, "worth seventy five")
 eq(mine and mine.challengeResult.gained, 75, "all of it paid, first time on it")
 local after = RM.xp.of(RM.identity.session(1).key)
-eq(after - before, 75 + mine.xp, "paid on top of the finish")
+-- three things land on one finish now: where they came in the race, the
+-- rung they reached on the ladder, and the flat bonus for finishing at all
+eq(mine.completionXp, RM.config.raceCompletionXp, "and the flat bonus for finishing")
+eq(after - before, 75 + mine.xp + mine.completionXp, "paid on top of the finish")
 board = M.lastMessage(1, "challenges.list")
 eq(board[1].mine and board[1].mine.tier, 2, "the board shows the rung")
 eq(board[1].top[1].name, "Bravo", "and the top of the board")
 
-section("a faster run pays only the difference, a slower one nothing")
+section("every attempt pays its rung, a tenth less each time round")
 before = RM.xp.of(RM.identity.session(1).key)
 M.clientSend(1, "race.arm", { id = "loop", mode = "controller", laps = 1, challenge = "morning-loop" })
 tick(1)
@@ -282,9 +285,10 @@ cross(1, 1, 11)
 res = M.lastMessage(1, "race.results")
 mine = res.finished[1]
 eq(mine.challengeResult.tier, 1, "fifty five seconds is the top rung")
-eq(mine.challengeResult.gained, 25, "the extra twenty five")
+eq(mine.challengeResult.attempts, 2, "on the second go at it")
+eq(mine.challengeResult.gained, 90, "which pays the rung's hundred less a tenth")
 after = RM.xp.of(RM.identity.session(1).key)
-eq(after - before, 25 + mine.xp, "paid")
+eq(after - before, 90 + mine.xp + (mine.completionXp or 0), "paid")
 before = after
 M.clientSend(1, "race.arm", { id = "loop", mode = "controller", laps = 1, challenge = "morning-loop" })
 tick(1)
@@ -294,7 +298,12 @@ cross(1, 1, 15)
 res = M.lastMessage(1, "race.results")
 mine = res.finished[1]
 eq(mine.challengeResult.improved, false, "no improvement")
-eq(mine.challengeResult.gained, 0, "nothing more")
+eq(mine.challengeResult.attempts, 3, "the third go at it")
+-- a run that beats nothing still pays, because the ladder pays attempts
+-- now rather than only improvements; a lower rung, and a fifth off for
+-- being the third time round
+ok(mine.challengeResult.gained > 0, "and still pays for turning up")
+ok(mine.challengeResult.gained < 90, "less than the go before it")
 near(mine.challengeResult.best, 55, 0.01, "the best stays")
 
 section("outside the ladder counts as entered but pays nothing")

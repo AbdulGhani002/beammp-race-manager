@@ -375,6 +375,146 @@ end
 
 -- The class he announces has to survive the whole way: the driver enters it,
 -- the run carries it, the books sort on it, and his bot reads it off the log.
+section("a stranger on the same course does not land in a race he was never in")
+-- How a driver nobody invited finished first in an official four lap race:
+-- he armed a one lap run of his own on the same course while the race was
+-- on. The board was kept per course, so it took him in; it was ordered by
+-- time alone, so one lap of his sat above four laps from everyone else; and
+-- nothing checked whether a driver was already on it, so he appeared three
+-- times. All three of those are below.
+for _, d in ipairs(DRIVERS) do
+  M.clearOutbox(d.pid)
+  RM.results.forget(d.pid)
+  RM.race.clear(d.pid)
+end
+M.addPlayer(3, "Delta", "5003", false, "203.0.113.4")
+M.fire("onPlayerJoining", 3)
+M.clientSend(3, "hello", { version = RM.VERSION })
+M.clientSend(3, "name.set", { name = "Delta" })
+tick(1)
+local DELTA = { pid = 3, name = "Delta", offset = 0 }
+agreeClock(DELTA)
+
+-- the race everyone was invited to: two laps, started from the lobby
+local okL, lobby = RM.lobby.create(0, { track = "loop", laps = 2, open = true })
+ok(okL, "a two lap race is made")
+ok(RM.lobby.join(1, lobby.id), "and a second driver joins it")
+M.clearOutbox(0) M.clearOutbox(1)
+M.clientSend(0, "race.start", {})
+tick(1)
+eq(RM.race.state(0), "armed", "the host is armed")
+eq(RM.race.state(1), "armed", "so is the driver who joined")
+eq(RM.race.get(0).laps, 2, "for two laps")
+
+-- the stranger arms the same course on his own, for a single lap
+M.clientSend(3, "race.arm", { id = "loop", mode = "controller", laps = 1 })
+tick(1)
+eq(RM.race.state(3), "armed", "the stranger is armed on the same course")
+eq(RM.race.get(3).laps, 1, "for one lap")
+ok(RM.race.get(0).heat ~= nil, "the race carries a heat of its own")
+eq(RM.race.get(3).heat, nil, "and a run nobody started carries none")
+
+-- and he is quick, because one lap is not four
+M.clearOutbox(3)
+crossAfter(DELTA, 1, 1)
+for g = 2, 5 do crossAfter(DELTA, g, 1) end
+crossAfter(DELTA, 1, 1)
+eq(RM.race.state(3), "finished", "the stranger is in, well under their times")
+do
+  local his = M.lastMessage(3, "race.results")
+  ok(his ~= nil, "and gets a board of his own")
+  eq(his and #his.finished, 1, "with one name on it")
+  eq(his and his.finished[1] and his.finished[1].name, "Delta", "his own")
+end
+
+-- the race itself: two laps each, the host quicker
+local function lap(d, step)
+  for g = 2, 5 do crossAfter(d, g, step) end
+  crossAfter(d, 1, step)
+end
+crossAfter(DRIVERS[1], 1, 5)
+lap(DRIVERS[1], 10)
+lap(DRIVERS[1], 10)
+eq(RM.race.state(0), "finished", "the host is in")
+ok(M.lastMessage(0, "race.results") == nil, "and waits, one of his race is still out")
+
+-- the same finished run written down a second time is still one run
+RM.results.finishRun(0)
+RM.results.finishRun(0)
+
+-- a one lap run pushed straight onto their board: it must not lead it
+do
+  local theirs
+  for _, h in pairs(RM.results.heats()) do
+    if h.key == ("loop|" .. tostring(lobby.id)) then theirs = h end
+  end
+  ok(theirs ~= nil, "their board is the one the lobby made")
+  theirs.done[#theirs.done + 1] = {
+    key = "ghost", name = "Ghost", track = "loop", mode = "controller",
+    clean = 1.0, corrected = 1.0, penalties = {}, gates = 5,
+    laps = { { lap = 1, splits = {}, missed = {}, time = 1.0, start = 0 } },
+  }
+end
+
+crossAfter(DRIVERS[2], 1, 6)
+lap(DRIVERS[2], 12)
+lap(DRIVERS[2], 12)
+eq(RM.race.state(1), "finished", "and the second driver is in")
+
+do
+  local board = M.lastMessage(0, "race.results")
+  ok(board ~= nil, "the board goes out")
+  local names = {}
+  for _, e in ipairs(board and board.finished or {}) do names[#names + 1] = e.name end
+  eq(table.concat(names, ","), "Alfa,Bravo,Ghost",
+     "two laps first and in their order, one lap last however quick it was")
+  eq(#(board and board.finished or {}), 3, "three rows, not four")
+  local alfa = 0
+  for _, n in ipairs(names) do if n == "Alfa" then alfa = alfa + 1 end end
+  eq(alfa, 1, "the driver written down twice appears once")
+  for _, n in ipairs(names) do ok(n ~= "Delta", "and the stranger is not on it: " .. n) end
+end
+
+RM.race.clear(3)
+RM.results.forget(3)
+for _, d in ipairs(DRIVERS) do RM.results.forget(d.pid) RM.race.clear(d.pid) end
+
+section("kicking a driver who has already finished takes them off the board")
+-- What staff reach for when somebody is sitting on a board they should not
+-- be on. Their run is over, so there is no race to kick them out of, and
+-- the answer used to be "they are not currently in a race" while the name
+-- stayed where it was.
+for _, d in ipairs(DRIVERS) do
+  M.clearOutbox(d.pid)
+  RM.results.forget(d.pid)
+  RM.race.clear(d.pid)
+end
+M.clientSend(0, "race.arm", { id = "loop", mode = "controller", laps = 1 })
+M.clientSend(1, "race.arm", { id = "loop", mode = "controller", laps = 1 })
+tick(1)
+crossAfter(DRIVERS[1], 1, 5)
+for g = 2, 5 do crossAfter(DRIVERS[1], g, 8) end
+crossAfter(DRIVERS[1], 1, 8)
+eq(RM.race.state(0), "finished", "one driver is in, the other still out")
+eq(RM.race.state(1), "armed", "so the board has not gone out")
+
+do
+  local okKick, why = RM.race.kickFromRace(0, 0, "not in this one")
+  ok(okKick, "staff can take the finished driver off it (" .. tostring(why) .. ")")
+end
+
+crossAfter(DRIVERS[2], 1, 5)
+for g = 2, 5 do crossAfter(DRIVERS[2], g, 9) end
+crossAfter(DRIVERS[2], 1, 9)
+do
+  local board = M.lastMessage(1, "race.results")
+  ok(board ~= nil, "the board goes out when the last car is in")
+  local names = {}
+  for _, e in ipairs(board and board.finished or {}) do names[#names + 1] = e.name end
+  eq(table.concat(names, ","), "Bravo", "with only the driver who was not taken off it")
+end
+for _, d in ipairs(DRIVERS) do RM.results.forget(d.pid) RM.race.clear(d.pid) end
+
 section("the class a driver enters follows the run all the way out")
 
 local wrote = RM.racelog.stats().written

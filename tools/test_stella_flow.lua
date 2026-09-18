@@ -151,15 +151,15 @@ ok(has(sounds(), "vcp"), "with the gate sound")
 run(3.2)
 eq(led().color, "off", "and three seconds later the light is out")
 
-section("a gate crossed: green for three seconds, then out again")
+section("a gate crossed: green for a second, then out again")
 status.next, status.done = 3, 2
 run(0.2)
 eq(led().color, "green", "green on the crossing")
 eq(snap().validatedVCPs, 2, "two gates done")
+run(0.6)
+eq(led().color, "green", "still green most of a second later")
 run(1.0)
-eq(led().color, "green", "still green a second later")
-run(2.5)
-eq(led().color, "off", "out after three")
+eq(led().color, "off", "and out after it")
 
 section("the lap line, where the count drops back to one, is a crossing too")
 status.next, status.done = 2, 1
@@ -175,7 +175,7 @@ fromServer("stella.pass.status", { state = "delivered", requestId = 5, aheadName
 eq(flag(), "delivered", "delivered to the car ahead")
 eq(snap().blueFlagPlayer, "Bravo", "with their name")
 eq(led().color, "green", "green lines: it is out there")
-eq(led().pattern, "lines", "lines")
+eq(led().pattern, "all", "lines")
 run(5)
 eq(flag(), "delivered", "waiting on the answer, nothing on the unit times out")
 fromServer("stella.pass.go", { requestId = 5, aheadName = "Bravo" })
@@ -271,19 +271,19 @@ eq(snap().testStep, 1, "and the snapshot carries the step, for the screen to ans
 B.screenSaw()
 ok(notices[#notices]:find("1 of 6", 1, true) ~= nil, "and says so")
 run(2.0)
-eq(led().color, "blue", "two: blue") eq(led().pattern, "lines", "lines")
+eq(led().color, "blue", "two: blue") eq(led().pattern, "all", "lines")
 eq(snap().testStep, 2, "step two")
 run(2.0)
 eq(led().color, "green", "three: green") eq(led().pattern, "all", "all the dots")
 run(2.0)
 eq(snap().speedZoneWarning, true, "four: a zone ahead on the screen")
-eq(led().color, "yellow", "yellow") eq(led().pattern, "limit:37", "spelling 37")
+eq(led().color, "yellow", "yellow") eq(led().pattern, "all", "spelling 37")
 run(2.0)
 eq(snap().speedZoneActive, true, "five: in the zone on the screen")
-eq(led().color, "red", "red") eq(led().flash, false, "steady")
+eq(led().color, "yellow", "yellow, holding the limit") eq(led().flash, false, "solid")
 run(2.0)
 eq(snap().speedExceeding, true, "six: over the limit on the screen")
-eq(led().flash, true, "red flashing")
+eq(led().color, "red", "red over the limit")
 run(2.0)
 eq(snap().speedZoneActive, false, "over: no zone")
 eq(led().color, "off", "dots out")
@@ -305,7 +305,7 @@ section("every change of the light went up to the server, with why")
 ok(countSent("stella.trace") >= 6, ("at least one a step (%d)"):format(countSent("stella.trace")))
 local gateTraced = false
 for _, m in ipairs(sent) do
-  if m.ch == "stella.trace" and type(m.d) == "table" and tostring(m.d.text):find("green all flashing: gate", 1, true) then gateTraced = true end
+  if m.ch == "stella.trace" and type(m.d) == "table" and tostring(m.d.text):find("green all: gate", 1, true) then gateTraced = true end
 end
 ok(gateTraced, "the gate's green among them")
 

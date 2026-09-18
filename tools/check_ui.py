@@ -321,7 +321,7 @@ def main():
           "a bar lost its rm-move, so it cannot be dragged")
     check("stop the car to use these" not in html,
           "the bottom bar says stop the car again, and grows to say it")
-    check('ng-if="raceRunning() && dash.clock"' in html,
+    check('raceRunning() && dash.clock' in html,
           "the clock over the road is back on without being asked for")
     check("topLabel(b)" in html and "$scope.topLabel" in js,
           "the Race button no longer turns into End race during a run")
@@ -340,18 +340,21 @@ def main():
     bs = read("client/lua/ge/extensions/raceManager/stellaUnit.lua")
     bridge = read("client/lua/ge/extensions/raceManager/stella.lua")
     stella_ui = read("client/ui/modules/apps/RaceManagerStella/app.js")
-    check('setLed("yellow", true, limitPattern(zone),' in bs,
-          "a zone ahead no longer flashes the limit in yellow on the Stella")
-    check('setLed("red", lastExceeding, limitPattern(zone),' in bs,
-          "inside a zone the Stella no longer sits red with the limit, flashing when over")
+    # His unit is solid colour across the whole grid, not flashing digits:
+    # yellow for a zone ahead or held, red for over it, and the number
+    # itself on the LCD rather than spelled in dots.
+    check('setLed("yellow", false, "all",' in bs,
+          "a zone no longer lights the Stella solid yellow")
+    check('setLed("red", false, "all",' in bs,
+          "going over the limit no longer lights the Stella solid red")
     # a zone the car is in sits above every pass state and a car close by;
     # a zone ahead sits above a pass of your own
     order = [bs.find(m) for m in ('elseif zoneIn then', 'blueFlag.state == "incoming"', 'elseif proximity then',
                                   'elseif zoneAhead then', 'blueFlag.state == "delivered"')]
     check(all(o >= 0 for o in order) and order == sorted(order),
           "the Stella's zone colours sit under a pass or a car close by again")
-    check('setLed("green", true, "all", "gate")' in bs,
-          "a gate no longer flashes the dots green")
+    check('setLed("green", false, "all", "gate")' in bs,
+          "a gate no longer lights the dots green")
     check("if (Date.now() - lastHookAt < 1000) return;" in stella_ui,
           "the poll no longer stands aside while the hook flows")
     check("d.ledColor == null) return;" in stella_ui,
@@ -369,6 +372,11 @@ def main():
           "the bridge judges a box by where the car's nose points again")
     check("boxId ~= leftBoxId" in bridge and 'lastZoneKey:match("^box:(.+)$")' in bridge,
           "the box just driven through no longer stays quiet until the car is clear of it")
+    # the unit shows whatever it is told is coming, so the distance rule has
+    # to hold for a gate zone as well as a box
+    check("local d = metresTo(position(checkpoint(track, upcoming.z.from)))" in bridge
+          and "d <= WARN_M" in bridge,
+          "a gate zone is announced from anywhere on the course again")
     # a box whose limit cannot be read is still a box; showing nothing at all
     # is a zone the driver cannot see
     check("local function boxLimit(b)" in bridge and "DEFAULT_BOX_MPH" in bridge
